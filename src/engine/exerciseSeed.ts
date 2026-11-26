@@ -92,7 +92,7 @@ export const SEED_PROFILES: ExerciseProfile[] = (() => {
 })()
 
 /** Versão do banco: quando muda, aparelhos já instalados recebem os exercícios novos. */
-export const SEED_VERSION = 4
+export const SEED_VERSION = 5
 
 /** Heurística offline usada só quando IA indisponível (marcada como 'heuristic' para revisão). */
 export function heuristicProfile(name: string, activeGroups: string[]): ExerciseProfile {
@@ -135,17 +135,22 @@ export function heuristicProfile(name: string, activeGroups: string[]): Exercise
  * os auxiliares contam uma fração. Assim leg press, agachamento, búlgaro e afundo também
  * somam glúteo; supino soma tríceps; remada soma bíceps.
  */
-const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo'
-// [nome, músculos principais em que vale, auxiliares]
-const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
-  // sumô: amplitude maior, abaixo de 90° entra o glúteo (acima, quadríceps) → os dois por igual
-  [/(sumo|afastad|pes abertos)/, [Q, P], [{ group: G, share: 1 }]],
-  // búlgaro: quadríceps e glúteo por igual
+const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo', AD = 'Adutores'
+// [nome, músculos principais em que vale, auxiliares, exceto quando o nome tiver]
+// Base: Kubo 2019 (agachamento: adutores e glúteo cresceram, posterior não), Maeo et al. (leg press:
+// adutor magno +6,2% e glúteo máximo), Plotkin 2023 (hip thrust/agachamento: posterior ~0;
+// agachamento > hip thrust em adutores), base larga/sumô ↑ adutor longo (EMG).
+const SECONDARY: [RegExp, string[], { group: string; share: number }[], RegExp?][] = [
+  // sumô / base larga: amplitude maior (glúteo abaixo de 90°) e mais adutores
+  [/(sumo|afastad|pes abertos|base larga)/, [Q, P], [{ group: G, share: 1 }, { group: AD, share: 0.75 }]],
+  // búlgaro: quadríceps e glúteo por igual (sem dado de adutores)
   [/bulgaro/, [Q], [{ group: G, share: 1 }]],
-  // afundo/passada/avanço: mais quadríceps que glúteo; leg/hack/agachamento: glúteo auxiliar
-  [/(leg|hack|agach|squat|afundo|passada|avanco|lunge|step|subida|pistol|belt|pendul)/, [Q], [{ group: G, share: 0.5 }]],
+  // agachamento, leg press, hack: glúteo e adutores auxiliares
+  [/(leg|hack|agach|squat|belt|pendul)/, [Q], [{ group: G, share: 0.5 }, { group: AD, share: 0.5 }], /bulgaro|afundo|passada|avanco|lunge/],
+  // afundo/passada/avanço/subida: mais quadríceps que glúteo
+  [/(afundo|passada|avanco|lunge|step|subida|pistol)/, [Q], [{ group: G, share: 0.5 }]],
   [/(stiff|terra|good morning|rdl|romeno)/, [P], [{ group: G, share: 0.5 }]],
-  // elevação pélvica: sem posterior (Plotkin 2023: posteriores praticamente não cresceram com hip thrust nem agachamento)
+  // elevação pélvica: sem posterior (Plotkin 2023)
   [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
   [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.5 }]],
   [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.5 }]],
@@ -157,8 +162,8 @@ const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
 export function muscleShares(name: string, primary: string): { group: string; share: number }[] {
   const k = normalizeKey(name)
   const out: { group: string; share: number }[] = [{ group: primary, share: 1 }]
-  for (const [re, primaries, list] of SECONDARY) {
-    if (!primaries.includes(primary) || !re.test(k)) continue
+  for (const [re, primaries, list, except] of SECONDARY) {
+    if (!primaries.includes(primary) || !re.test(k) || except?.test(k)) continue
     // cada músculo entra uma vez: no sumô/búlgaro o glúteo já entrou inteiro (não soma os 0,5 do leg/agachamento)
     for (const x of list) if (x.group !== primary && !out.some((o) => o.group === x.group)) out.push(x)
   }
