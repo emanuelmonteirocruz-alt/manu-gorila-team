@@ -151,9 +151,10 @@ const SECONDARY: [RegExp, string[], { group: string; share: number }[], RegExp?]
   [/(afundo|passada|avanco|lunge|step|subida|pistol)/, [Q], [{ group: G, share: 0.5 }]],
   [/(stiff|terra|good morning|rdl|romeno)/, [P], [{ group: G, share: 0.5 }]],
   // elevação pélvica: sem posterior (Plotkin 2023)
-  [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
-  [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.5 }]],
-  [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.5 }]],
+  // empurrar: o trabalho é do músculo principal; auxiliares com peso baixo (senão parece que só treinou tríceps)
+  [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.25 }, { group: 'Ombro', share: 0.1 }]],
+  [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.25 }]],
+  [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.25 }]],
   // remada/puxada: costas trabalha muito mais que bíceps (no máximo 30%)
   [/(remada|puxada|pulley|barra fixa|pull up|chin|serrote)/, ['Costas'], [{ group: 'Bíceps', share: 0.3 }]],
 ]
