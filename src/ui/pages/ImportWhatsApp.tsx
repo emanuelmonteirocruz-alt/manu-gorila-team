@@ -1,0 +1,182 @@
+import { useLiveQuery } from 'dexie-react-hooks'
+import { BookOpen, Download, History as HistoryIcon, Save } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { db, getKV, setKV } from '../../data/db'
+import { importWhatsApp, resetTimeline, whatsappInWeeks } from '../../data/repo'
+import { getBrand, type Brand } from '../../data/brand'
+import { drawPreview } from '../../pdf/charts'
+import { sharePdf, templateA, templateE } from '../../pdf/templates'
+import type { jsPDF } from 'jspdf'
+import { buildWeek, buildWeeksCompare, listWeeks, suggestWeekFor } from '../../data/reportData'
+import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
+import { hasWhatsAppHeaders, parsePlainTrainings, parseWhatsAppTrainings, regroupByDate } from '../../parser/whatsapp'
+import { ConfirmButton, StudentSelect } from '../components/common'
+import { ConsultancyBar } from '../components/ConsultancyBar'
+
+const PLACEHOLDER = `Cole aqui as mensagens do WhatsApp (pode colar várias semanas de uma vez):
+
+[08/11, 21:44] Emanuel Monteiro: *Treino A*
+Leg45 2x15 aquecimento + 4x8 Carga alta
+Extensora 3x12
+*Treino B*
+Supino reto 4x8
+...
+[22/11, 20:10] Emanuel Monteiro: *Treino A* ...
+
+Também aceita texto sem cabeçalho (Treino A / Treino B ou linha em branco).`
+
+export default function ImportWhatsApp() {
+  const [params] = useSearchParams()
+  const [studentId, setStudentId] = useState(params.get('aluno') ?? '')
+  const [raw, setRaw] = useState('')
+  const [readText, setReadText] = useState('') // texto lido no "Ler Treinos" (passo 2 → passo 3)
+  const student = useLiveQuery(() => (studentId ? db.students.get(studentId) : undefined), [studentId])
+  const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
+  const [msg, setMsg] = useState<string | null>(null)
+  const today = toISODate(new Date())
+  const headers = useMemo(() => hasWhatsAppHeaders(readText || raw), [readText, raw])
+  // cada bloco colado (uma mensagem = A, B, C, D) vai para UMA semana. Padrão: mandado no domingo = semana seguinte.
+  const [blockWeek, setBlockWeek] = useState<Record<string, string>>({})
+  const [imported, setImported] = useState<{ n: number; wk: string } | null>(null)
+  const [graph, setGraph] = useState<{ title: string; name: string; make: () => jsPDF } | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  useEffect(() => {
+    if (graph && canvasRef.current) drawPreview(canvasRef.current, graph.make)
+  }, [graph])
+  const parsed = useMemo(() => {
+    if (!readText) return []
+    return headers ? parseWhatsAppTrainings(readText, { trainerName }) : parsePlainTrainings(readText, today)
+  }, [readText, trainerName, headers, today])
+  // blocos = data da mensagem (texto sem cabeçalho = um bloco só)
+  const blocks = useMemo(() => {
+    const m = new Map<string, typeof parsed>()
+    for (const t of parsed) m.set(t.date, [...(m.get(t.date) ?? []), t])
+    return [...m.entries()].map(([msgDate, trainings]) => ({ msgDate, trainings, week: blockWeek[msgDate] ?? suggestWeekFor(msgDate) }))
+  }, [parsed, blockWeek])
+  // todos os treinos do bloco ficam na segunda-feira da semana escolhida, na ordem A, B, C, D
+  const flat = useMemo(() => blocks.flatMap((b) => b.trainings.map((t) => ({ ...t, date: b.week, week: b.week }))), [blocks])
+  const weeks = useMemo(() => regroupByDate(flat), [flat])
+  const total = flat.length
+  const weekKey = weeks.map((w) => w.week).join(',')
+  const existing = useLiveQuery(async () => {
+    const st = studentId ? await db.students.get(studentId) : undefined
+    return st && weekKey ? (await whatsappInWeeks(st, weekKey.split(','))).length : 0
+  }, [studentId, weekKey]) ?? 0
+
+  async function doImport() {
+    const fresh = await db.students.get(studentId)
+    if (!fresh) return setMsg('Selecione o aluno.')
+    const n = await importWhatsApp(fresh, weeks, true)
+    const wk = weeks[weeks.length - 1].week
+    // na hora: semana nova × semana anterior salva (ou só a semana, se for a primeira)
+    const brand: Brand = await getBrand()
+    const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality }
+    const prevWk = (await listWeeks(fresh)).find((w) => w.wk < wk)?.wk
+    if (prevWk) {
+      const c = await buildWeeksCompare(fresh, prevWk, wk)
+      setGraph({ title: `Semana de ${fmtBR(prevWk)} × semana de ${fmtBR(wk)}`, name: `semanas-${fresh.full_name.split(' ')[0].toLowerCase()}-${prevWk}-x-${wk}.pdf`, make: () => templateA(c.before, c.after, o, c.perTraining) })
+    } else {
+      const w = await buildWeek(fresh, wk)
+      setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, o) })
+    }
+    setImported({ n, wk })
+    setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas`}.`)
+    setRaw('')
+    setReadText('')
+    setBlockWeek({})
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div><h1>Consultoria Online — colar do WhatsApp</h1><div className="muted">1 · selecione o aluno → 2 · cole e leia os treinos → 3 · confira a semana e salve (a comparação com a semana anterior sai na hora)</div></div>
+      </div>
+      <section className="step card grid">
+        <div className="step-head"><span className="step-n">1</span>Selecionar aluno</div>
+        <div className="grid cols-2">
+          <StudentSelect value={studentId} onChange={(id) => { setStudentId(id); setMsg(null); setGraph(null); setImported(null) }} modality="online" />
+          <label className="f">Remetente do treinador (opcional)
+            <input defaultValue={trainerName} onBlur={(e) => setKV('trainer_name', e.target.value)} />
+          </label>
+        </div>
+        {student && <ConsultancyBar student={student} />}
+        {student && (
+          <div className="row">
+            <ConfirmButton label="Novo Aluno (Zerar Base)" confirmLabel="Confirmar: começar a linha do tempo do zero" onConfirm={async () => { await resetTimeline(student); setMsg('Base zerada: os próximos treinos salvos começam uma linha do tempo nova.') }} />
+          </div>
+        )}
+      </section>
+
+      <section className="step card grid">
+        <div className="step-head"><span className="step-n">2</span>Colar a mensagem do WhatsApp</div>
+        <textarea className="code" style={{ minHeight: 300 }} placeholder={PLACEHOLDER} value={raw} onChange={(e) => setRaw(e.target.value)} />
+        <div className="row">
+          <button className="btn primary big" disabled={!raw.trim()} onClick={() => { setReadText(raw); setBlockWeek({}); setMsg(null) }}><BookOpen size={16} strokeWidth={1.8} /> Ler Treinos</button>
+          {readText && raw !== readText && <span className="muted">O texto mudou — toque em Ler Treinos de novo.</span>}
+        </div>
+        {readText && !total && <div className="alert warn">Nenhum treino reconhecido no texto colado. Confira se há séries (ex.: 4x10, 3x8 a 12, 15/12/10).</div>}
+      </section>
+
+      <section className="step card grid">
+        <div className="step-head"><span className="step-n">3</span>Conferir e salvar</div>
+        {!total && !graph && <div className="muted">Os treinos lidos aparecem aqui, organizados por bloco (data).</div>}
+        <div className="grid">
+          {blocks.map((b, bi) => (
+            <div key={b.msgDate} className="card grid" style={{ background: 'var(--panel-2)' }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
+                <h2 style={{ margin: 0 }}>{blocks.length > 1 ? `Bloco ${bi + 1} · ` : ''}{b.trainings.map((t) => t.label.replace('Treino ', '')).join(', ')} <span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>({b.trainings.length} treinos{headers ? ` · mensagem de ${fmtBR(b.msgDate)}` : ''})</span></h2>
+                <label className="f" style={{ minWidth: 200 }}>Semana do treino
+                  <input type="date" className="wa-week" value={b.week} onChange={(e) => e.target.value && setBlockWeek((o) => ({ ...o, [b.msgDate]: weekStart(e.target.value) }))} />
+                  <span className="muted">Semana de {fmtBR(b.week)} a {fmtBR(addDays(b.week, 6))}</span>
+                </label>
+              </div>
+              <div className="wa-cards">
+                {b.trainings.map((t, ti) => {
+                  const valid = t.exercises.reduce((a, e) => a + e.validSets * e.names.length, 0)
+                  const warm = t.exercises.reduce((a, e) => a + e.warmupSets * e.names.length, 0)
+                  return (
+                    <div key={ti} className="wa-card">
+                      <b>{t.label}</b>
+                      <div className="set-sum">{valid} séries válidas{warm ? ` • ${warm} aquec. fora da conta` : ''}</div>
+                      <table className="t"><tbody>
+                        {t.exercises.map((e, i) => (
+                          <tr key={i}>
+                            <td>{e.names.join(' + ')}{e.names.length > 1 && <span className="tag" style={{ marginLeft: 6 }}>bi-set</span>}{e.notes ? <div className="muted">{e.notes}</div> : null}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>{e.validSets * e.names.length} válidas{e.warmupSets ? <span className="muted"> · {e.warmupSets * e.names.length} aquec.</span> : ''}{e.dropSet ? <span className="muted"> · drop</span> : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                      {t.ignoredLines.length > 0 && <div className="muted">Ignorado: {t.ignoredLines.join(' · ')}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        {total > 0 && existing > 0 && <div className="alert warn">Já existem {existing} treinos colados nessa semana para este aluno. Ao salvar, eles serão substituídos por estes.</div>}
+        {total > 0 && (
+          <div className="row">
+            <button className="btn primary big" disabled={!studentId} onClick={doImport}><Save size={16} strokeWidth={1.8} /> {existing ? 'Substituir e salvar' : 'Salvar no histórico'} ({total} treinos)</button>
+            {!studentId && <span className="muted">Selecione o aluno no passo 1.</span>}
+          </div>
+        )}
+        {msg && <div className="alert ok">{msg}</div>}
+        {graph && (
+          <div className="card grid">
+            <b>{graph.title}</b>
+            <canvas ref={canvasRef} className="pdf-preview" aria-label="Comparação semanal" />
+            <div className="row">
+              <button className="btn ok" onClick={() => sharePdf(graph.make(), graph.name)}><Download size={16} strokeWidth={1.8} /> Enviar / baixar PDF</button>
+              {imported && student && <>
+                <Link className="btn" to={`/relatorios?aluno=${student.id}&tpl=W&semana2=${imported.wk}`}>Escolher outras semanas</Link>
+                <Link className="btn" to={`/historico?aluno=${student.id}`}><HistoryIcon size={16} strokeWidth={1.8} /> Ver no histórico</Link>
+              </>}
+            </div>
+          </div>
+        )}
+      </section>
+    </>
+  )
+}
