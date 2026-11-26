@@ -81,7 +81,7 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: student.modality, challenge: student.modality === 'online' ? await challengeBase(student) : undefined }
       const bests = await previousBests(student.id, session)
       const ex = await treinoDoDiaExtras(student, session)
-      const o2 = student.modality === 'online' ? o : { ...o, phase: ex.phase, challenge: ex.challenge }
+      const o2 = student.modality === 'online' ? { ...o, cardio: ex.cardio } : { ...o, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }
       const make = () => templateD(session, lookup, pse, o2, bests, ex.last)
       if (alive) setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
     })()

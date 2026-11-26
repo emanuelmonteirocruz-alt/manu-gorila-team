@@ -2,7 +2,7 @@
  * Repositório de alto nível — junta banco local + motor de cálculo.
  */
 import { db, getKV, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
-import type { Anamnese, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
+import type { Anamnese, CardioEntry, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
 import { aggregateSessions, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
 import { resolveProfiles } from '../engine/classifier'
 import type { ParsedExerciseLine } from '../engine/prescription'
@@ -35,12 +35,13 @@ export async function deleteSession(sessionId: string) {
 export async function deleteStudent(studentId: string) {
   const sessions = await db.sessions.where('student_id').equals(studentId).toArray()
   const sessionIds = sessions.map((x) => x.id)
-  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts, db.anamneses], async () => {
+  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts, db.anamneses, db.cardio], async () => {
     for (const r of await db.ratings.where('session_id').anyOf(sessionIds).toArray()) await softDelete(db.ratings, r.id)
     for (const x of sessions) await softDelete(db.sessions, x.id)
     for (const c of await db.checkins.where('student_id').equals(studentId).toArray()) await softDelete(db.checkins, c.id)
     for (const w of await db.weekContexts.where('student_id').equals(studentId).toArray()) await softDelete(db.weekContexts, w.id)
     for (const an of await db.anamneses.where('student_id').equals(studentId).toArray()) await softDelete(db.anamneses, an.id)
+    for (const c of await db.cardio.where('student_id').equals(studentId).toArray()) await softDelete(db.cardio, c.id)
     await softDelete(db.students, studentId)
   })
 }
@@ -259,8 +260,9 @@ export async function lastLoads(studentId: string, session: Pick<Session, 'id' |
 }
 
 /** Extras do PDF "Treino do Dia" presencial: fase da semana, nível de estímulo e carga da última vez por exercício. */
-export async function treinoDoDiaExtras(student: Student, session: Session): Promise<{ phase: Session['planned_microcycle']; challenge?: { baseSession: number; baseWeek: string; byLabel: Record<string, number> }; last: Record<string, number> }> {
-  if (student.modality === 'online') return { phase: null, last: {} }
+export async function treinoDoDiaExtras(student: Student, session: Session): Promise<{ phase: Session['planned_microcycle']; challenge?: { baseSession: number; baseWeek: string; byLabel: Record<string, number> }; last: Record<string, number>; cardio: CardioSummary }> {
+  const cardio = await cardioSummary(student.id, session.date, session.date)
+  if (student.modality === 'online') return { phase: null, last: {}, cardio }
   const ctx = await getWeekContext(student.id, weekStart(session.date))
   const { challengeBase } = await import('./reportData')
   const ll = await lastLoads(student.id, session)
@@ -268,6 +270,7 @@ export async function treinoDoDiaExtras(student: Student, session: Session): Pro
     phase: ctx?.final_microcycle ?? session.planned_microcycle ?? ctx?.planned_microcycle ?? null,
     challenge: await challengeBase(student),
     last: Object.fromEntries(Object.entries(ll).map(([k, v]) => [k, v.peak])),
+    cardio,
   }
 }
 
@@ -285,4 +288,39 @@ export async function getAnamnese(studentId: string): Promise<Anamnese | undefin
 export async function saveAnamnese(studentId: string, answers: Record<string, string>, raw_text?: string | null): Promise<Anamnese> {
   const cur = await db.anamneses.where('student_id').equals(studentId).first()
   return save(db.anamneses, { id: cur?.id ?? uid(), student_id: studentId, answers, raw_text: raw_text ?? cur?.raw_text ?? null, created_at: cur?.created_at ?? nowISO(), updated_at: nowISO(), _deleted: 0 })
+}
+
+// ---------------- Cardio (acréscimo) ----------------
+/** Peso para o gasto calórico: o da ficha; sem ele, o da anamnese ("Peso atual"); sem nada, null. */
+export async function studentWeight(student: Student): Promise<number | null> {
+  if (student.weight_kg) return student.weight_kg
+  const an = await getAnamnese(student.id)
+  if (an) {
+    const { parseTemplate } = await import('../consultoria/anamneseTemplate')
+    const qs = parseTemplate(await anamneseTemplateText()).flatMap((s) => s.questions)
+    const q = qs.find((x) => x.field === 'peso')
+    const m = q ? (an.answers[q.id] ?? '').replace(',', '.').match(/(\d{2,3}(?:\.\d)?)/) : null
+    if (m) return Number(m[1])
+  }
+  return null
+}
+
+export async function cardioOf(studentId: string, from?: string, to?: string): Promise<CardioEntry[]> {
+  const all = await db.cardio.where('student_id').equals(studentId).toArray()
+  return all.filter((c) => !c._deleted && (!from || c.date >= from) && (!to || c.date <= to)).sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at))
+}
+
+export interface CardioSummary { kcal: number; minutes: number; sessions: number; days: number }
+export async function cardioSummary(studentId: string, from: string, to: string): Promise<CardioSummary> {
+  const list = await cardioOf(studentId, from, to)
+  return {
+    kcal: Math.round(list.reduce((a, c) => a + (c.kcal ?? 0), 0)),
+    minutes: Math.round(list.reduce((a, c) => a + c.minutes, 0)),
+    sessions: list.length,
+    days: new Set(list.map((c) => c.date)).size,
+  }
+}
+
+export async function saveCardio(entry: Omit<CardioEntry, 'id' | 'created_at' | 'updated_at'> & { id?: string }): Promise<CardioEntry> {
+  return save(db.cardio, { ...entry, id: entry.id ?? uid(), created_at: nowISO(), updated_at: nowISO() } as CardioEntry)
 }

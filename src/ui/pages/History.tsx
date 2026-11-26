@@ -119,8 +119,8 @@ function HistoryRow({ s, agg, pse, showStudent, student, open, onToggle, hideKg,
               <button className="btn" onClick={async () => {
                 const st = await db.students.get(s.student_id)
                 const lookup = await profileLookup()
-                const ex = st ? await treinoDoDiaExtras(st, s) : { phase: null, challenge: undefined, last: {} }
-                const d = templateD(s, lookup, pse, { studentName: st?.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: st?.modality, phase: ex.phase, challenge: ex.challenge }, await previousBests(s.student_id, s), ex.last)
+                const ex = st ? await treinoDoDiaExtras(st, s) : { phase: null, challenge: undefined, last: {}, cardio: null }
+                const d = templateD(s, lookup, pse, { studentName: st?.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: st?.modality, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }, await previousBests(s.student_id, s), ex.last)
                 await sharePdf(d, `treino-${(st?.full_name ?? 'aluno').split(' ')[0].toLowerCase()}-${s.date}.pdf`)
               }}><FileText size={16} strokeWidth={1.8} /> PDF do treino</button>
               <ConfirmButton label="Excluir treino" confirmLabel="Confirmar exclusão do treino" onConfirm={() => softDelete(db.sessions, s.id)} />

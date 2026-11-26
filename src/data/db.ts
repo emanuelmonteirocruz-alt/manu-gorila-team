@@ -4,7 +4,7 @@
  */
 import Dexie, { type Table } from 'dexie'
 import type {
-  Anamnese, DailyCheckin, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
+  Anamnese, CardioEntry, DailyCheckin, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
 } from '../domain/types'
 import { SEED_PROFILES, SEED_VERSION, heuristicProfile } from '../engine/exerciseSeed'
 
@@ -23,6 +23,7 @@ class TreinoDB extends Dexie {
   links!: Table<ExerciseLink, string>
   kv!: Table<KV, string>
   anamneses!: Table<Anamnese, string>
+  cardio!: Table<CardioEntry, string>
 
   constructor() {
     super('em-treino')
@@ -38,6 +39,8 @@ class TreinoDB extends Dexie {
     })
     // v2 (acréscimo): anamnese da consultoria
     this.version(2).stores({ anamneses: 'id, student_id, _dirty' })
+    // v3 (acréscimo): cardio
+    this.version(3).stores({ cardio: 'id, student_id, date, [student_id+date], _dirty' })
     this.on('populate', (tx) => {
       tx.table('exerciseCache').bulkAdd(SEED_PROFILES)
     })

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { jsPDF } from 'jspdf'
 import { db } from '../../data/db'
 import { getBrand } from '../../data/brand'
-import { previousBests, treinoDoDiaExtras, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
+import { cardioSummary, previousBests, treinoDoDiaExtras, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { sharePdf, templateA, templateC, templateD, templateE, templateL } from '../../pdf/templates'
 import { buildBeforeAfter, buildLoadProgress, challengeBase, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
@@ -72,7 +72,8 @@ export default function Reports() {
       name = `semanas-${first}-${b}-x-${a}.pdf`
     } else if (tpl === 'E') {
       const w = await buildWeek(s, single)
-      make = () => templateE(w.wk, w.items, w.cur, w.prev, o)
+      const cardio = await cardioSummary(s.id, w.wk, addDays(w.wk, 6))
+      make = () => templateE(w.wk, w.items, w.cur, w.prev, { ...o, cardio })
       name = `semana-${first}-${w.wk}.pdf`
     } else if (tpl === 'D') {
       const sess = sessions.find((x) => x.id === sessionId) ?? sessions[0]
@@ -82,7 +83,7 @@ export default function Reports() {
       const lookup = await profileLookup()
       const bests = await previousBests(s.id, sess)
       const ex = await treinoDoDiaExtras(s, sess)
-      const oD = s.modality === 'online' ? o : { ...o, phase: ex.phase, challenge: ex.challenge }
+      const oD = s.modality === 'online' ? { ...o, cardio: ex.cardio } : { ...o, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }
       make = () => templateD(sess, lookup, pse, oD, bests, ex.last)
       name = `treino-${first}-${sess.date}.pdf`
     } else {
@@ -97,7 +98,8 @@ export default function Reports() {
       const pts = await weekPoints(s, weeksBetween(from, to))
       const lifts = await keyLifts(s, from, to)
       const label = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      make = () => templateC(`${label} · ${fmtBR(from)} a ${fmtBR(to)}`, lifts, pts.filter((p) => p.agg.sessions > 0), o)
+      const cardio = await cardioSummary(s.id, from, to)
+      make = () => templateC(`${label} · ${fmtBR(from)} a ${fmtBR(to)}`, lifts, pts.filter((p) => p.agg.sessions > 0), { ...o, cardio })
       name = `resumo-mensal-${first}-${month}.pdf`
     }
     setDoc({ d: make(), name, draw: make })

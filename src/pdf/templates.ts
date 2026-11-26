@@ -33,6 +33,8 @@ export interface ReportOptions {
   challenge?: { baseSession: number; baseWeek: string; byLabel?: Record<string, number> }
   /** fase (microciclo) da semana do treino, para o selo "Fase atual" */
   phase?: Microcycle | null
+  /** cardio do período (dia, semana ou mês do relatório): entra no quadro de calorias */
+  cardio?: { kcal: number; minutes: number; sessions: number; days: number } | null
 }
 
 /** Nomes das fases para o ALUNO (os relatórios valorizam a evolução; o app continua com ordinária/choque/regenerativa). */
@@ -50,11 +52,13 @@ const nm = (o: ReportOptions) => (o.showName ? o.studentName : undefined)
  * não são confiáveis. Os PDFs da consultoria mostram só VOLUME (séries, séries/treino, treinos, grupos).
  */
 let VOLUME_ONLY = false
+let CARDIO: ReportOptions['cardio'] = null
 function start(o: ReportOptions): jsPDF {
   applyBrand(o.brand)
   VOLUME_ONLY = o.modality === 'online'
   CH_BASE = o.challenge?.baseSession
   CH_LABEL = o.challenge?.byLabel ?? {}
+  CARDIO = o.cardio && o.cardio.sessions > 0 ? o.cardio : null
   return newDoc()
 }
 // grupos realmente trabalhados (músculo auxiliar com pouca fração não conta como "grupo do treino")
@@ -228,6 +232,17 @@ function kcalCard(d: jsPDF, y: number, kcal: number, fatG: number, sessions = 1)
   iconDrop(d, x + 14, y + 25, 15, C.fat)
   text(d, `${fmtNum(fatG)} g`, x + 28, y + 30, { size: 16, bold: true, c: C.ink })
   text(d, 'gordura', x + 28, y + 42, { size: 6.5, c: C.sub })
+  if (CARDIO) {
+    // linha do cardio: kcal, sessões/dias, minutos e o total (treino + cardio)
+    const cy = y + 56
+    card(d, PAGE.m, cy, W, 40, C.zone.choque)
+    text(d, 'CARDIO', PAGE.m + 12, cy + 15, { size: 6, bold: true, c: C.sub })
+    text(d, `${fmtNum(CARDIO.kcal)} kcal`, PAGE.m + 12, cy + 31, { size: 13, bold: true, c: C.heavy })
+    text(d, `${CARDIO.sessions} ${CARDIO.sessions === 1 ? 'sessão' : 'sessões'}${CARDIO.days > 1 ? ` em ${CARDIO.days} dias` : ''} · ${fmtNum(CARDIO.minutes)} min`, PAGE.m + 92, cy + 30, { size: 7.5, c: C.ink })
+    text(d, 'TOTAL TREINO + CARDIO', PAGE.m + W - 12, cy + 15, { size: 6, bold: true, c: C.sub, align: 'right' })
+    text(d, `${fmtNum(kcal + CARDIO.kcal)} kcal`, PAGE.m + W - 12, cy + 31, { size: 13, bold: true, c: C.ink, align: 'right' })
+    return cy + 46
+  }
   return y + 58
 }
 
@@ -313,8 +328,8 @@ function profileSection(d: jsPDF, y: number, a: Aggregate): number {
 
 /** Fecha a página: perfil (se couber) e o card de calorias logo após o conteúdo. */
 function finish(d: jsPDF, y: number, a: Aggregate, sessions: number, withProfile = true) {
-  if (withProfile && y + 48 + 64 <= BOTTOM) y = profileSection(d, y + 4, a)
-  kcalCard(d, Math.min(y + 6, BOTTOM - 52), a.kcal, a.fatGrams, sessions)
+  if (withProfile && y + 48 + 64 + (CARDIO ? 44 : 0) <= BOTTOM) y = profileSection(d, y + 4, a)
+  kcalCard(d, Math.min(y + 6, BOTTOM - (CARDIO ? 96 : 52)), a.kcal, a.fatGrams, sessions)
 }
 
 /** Altura ideal das linhas de barras para caber no espaço restante. */

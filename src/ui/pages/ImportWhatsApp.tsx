@@ -3,7 +3,7 @@ import { BookOpen, ClipboardCopy, Download, History as HistoryIcon, Save, Send }
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { db, getKV, setKV } from '../../data/db'
-import { importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
+import { cardioSummary, importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
 import { nextChangeAfter } from '../../domain/plan'
 import { effortMessage, itemPoints, techniquesOf, TECHNIQUES, ZONE_LABEL, zoneOf } from '../../engine/effortGuide'
 import { getBrand, type Brand } from '../../data/brand'
@@ -115,7 +115,8 @@ export default function ImportWhatsApp() {
       setGraph({ title: `Semana de ${fmtBR(prevWk)} × semana de ${fmtBR(wk)}`, name: `semanas-${fresh.full_name.split(' ')[0].toLowerCase()}-${prevWk}-x-${wk}.pdf`, make: () => templateA(c.before, c.after, o, c.perTraining) })
     } else {
       const w = await buildWeek(fresh, wk)
-      setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, o) })
+      const wkCardio = await cardioSummary(fresh.id, w.wk, addDays(w.wk, 6))
+      setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, { ...o, cardio: wkCardio }) })
     }
     setImported({ n, wk, text: flat.filter((t) => t.week === wk).map((t) => `*${t.label}*\n${t.rawText.trim()}`).join('\n\n') })
     setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas (${weeks.map((w) => fmtBR(w.week).slice(0, 5)).join(', ')})`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, latest))}.` : ''}`)

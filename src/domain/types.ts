@@ -41,6 +41,7 @@ export interface Student extends SyncMeta {
   plan_period?: 'mensal' | 'quinzenal' | 'semanal' | null // consultoria: periodicidade do plano
   next_change_date?: string | null // consultoria: data da próxima troca de treino
   emphasis?: string[] | null // ênfase do plano definida pelo treinador (relatórios e montagem automática)
+  weight_kg?: number | null // peso (kg) para o gasto calórico do cardio
   training_level?: TrainingLevel | null // consultoria: nível de treino (quanto método/intensidade a montagem usa)
   plan_value?: number
   hourly_rate?: number | null
@@ -184,4 +185,20 @@ export const SLEEP_LABEL: Record<SleepQuality, string> = {
   bem: 'Dormiu bem',
   mal: 'Dormiu mal',
   irregular: 'Sono irregular',
+}
+
+/** Cardio feito pelo aluno (consultoria ou presencial): kcal calculada por MET × peso × tempo. */
+export interface CardioEntry extends SyncMeta {
+  id: string
+  student_id: string
+  date: string // YYYY-MM-DD
+  kind: 'esteira' | 'bicicleta' | 'escada' | 'eliptico'
+  minutes: number
+  km?: number | null
+  intensity?: 'leve' | 'moderada' | 'intensa' | null
+  incline?: number | null
+  met?: number | null
+  kcal?: number | null
+  notes?: string | null
+  created_at: string
 }

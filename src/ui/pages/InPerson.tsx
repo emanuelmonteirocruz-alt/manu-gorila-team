@@ -20,6 +20,7 @@ import type { jsPDF } from 'jspdf'
 import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
+import { CardioPanel } from '../components/CardioPanel'
 import { topSetText } from '../format'
 import { detectMuscleGroups } from '../../engine/sessionGroups'
 import { normalizeKey } from '../../engine/exerciseSeed'
@@ -440,7 +441,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     setResult({ level: classifySessionLevel(pse, agg, c), alert: divergenceAlert(session.planned_microcycle, pse, c), kcal: agg.kcal, fatGrams: agg.fatGrams })
     // PDF do treino já pronto ao encerrar: o aluno está na sua frente
     const ex = await treinoDoDiaExtras(student, session)
-    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, phase: ex.phase, challenge: ex.challenge }
+    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }
     const bests = await previousBests(student.id, session)
     const make = () => templateD(session, lookup, pse, o, bests, ex.last)
     setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
@@ -635,6 +636,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           })}
           {!session.exercises.length && <div className="muted">Dite o primeiro exercício no microfone.</div>}
         </div>
+
+        <CardioPanel student={student} date={session.date} compact />
 
         {previous && (
           <div className="card grid">

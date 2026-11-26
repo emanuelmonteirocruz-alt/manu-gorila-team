@@ -183,6 +183,18 @@ describe('sincronização entre aparelhos', () => {
     expect(an.student_id).toBe(st.id)
   })
 
+  it('cardio registrado no celular aparece no PC', async () => {
+    await use('celular')
+    const st = await save(db.students, student())
+    await save(db.cardio, { id: uid(), student_id: st.id, date: '2026-11-26', kind: 'esteira', minutes: 30, km: 3, kcal: 210, created_at: new Date().toISOString(), updated_at: '' })
+    expect((await syncNow()).state).toBe('ok')
+    await use('pc')
+    await syncNow()
+    const [c] = await db.cardio.toArray()
+    expect(c.kcal).toBe(210)
+    expect(c.student_id).toBe(st.id)
+  })
+
   it('exclusão num aparelho apaga nos outros', async () => {
     await use('celular')
     const st = await save(db.students, student())

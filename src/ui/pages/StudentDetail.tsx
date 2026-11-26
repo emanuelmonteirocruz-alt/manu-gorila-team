@@ -8,6 +8,7 @@ import { toISODate, weekStart } from '../../engine/metrics'
 import Copilot from '../components/Copilot'
 import NextCycle from '../components/NextCycle'
 import { CopyWeek, SendWeek } from '../components/CopyWeek'
+import { CardioPanel } from '../components/CardioPanel'
 import { ChangeBadge, ConfirmButton, PayBadge, SleepCheckin, StudentForm, WeekContextEditor } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
 import { WeeklyTable } from '../components/WeeklyTable'
@@ -47,6 +48,7 @@ export default function StudentDetail() {
           </div>
           {tab !== 'ficha' && <FocusCheck student={student} />}
           {tab !== 'ficha' && <SessionList student={student} initialOpen={params.get('treino')} />}
+          {tab !== 'ficha' && <CardioPanel student={student} />}
           {tab === 'ficha' && <div className="card"><StudentForm key={student.id + student.modality} initial={student} onDeleted={() => nav('/alunos')} /></div>}
           {tab === 'ficha' && (
             <div className="card grid">
@@ -95,6 +97,7 @@ export default function StudentDetail() {
           )}
           <FocusCheck student={student} />
           <SessionList student={student} initialOpen={params.get('treino')} />
+          <CardioPanel student={student} />
           {/* evolução semanal no fim da página (não fica entre as informações e o colar/enviar) */}
           <label className="row muted"><input type="checkbox" checked={emph} onChange={(e) => setEmph(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
           <WeeklyTable student={student} emph={emph} />
