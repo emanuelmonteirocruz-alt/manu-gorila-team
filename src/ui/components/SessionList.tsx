@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronRight, Download, FileText, Send } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FileText, Send, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { jsPDF } from 'jspdf'
 import { db } from '../../data/db'
 import { getBrand } from '../../data/brand'
-import { previousBests, profileLookup, studentSessions } from '../../data/repo'
+import { deleteSession, previousBests, profileLookup, studentSessions } from '../../data/repo'
+import { ConfirmButton } from './common'
 import { saveFile } from '../../artifact/claude'
 import { drawPreview } from '../../pdf/charts'
 import { sharePdf, templateD } from '../../pdf/templates'
@@ -98,6 +99,9 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       {session.muscle_groups.length > 0 && <div className="muted">{session.muscle_groups.join(' + ')}</div>}
       {session.exercises.map((e) => <ExerciseLine key={e.id} e={e} />)}
       {!session.exercises.length && <div className="muted">Treino sem exercícios registrados.</div>}
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <ConfirmButton label={<><Trash2 size={16} strokeWidth={1.8} /> Excluir treino</>} confirmLabel="Toque de novo para excluir este treino" onConfirm={() => deleteSession(session.id)} />
+      </div>
     </div>
   )
 }

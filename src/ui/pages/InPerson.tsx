@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ChevronLeft, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
-import { getCheckin, getWeekContext, previousBests, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
+import { deleteSession, getCheckin, getWeekContext, previousBests, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
 import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Session, type SessionExercise, type Student } from '../../domain/types'
 import {
@@ -18,7 +18,7 @@ import { drawPreview } from '../../pdf/charts'
 import { saveFile } from '../../artifact/claude'
 import type { jsPDF } from 'jspdf'
 import { useSpeech } from '../../voice/useSpeech'
-import { SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
+import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
 
 const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F']
@@ -97,7 +97,10 @@ export default function InPerson() {
           {open.map((x) => (
             <div key={x.id} className="row" style={{ justifyContent: 'space-between' }}>
               <span>{titleCaseName(students.find((st) => st.id === x.student_id)?.full_name)} · {x.label} · {fmtBR(x.date)} <span className="muted">({x.exercises.length} exercícios{loadDrafts(x.id).length ? ` + ${loadDrafts(x.id).length} no rascunho` : ''})</span></span>
-              <button className="btn primary" onClick={() => resume(x)}>Continuar</button>
+              <span className="row" style={{ gap: 8 }}>
+                <ConfirmButton label="Descartar" confirmLabel="Toque de novo para descartar" className="btn danger sm" onConfirm={async () => { await deleteSession(x.id); if (getActive() === x.id) setActive(null) }} />
+                <button className="btn primary" onClick={() => resume(x)}>Continuar</button>
+              </span>
             </div>
           ))}
         </div>

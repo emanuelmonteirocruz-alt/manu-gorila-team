@@ -24,6 +24,13 @@ export async function saveStudent(s: Student) {
   return save(db.students, { ...s, full_name: titleCase(s.full_name), hourly_rate: hr ?? null, due_day })
 }
 
+/** Exclui um treino (e a PSE dele). Vai para a nuvem como exclusão e some de todos os aparelhos e relatórios. */
+export async function deleteSession(sessionId: string) {
+  for (const r of await db.ratings.where('session_id').equals(sessionId).toArray()) await softDelete(db.ratings, r.id)
+  await softDelete(db.sessions, sessionId)
+  try { localStorage.removeItem(`mgt_inperson_drafts_${sessionId}`) } catch { /* sem armazenamento */ }
+}
+
 /** Exclui o aluno e todo o histórico dele (sessões, avaliações, check-ins, contexto semanal). */
 export async function deleteStudent(studentId: string) {
   const sessions = await db.sessions.where('student_id').equals(studentId).toArray()
