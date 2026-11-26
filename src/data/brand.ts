@@ -12,14 +12,15 @@ export interface Brand {
   logo: string | null // data URL PNG (redimensionada)
 }
 
-// Manu Gorila Team: grafite intenso (cabeçalhos, volume) + azul petróleo (destaque)
-export const DEFAULT_BRAND: Brand = { name: 'Manu Gorila Team', primary: '#18181B', accent: '#0F766E', logo: null }
+// Manu Team: grafite intenso (cabeçalhos, volume) + azul petróleo (destaque)
+export const DEFAULT_BRAND: Brand = { name: 'Manu Team', primary: '#18181B', accent: '#0F766E', logo: null }
 // paletas padrão de versões anteriores — tratadas como "não personalizado"
 const OLD_COLORS = [['#2563eb', '#ea580c'], ['#3f3f46', '#e10600']]
 
 export async function getBrand(): Promise<Brand> {
   const saved = { ...(await getKV<Partial<Brand>>('brand', {})) }
-  if (saved.name === 'Emanuel Monteiro') delete saved.name
+  // nomes antigos guardados no aparelho passam a usar o nome atual da marca
+  if (saved.name === 'Emanuel Monteiro' || saved.name === 'Manu Gorila Team') delete saved.name
   if (OLD_COLORS.some(([p, a]) => saved.primary === p && saved.accent === a)) {
     delete saved.primary
     delete saved.accent

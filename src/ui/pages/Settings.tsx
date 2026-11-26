@@ -183,7 +183,7 @@ function BrandSection() {
         }} />
         <div className="grid" style={{ flex: 1, minWidth: 0 }}>
           <label className="f">Nome de exibição
-            <input id="brand-name" defaultValue={brand.name} placeholder="Manu Gorila Team" onBlur={(e) => saveBrand({ name: e.target.value.trim() || DEFAULT_BRAND.name })} />
+            <input id="brand-name" defaultValue={brand.name} placeholder="Manu Team" onBlur={(e) => saveBrand({ name: e.target.value.trim() || DEFAULT_BRAND.name })} />
           </label>
           <div className="row">
             <label className="f">Cor principal<input id="brand-primary" type="color" value={brand.primary} onChange={(e) => saveBrand({ primary: e.target.value })} /></label>
@@ -194,7 +194,7 @@ function BrandSection() {
         </div>
       </div>
       {err && <div className="alert danger">{err}</div>}
-      <div className="muted">A logo oficial Manu Gorila Team já vem embutida no app. Toque nela para trocar; ela aparece no menu, no topo dos PDFs e dentro de cada gráfico.</div>
+      <div className="muted">A logo oficial Manu Team já vem embutida no app. Toque nela para trocar; ela aparece no menu, no topo dos PDFs e dentro de cada gráfico.</div>
     </div>
   )
 }

@@ -215,6 +215,7 @@ function kcalCard(d: jsPDF, y: number, kcal: number, fatG: number, sessions = 1)
 }
 
 interface HRow {
+  down?: boolean // seta para baixo antes do selo (fase regenerativa)
   label: string
   tag?: string
   tagColor?: string
@@ -234,7 +235,7 @@ function hRows(d: jsPDF, y: number, rows: HRow[], rowH = 28, rightLabel = 'Tonel
   d.setFontSize(5.8)
   const tw = Math.max(0, ...rows.map((r) => (r.tag ? d.getTextWidth(r.tag) : 0)))
   const labelW = Math.min(150, Math.max(62, lw + 10, tw + 10)), rightW = 70
-  const markW = rows.some((r) => r.mark) ? 56 : 0 // coluna fixa da evolução ("+9% carga")
+  const markW = rows.some((r) => r.mark) ? (rows.some((r) => r.down) ? 68 : 56) : 0 // coluna fixa da evolução ("+9% carga" / selo da regenerativa)
   const barW = W - labelW - rightW - 18 - markW
   const max = Math.max(...rows.map((r) => r.valid), 1)
   legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries válidas' }, { c: C.sub, l: rightLabel }] : [{ c: C.volume, l: 'Válidas' }, { c: C.heavy, l: 'Pesadas' }, { c: C.sub, l: rightLabel }])
@@ -265,7 +266,14 @@ function hRows(d: jsPDF, y: number, rows: HRow[], rowH = 28, rightLabel = 'Tonel
       if (wh) d.roundedRect(x0, mid + 1, wh, bh, 2, 2, 'F')
       text(d, String(r.heavy), x0 + wh + 4, mid + bh - 0.5, { size: 6.5, bold: true, c: C.heavy })
     }
-    if (r.mark) text(d, r.mark, PAGE.m + W - rightW + 4, mid + 3, { size: 7, bold: true, c: C.heavy, align: 'right' })
+    if (r.mark && r.down) {
+      // selo da fase regenerativa: ▼ + o que diminuiu
+      const mx = PAGE.m + W - rightW + 4
+      d.setFont('helvetica', 'bold'); d.setFontSize(6.6)
+      const tw2 = d.getTextWidth(r.mark)
+      iconTrend(d, mx - tw2 - 9, mid, 6, false, C.zoneInk.regenerativa)
+      text(d, r.mark, mx, mid + 2.5, { size: 6.6, bold: true, c: C.zoneInk.regenerativa, align: 'right' })
+    } else if (r.mark) text(d, r.mark, PAGE.m + W - rightW + 4, mid + 3, { size: 7, bold: true, c: C.heavy, align: 'right' })
     if (r.right) text(d, r.right, PAGE.m + W, mid + 3, { size: 7.5, bold: true, c: C.ink, align: 'right' })
     y += rowH
   }
@@ -564,7 +572,7 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
 
   const focusH = o.showEmphasis ? 54 + Math.min(5, Object.keys(monthAgg.byGroup).length) * 17 + 10 : 0
   const rowH = fitRowH(BOTTOM - 58 - (isOnline(o) ? 0 : 50) - y - 14 - focusH - 8, weeks.length, 30)
-  y = hRows(d, y + 4, weeks.map((w) => ({
+  y = hRows(d, y + 4, weeks.map((w, i) => ({
     label: fmtBR(w.firstDate ?? w.week),
     tag: `${MICRO_LABEL[w.verdict.final]}${w.agg.avgPse != null ? ` · PSE ${w.agg.avgPse.toFixed(1)}` : ''}`,
     tagColor: C.zoneInk[w.verdict.final],
@@ -572,6 +580,8 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
     valid: w.agg.validSets,
     heavy: w.agg.heavySets,
     right: rightOf(w.agg, o),
+    // regenerativa: selo curto mostrando o que diminuiu (ex.: "força 9 > 5"), com seta para baixo
+    ...regenMark(w, i ? weeks[i - 1] : undefined),
   })), rowH, rightLabelOf(o))
 
   if (o.showEmphasis) y = focusSection(d, y + 2, monthAgg)
@@ -592,6 +602,17 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
   }
   finish(d, y, monthAgg, monthAgg.sessions, !o.showEmphasis)
   return d
+}
+
+/** Regenerativa: o que diminuiu em relação à semana anterior (só o essencial, para o selo). */
+function regenMark(w: WeekPoint, prev?: WeekPoint): { mark?: string; down?: boolean } {
+  if (w.verdict.final !== 'regenerativa' || !prev || !prev.agg.validSets) return {}
+  const a = w.agg, b = prev.agg
+  if (w.verdict.justification.some((j) => /menstrual/i.test(j))) return { mark: 'ciclo', down: true }
+  if (a.validSets <= b.validSets * 0.85) return { mark: `volume ${b.validSets} > ${a.validSets}`, down: true }
+  if (a.heavySets < b.heavySets) return { mark: `força ${b.heavySets} > ${a.heavySets}`, down: true }
+  if (w.verdict.justification.some((j) => /PSE/i.test(j))) return { mark: 'esforço', down: true }
+  return {}
 }
 
 // ---------------- Template D — Treino do dia ----------------

@@ -16,9 +16,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.png', 'apple-touch-icon.png'],
         manifest: {
-          name: 'Manu Gorila Team — Consultoria & Presencial',
-          short_name: 'Manu Gorila',
-          description: 'Gestão técnica, financeira e analítica — Emanuel Monteiro · Manu Gorila Team',
+          name: 'Manu Team — Consultoria & Presencial',
+          short_name: 'Manu Team',
+          description: 'Gestão técnica, financeira e analítica — Emanuel Monteiro · Manu Team',
           lang: 'pt-BR',
           theme_color: '#F8FAFC',
           background_color: '#F8FAFC',

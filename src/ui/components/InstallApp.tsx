@@ -19,7 +19,7 @@ export function InstallApp() {
     <div className="card grid">
       <h2>Instalar como aplicativo</h2>
       {installed ? <div className="alert ok"><CircleCheck size={16} /> App instalado neste aparelho</div> : evt ? (
-        <button className="btn primary big" onClick={async () => { await evt.prompt(); await evt.userChoice; setEvt(null) }}><Download size={16} /> Instalar Manu Gorila Team</button>
+        <button className="btn primary big" onClick={async () => { await evt.prompt(); await evt.userChoice; setEvt(null) }}><Download size={16} /> Instalar Manu Team</button>
       ) : ios ? (
         <div className="muted">No iPhone/iPad (Safari): toque em <b>Compartilhar</b> <Share size={13} style={{ verticalAlign: '-2px' }} /> e depois em <b>Adicionar à Tela de Início</b>.</div>
       ) : (

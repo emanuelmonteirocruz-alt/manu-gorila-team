@@ -90,7 +90,7 @@ export function text(d: jsPDF, s: string, x: number, y: number, o: { size?: numb
   d.text(s, x, y, { align: o.align ?? 'left', baseline: 'alphabetic' })
 }
 
-/** Emblema padrão Manu Gorila Team (vetorial): preto, anel vermelho, "MG" e faixa cinza. */
+/** Emblema padrão Manu Team (vetorial): preto, anel vermelho, "MG" e faixa cinza. */
 export function drawEmblem(d: jsPDF, x: number, y: number, size: number) {
   fill(d, '#111111')
   d.roundedRect(x, y, size, size, size * 0.22, size * 0.22, 'F')
@@ -116,7 +116,7 @@ function logoOrEmblem(d: jsPDF, x: number, y: number, size: number) {
   drawEmblem(d, x, y, size)
 }
 
-export const brandName = () => (brand?.name || 'Manu Gorila Team')
+export const brandName = () => (brand?.name || 'Manu Team')
 
 /**
  * Selo da marca DENTRO da área do gráfico (canto superior direito): logo + nome.

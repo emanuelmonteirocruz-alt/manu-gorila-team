@@ -73,7 +73,7 @@ export default function App() {
       <nav className="nav">
         <div className="brand">
           {brand?.logo ? <img src={brand.logo} alt="" /> : <Emblem />}
-          <div>{brand?.name || 'Manu Gorila Team'}<small>Consultoria & Presencial</small></div>
+          <div>{brand?.name || 'Manu Team'}<small>Consultoria & Presencial</small></div>
         </div>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className={n.main ? 'main' : 'extra'}>
