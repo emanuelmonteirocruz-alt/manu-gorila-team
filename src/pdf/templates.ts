@@ -76,7 +76,7 @@ function musclesOf(a: Aggregate, prev?: Aggregate): MuscleRow[] {
 }
 
 /** Seção "Foco muscular" (opção "Especificar musculatura com mais intensidade e volume"). */
-function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRows = 6): number {
+function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRows = 5): number {
   const rows = musclesOf(a, prev).filter((r) => r.group !== 'Indefinido' && r.valid > 0).slice(0, maxRows).map((r) => (VOLUME_ONLY ? { ...r, heavy: 0 } : r))
   if (!rows.length) return y
   const total = Object.values(a.byGroup).reduce((s, v) => s + v.valid, 0) || 1
@@ -576,7 +576,7 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
     y += 36
   }
 
-  const focusH = o.showEmphasis ? 54 + Math.min(6, Object.keys(monthAgg.byGroup).length) * 15 + 10 : 0
+  const focusH = o.showEmphasis ? 54 + Math.min(5, Object.keys(monthAgg.byGroup).length) * 17 + 10 : 0
   const rowH = fitRowH(BOTTOM - 58 - (isOnline(o) ? 0 : 50) - y - 14 - focusH - 8, weeks.length, 30)
   y = hRows(d, y + 4, weeks.map((w, i) => ({
     label: fmtBR(w.firstDate ?? w.week),
@@ -713,7 +713,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   // uma linha por treino (A, B, C, D, A 2ª vez…)
   const seen: Record<string, number> = {}
   const groupsOf = (a: Aggregate) => Object.entries(a.byGroup).filter(([g]) => g !== 'Indefinido').sort((x, z) => z[1].valid - x[1].valid).slice(0, 3).map(([g]) => g.replace('Perna - ', '')).join('/')
-  const focusH = o.showEmphasis ? 54 + Math.min(6, Object.keys(cur.byGroup).length) * 15 + 10 : 0
+  const focusH = o.showEmphasis ? 54 + Math.min(5, Object.keys(cur.byGroup).length) * 17 + 10 : 0
   const rowH = fitRowH(BOTTOM - 58 - y - 14 - focusH - 10, items.length, 32, 18)
   // evolução de cada treino contra a vez anterior do mesmo treino
   const evo = (agg: Aggregate, p?: Aggregate): string | undefined => {
