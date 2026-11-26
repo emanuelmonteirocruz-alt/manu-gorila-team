@@ -7,6 +7,7 @@ import { resetTimeline } from '../../data/repo'
 import { toISODate, weekStart } from '../../engine/metrics'
 import Copilot from '../components/Copilot'
 import NextCycle from '../components/NextCycle'
+import { CopyWeek } from '../components/CopyWeek'
 import { ChangeBadge, ConfirmButton, PayBadge, SleepCheckin, StudentForm, WeekContextEditor } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
 import { WeeklyTable } from '../components/WeeklyTable'
@@ -86,7 +87,7 @@ export default function StudentDetail() {
       )}
       {tab === 'historico' && (
         <div className="grid">
-          {student.modality === 'online' ? <ConsultancyBar student={student} /> : (
+          {student.modality === 'online' ? <><ConsultancyBar student={student} /><CopyWeek student={student} /></> : (
             <div className="grid cols-2">
               <WeekContextEditor student={student} week={weekStart(today)} />
               <SleepCheckin student={student} />

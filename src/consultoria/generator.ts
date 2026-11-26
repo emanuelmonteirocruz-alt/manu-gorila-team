@@ -252,3 +252,26 @@ export function missingEmphasis(base: Session[], enfases: string[], lookup: Gene
   for (const s of base) for (const e of s.exercises) for (const m of muscleShares(e.display_name, lookup(e.exercise_key)?.muscle_group ?? '')) if (m.share >= 0.5) seen.add(m.group)
   return enfases.filter((g) => !seen.has(g))
 }
+
+/** Alerta de um exercício para um aluno: "trocar" (ele disse que não pode) ou "revisar (área)" pelas restrições da anamnese. */
+export function exerciseAlert(names: string[], triage: Triage | null | undefined): string | undefined {
+  if (!triage) return undefined
+  const asked = triage.evitarExercicios.find((x) => names.some((nm) => norm(nm).includes(norm(x)) || norm(x).includes(norm(nm))))
+  if (asked) return 'trocar: aluno não pode fazer'
+  const area = triage.restricoes.find((r) => RESTRICTION_RULES[r.area]?.evitarRe?.test(norm(names.join(' '))))
+  return area ? `revisar (${RESTRICTION_RULES[area.area].titulo.toLowerCase()})` : undefined
+}
+
+/** Texto de uma semana já salva, no padrão do WhatsApp (o que foi colado; sem o texto original, remonta pelos exercícios). */
+export function sessionsToWhatsApp(sessions: Session[]): string {
+  return [...sessions].sort((a, b) => a.label.localeCompare(b.label) || a.date.localeCompare(b.date)).map((s) => {
+    if (s.raw_text?.trim()) return `*${s.label}*\n${s.raw_text.trim()}`
+    const groups: SessionExercise[][] = []
+    for (const e of [...s.exercises].sort((a, b) => a.position - b.position)) {
+      const last = groups[groups.length - 1]
+      if (last && e.superset_group != null && last[0].superset_group === e.superset_group) last.push(e)
+      else groups.push([e])
+    }
+    return weekToWhatsApp([{ label: s.label, exercises: groups.map((g) => ({ names: g.map((x) => x.display_name), sets: g[0].valid_sets, warmup: g[0].warmup_sets, reps: g[0].reps, notes: (g[0].notes ?? '').split(' · ').filter(Boolean), changes: [] })) }])
+  }).join('\n\n')
+}

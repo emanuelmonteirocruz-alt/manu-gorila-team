@@ -315,3 +315,17 @@ describe('nível do aluno (consultoria)', () => {
     expect(w[0].exercises.every((e) => e.reps.every((r) => r.min >= 10))).toBe(true)
   })
 })
+
+describe('copiar treino para outro aluno', () => {
+  it('remonta a semana no padrão do WhatsApp e avisa o que não combina com a anamnese do destino', async () => {
+    const { sessionsToWhatsApp, exerciseAlert } = await import('../consultoria/generator')
+    const s = (label: string, raw: string | null, names: string[]): Session => ({ id: label, student_id: 'x', date: '2026-11-23', label, source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', raw_text: raw,
+      exercises: names.map((n, i) => ({ id: n, position: i, exercise_key: normalizeKey(n), display_name: n, valid_sets: 3, warmup_sets: 0, heavy_sets: 0, reps: [10, 10, 10].map((r) => ({ min: r, max: r })), drop_set: false })) })
+    const txt = sessionsToWhatsApp([s('Treino B', null, ['Remada baixa']), s('Treino A', 'Agachamento búlgaro\n4x10', ['Agachamento búlgaro'])])
+    expect(txt).toBe('*Treino A*\nAgachamento búlgaro\n4x10\n\n*Treino B*\nRemada baixa\n3x10')
+    expect(splitTrainingBlocks(txt, false)).toHaveLength(2)
+    const t = buildTriage(sections, { [q('dores')]: 'dor no joelho', [q('nao_consegue')]: 'Remada baixa' })
+    expect(exerciseAlert(['Agachamento búlgaro'], t)).toMatch(/joelho/)
+    expect(exerciseAlert(['Remada baixa'], t)).toBe('trocar: aluno não pode fazer')
+  })
+})

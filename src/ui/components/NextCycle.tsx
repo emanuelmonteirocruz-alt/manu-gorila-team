@@ -208,7 +208,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
  * Uma mensagem por treino: cada botão abre o WhatsApp do aluno já com aquele treino escrito
  * (ou copia só ele). Fica marcado o que já foi enviado, para seguir A → B → C sem se perder.
  */
-function SendByTraining({ text, phone }: { text: string; phone: string }) {
+export function SendByTraining({ text, phone }: { text: string; phone: string }) {
   const msgs = useMemo(() => splitForWhatsApp(text), [text])
   const [sent, setSent] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState('')
