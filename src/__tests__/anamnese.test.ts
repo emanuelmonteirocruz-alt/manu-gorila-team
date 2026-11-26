@@ -10,31 +10,72 @@ import type { Session, SessionExercise } from '../domain/types'
 
 const sections = parseTemplate(ANAMNESE_TEMPLATE)
 const q = (field: string) => sections.flatMap((s) => s.questions).find((x) => x.field === field)!.id
+void q
 
-describe('anamnese: modelo, leitura e triagem', () => {
-  it('modelo padrão vira seções e perguntas com campos e opções', () => {
-    expect(sections.map((s) => s.title)).toEqual(['Objetivo', 'Saúde e restrições', 'Experiência e rotina', 'Preferências', 'Contexto'])
-    expect(sections[0].questions[0].options).toContain('Hipertrofia (ganhar massa)')
+const EXEMPLO = require('fs').readFileSync(require('path').join(__dirname, 'fixtures/anamnese-exemplo.txt'), 'utf8') as string
+const byNum = (n: number) => sections.flatMap((s) => s.questions).find((x) => x.number === n)!.id
+
+describe('anamnese: o questionário do Emanuel', () => {
+  it('modelo padrão: 17 perguntas numeradas, com as linhas de exemplo separadas', () => {
+    const qs = sections.flatMap((s) => s.questions)
+    expect(qs).toHaveLength(17)
+    expect(qs[0]).toMatchObject({ number: 1, label: 'Qual é o seu principal objetivo?', field: 'objetivo' })
+    expect(qs[7].hints).toEqual(['Se sim, qual e com que frequência?'])
   })
-  it('lê anamnese respondida colada (pergunta + resposta)', () => {
-    const txt = `Qual é o seu principal objetivo com o treino?\nGanhar massa, principalmente bumbum\n\nQuais músculos você mais quer desenvolver ou destacar?\nGlúteo e posterior\n\nSente dor em alguma articulação ou região ao treinar (ombro, joelho, lombar...)?\nSim, dor no joelho direito quando agacho fundo\n\nQuantos dias por semana pode treinar? 4\nHá quanto tempo treina musculação?: 3 anos`
-    const a = answersFromPasted(txt, sections)
-    expect(a[q('objetivo')]).toMatch(/Ganhar massa/)
-    expect(a[q('enfase')]).toBe('Glúteo e posterior')
-    expect(a[q('dores')]).toMatch(/joelho/)
-    expect(a[q('dias')]).toBe('4')
+
+  it('aluna copiou tudo e respondeu por cima (com a mensagem do treinador junto)', () => {
+    const a = answersFromPasted(EXEMPLO, sections, 'Emanuel Monteiro')
+    expect(a[byNum(1)]).toBe('Ganho de massa muscular, melhora na postura')
+    expect(a[byNum(2)]).toBe('27')
+    expect(a[byNum(3)]).toBe('1,62')
+    expect(a[byNum(4)]).toBe('57kg')
+    expect(a[byNum(5)]).toBe('6 meses, porém sem muita disciplina')
+    expect(a[byNum(6)]).toBe('de 3 a 4')
+    expect(a[byNum(8)]).toBe('Não')                       // "Se sim, qual…" é linha de exemplo
+    expect(a[byNum(9)]).toBe('não posso fazer elevação pélvica, pois tenho endometriose')
+    expect(a[byNum(11)]).toBeUndefined()                  // ficou sem resposta
+    expect(a[byNum(12)]).toBe('Isotretinoína, minoxidil e paroxetina')
+    expect(a[byNum(14)]).toBe('Academia do bairro')                // "Caso seja uma academia de bairro…" ignorado
+    expect(a[byNum(16)]).toBe('treinos com drop set')
+    expect(a[byNum(17)]).toBeUndefined()                  // "Obrigado!" não vira resposta
+
     const t = buildTriage(sections, a)
     expect(t.objetivoTipo).toBe('hipertrofia')
-    expect(t.enfases).toEqual(['Glúteo', 'Perna - Posterior'])
-    expect(t.restricoes.map((r) => r.area)).toEqual(['joelho'])
-    expect(t.dias).toBe(4)
-    expect(t.experiencia).toBe('avancado')
-    const r = remindersFor(t, t.enfases)
-    expect(r.processos.join(' ')).toMatch(/glúteo médio/i)
-    expect(r.evitar.join(' ')).toMatch(/Joelho/)
+    expect(t.postura).toBe(true)
+    expect(t.experiencia).toBe('iniciante')               // 6 meses
+    expect(t.dias).toBe(3)
+    expect(t.diasTexto).toBe('de 3 a 4')
+    expect(t.tempoMin).toBe(60)
+    expect(t.atividade).toBeNull()                        // "Não"
+    expect(t.condicoes).toContain('endometriose')
+    expect(t.evitarExercicios).toEqual(['Elevação pélvica'])
+    expect(t.medicamentos).toEqual(['Isotretinoína, minoxidil e paroxetina'])
+    expect(t.dificuldades).toEqual(['Falta de disciplina'])
+
+    const r = remindersFor(t, [])
+    expect(r.evitar.join(' ')).toMatch(/Elevação pélvica/)
+    expect(r.atencao.join(' ')).toMatch(/Endometriose/)
+    expect(r.atencao.join(' ')).toMatch(/Isotretinoína/)
+    expect(r.atencao.join(' ')).toMatch(/Minoxidil/)
+    expect(r.processos.join(' ')).toMatch(/Disciplina/)
+    expect(r.processos.join(' ')).toMatch(/postura/)
+    expect(r.processos.join(' ')).toMatch(/Adaptação neuromuscular/)
   })
+
+  it('aluno respondendo só pelo número', () => {
+    const a = answersFromPasted('1. Hipertrofia, quero bumbum maior\n2) 25\n6 - 5 dias\n7: 1h30\n9. dor no ombro direito\n15. Afundo', sections)
+    expect(a[byNum(1)]).toBe('Hipertrofia, quero bumbum maior')
+    expect(a[byNum(2)]).toBe('25')
+    expect(a[byNum(6)]).toBe('5 dias')
+    const t = buildTriage(sections, a)
+    expect(t.enfases).toEqual(['Glúteo'])
+    expect(t.tempoMin).toBe(90)
+    expect(t.restricoes.map((r) => r.area)).toEqual(['ombro'])
+    expect(t.evitarExercicios).toEqual(['Afundo'])
+  })
+
   it('respostas "não / nenhuma" não viram restrição', () => {
-    const t = buildTriage(sections, { [q('lesoes')]: 'não', [q('dores')]: 'Nenhuma' })
+    const t = buildTriage(sections, { [byNum(10)]: 'não', [byNum(9)]: 'Nenhuma' })
     expect(t.restricoes).toEqual([])
   })
 })
@@ -69,11 +110,12 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
     expect(e.reps[0]).toEqual({ min: 12, max: 15 })
     expect(e.dropSet).toBe(false)
   })
-  it('restrição de joelho marca o búlgaro para revisão', () => {
-    const t = buildTriage(sections, { [q('dores')]: 'dor no joelho' })
+  it('restrição de joelho marca o búlgaro para revisão; exercício que o aluno não pode fazer pede troca', () => {
+    const t = buildTriage(sections, { [q('dores')]: 'dor no joelho', [q('nao_consegue')]: 'Elevação pélvica' })
     const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: [], triage: t, lookup })
     expect(week[0].exercises.find((e) => e.names[0] === 'Agachamento búlgaro')?.alert).toMatch(/joelho/)
     expect(weekToWhatsApp(week, true)).toMatch(/\(revisar \(joelho\)\)/)
+    expect(week[0].exercises.find((e) => e.names[0] === 'Elevação pélvica')?.alert).toBe('trocar: aluno não pode fazer')
   })
 })
 

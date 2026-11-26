@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ClipboardCopy, ClipboardPaste, MessageSquare, Save, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getKV } from '../../data/db'
 import { anamneseTemplateText, getAnamnese, profileLookup, saveAnamnese, studentSessions } from '../../data/repo'
 import { listWeeks, weekLabel } from '../../data/reportData'
 import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemplate'
@@ -20,6 +21,7 @@ const short = (g: string) => g.replace('Perna - ', '')
  */
 export function AnamnesePanel({ student }: { student: Student }) {
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
+  const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
   const sections = useMemo(() => parseTemplate(tplText), [tplText])
   const saved = useLiveQuery(() => getAnamnese(student.id), [student.id])
   const [answers, setAnswers] = useState<Record<string, string> | null>(null)
@@ -55,7 +57,7 @@ export function AnamnesePanel({ student }: { student: Student }) {
             <textarea className="code" style={{ minHeight: 160 }} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="Cole aqui as respostas (WhatsApp, formulário…). O app encontra cada pergunta do seu modelo e preenche as respostas." />
             <div className="row">
               <button className="btn primary" disabled={!paste.trim()} onClick={() => {
-                const found = answersFromPasted(paste, sections)
+                const found = answersFromPasted(paste, sections, trainerName)
                 setAnswers({ ...cur, ...found })
                 setOpen(true)
                 setMsg(`${Object.keys(found).length} respostas encontradas no texto. Confira abaixo e salve.`)
@@ -120,13 +122,19 @@ function RemList({ title, items, tone }: { title: string; items: string[]; tone?
 }
 
 function TriageCard({ triage: t, enfases, fromFicha }: { triage: ReturnType<typeof buildTriage>; enfases: string[]; fromFicha: boolean }) {
-  const rows: [string, string | null][] = [
+  const COND: Record<string, string> = { hipertensao: 'pressão alta', diabetes: 'diabetes', gestante: 'gestante', labirintite: 'labirintite', cirurgia: 'cirurgia', asma: 'asma', endometriose: 'endometriose', hernia: 'hérnia', cardiaco: 'condição cardíaca' }
+  const perfil = [t.perfil.idade && `${t.perfil.idade.replace(/\s*anos?/i, '')} anos`, t.perfil.altura && `${t.perfil.altura} m`, t.perfil.peso].filter(Boolean).join(' · ')
+  const rows: [string, string | null, boolean?][] = [
     ['Objetivo', t.objetivo],
+    ['Perfil', perfil || null],
     ['Ênfase', enfases.length ? `${enfases.map(short).join(', ')}${fromFicha ? ' (da ficha)' : ''}` : null],
-    ['Dores / lesões / restrições', t.restricoes.length ? t.restricoes.map((r) => `${r.label}: ${r.source}`).join(' · ') : null],
-    ['Condições de saúde', t.condicoes.length ? t.condicoes.join(', ') : null],
+    ['Não pode / não consegue', t.evitarExercicios.length ? t.evitarExercicios.join(', ') : null, true],
+    ['Dores / lesões / restrições', t.restricoes.length ? t.restricoes.map((r) => `${r.label}: ${r.source}`).join(' · ') : null, true],
+    ['Condições de saúde', t.condicoes.length ? t.condicoes.map((c) => COND[c] ?? c).join(', ') : null, true],
+    ['Medicamentos', t.medicamentos.join(' · ') || null],
+    ['Dificuldades', t.dificuldades.join(' · ') || null],
     ['Preferências', [...t.preferencias, ...t.naoGosta.map((x) => `não gosta: ${x}`)].join(' · ') || null],
-    ['Rotina', [t.dias ? `${t.dias}x por semana` : '', t.tempoMin ? `${t.tempoMin} min` : '', t.local ?? ''].filter(Boolean).join(' · ') || null],
+    ['Rotina', [t.diasTexto ? `${t.diasTexto.replace(/\s*dias?.*$/i, '')} dias por semana` : t.dias ? `${t.dias}x por semana` : '', t.tempoMin ? `${t.tempoMin} min por treino` : '', t.local ?? '', t.atividade ? `outra atividade: ${t.atividade}` : ''].filter(Boolean).join(' · ') || null],
     ['Experiência', t.experiencia ? ({ iniciante: 'Iniciante', intermediario: 'Intermediário', avancado: 'Avançado' } as const)[t.experiencia] : null],
     ['Dieta', t.dieta],
     ['Sono', t.sono],
@@ -137,8 +145,8 @@ function TriageCard({ triage: t, enfases, fromFicha }: { triage: ReturnType<type
     <div className="card grid">
       <h2 style={{ margin: 0 }}>Resumo de triagem</h2>
       <div className="triage">
-        {rows.filter(([, v]) => v).map(([k, v]) => (
-          <div key={k} className={k.startsWith('Dores') ? 'tr-row tr-alert' : 'tr-row'}><span>{k}</span><b>{v}</b></div>
+        {rows.filter(([, v]) => v).map(([k, v, alert]) => (
+          <div key={k} className={alert ? 'tr-row tr-alert' : 'tr-row'}><span>{k}</span><b>{v}</b></div>
         ))}
       </div>
     </div>

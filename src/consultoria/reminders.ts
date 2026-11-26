@@ -88,6 +88,9 @@ export const CONDITION_RULES: Record<string, string> = {
   labirintite: 'Labirintite: evitar mudanças bruscas de posição (deitar/levantar rápido).',
   cirurgia: 'Cirurgia recente: confirmar liberação e tempo de recuperação.',
   asma: 'Asma: aquecimento progressivo; cuidado com alta densidade.',
+  endometriose: 'Endometriose: evitar carga direta sobre a pelve (ex.: elevação pélvica com barra) e respeitar dias de dor/ciclo, reduzindo volume e intensidade quando precisar.',
+  hernia: 'Hérnia: coluna neutra, evitar compressão axial pesada e flexão de tronco com carga.',
+  cardiaco: 'Condição cardíaca: confirmar liberação médica; evitar picos de esforço e segurar o ar.',
 }
 
 export const GOAL_RULES: Record<NonNullable<Triage['objetivoTipo']>, string[]> = {
@@ -103,6 +106,25 @@ export const EXPERIENCE_RULES: Record<NonNullable<Triage['experiencia']>, string
   intermediario: ['Periodizar ordinária → choque → regenerativa', 'Técnicas avançadas pontuais'],
   avancado: ['Mais variação de estímulo e técnicas avançadas', 'Microciclos de choque bem definidos e recuperação planejada'],
 }
+
+/** Medicamentos que pedem atenção no treino (pontos de atenção, não orientação médica). */
+export const MEDICATION_RULES: [RegExp, string][] = [
+  [/isotretino|roacutan/, 'Isotretinoína: pode dar dores musculares e articulares e recuperação mais lenta; ajustar volume se houver dor.'],
+  [/minoxidil/, 'Minoxidil: pode baixar a pressão; atenção a tontura ao levantar rápido entre séries.'],
+  [/paroxetin|sertralin|fluoxetin|escitalopram|antidepress/, 'Antidepressivo: atenção a sono, energia e motivação; manter regularidade nos treinos.'],
+  [/anticoncepc/, 'Anticoncepcional: ciclo pode ficar menos marcado; acompanhar sintomas.'],
+  [/insulin|metformin/, 'Medicação para glicemia: atenção a hipoglicemia no treino.'],
+  [/losartan|enalapril|anlodipin|betabloq|propranolol|atenolol/, 'Anti-hipertensivo: evitar segurar o ar; frequência cardíaca pode subir menos (alguns remédios).'],
+]
+
+/** Dificuldades citadas → como ajustar o plano. */
+export const DIFFICULTY_RULES: [RegExp, string][] = [
+  [/disciplina|constancia|motivac|preguica/, 'Disciplina: treinos objetivos e curtos, metas semanais simples e acompanhamento frequente.'],
+  [/tempo/, 'Falta de tempo: bi-sets e super séries para caber no tempo disponível.'],
+  [/aliment|dieta/, 'Alimentação: reforçar orientação ou encaminhar para nutricionista.'],
+  [/ganhar massa|nao cresce|nao ganho/, 'Dificuldade para ganhar massa: progressão de carga e volume bem controlados; conferir alimentação.'],
+  [/emagrec|perder peso/, 'Dificuldade para emagrecer: densidade no treino e gasto semanal; conferir alimentação.'],
+]
 
 export interface Reminders {
   processos: string[]
@@ -123,6 +145,14 @@ export function remindersFor(t: Triage, enfases: string[]): Reminders {
     if (rule.evitarTexto) r.evitar.push(`${rule.titulo}: ${rule.evitarTexto}`)
   }
   for (const c of t.condicoes) if (CONDITION_RULES[c]) r.atencao.push(CONDITION_RULES[c])
+  const nn = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  for (const m of t.medicamentos) for (const [re, txt] of MEDICATION_RULES) if (re.test(nn(m))) r.atencao.push(txt)
+  for (const d of t.dificuldades) for (const [re, txt] of DIFFICULTY_RULES) if (re.test(nn(d))) r.processos.push(txt)
+  if (t.evitarExercicios.length) r.evitar.push(`Pedido do aluno / condição: ${t.evitarExercicios.join(', ')}`)
+  if (t.postura) {
+    r.processos.push('Melhora da postura: incluir costas, posterior de ombro e core em todas as semanas')
+    r.preferir.push('Remadas, face pull, crucifixo inverso, prancha (postura)')
+  }
   if (t.experiencia) r.processos.push(...EXPERIENCE_RULES[t.experiencia])
   if (t.objetivoTipo) r.processos.push(...GOAL_RULES[t.objetivoTipo])
   if (enfases.length) r.processos.push(`Ênfase em ${enfases.map((g) => g.replace('Perna - ', '')).join(' + ')}: começar o treino por ela e treinar 2x por semana`)

@@ -98,9 +98,11 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
 
       const names = g.map((x) => x.display_name)
       const alertArea = restr.find((r) => RESTRICTION_RULES[r.area]?.evitarRe?.test(norm(names.join(' '))))
+      // exercício que o aluno disse que não pode/não consegue fazer
+      const asked = (inp.triage?.evitarExercicios ?? []).find((x) => names.some((nm) => norm(nm).includes(norm(x)) || norm(x).includes(norm(nm))))
       return {
         names, sets, warmup: e.warmup_sets, reps, notes, changes,
-        alert: alertArea ? `revisar (${RESTRICTION_RULES[alertArea.area].titulo.toLowerCase()})` : undefined,
+        alert: asked ? 'trocar: aluno não pode fazer' : alertArea ? `revisar (${RESTRICTION_RULES[alertArea.area].titulo.toLowerCase()})` : undefined,
       }
     })
     out.push({ label: s.label, exercises })
