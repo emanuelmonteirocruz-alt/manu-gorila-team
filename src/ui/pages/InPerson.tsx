@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
-import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Session, type SessionExercise, type Student } from '../../domain/types'
+import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type RepRange, type Session, type SessionExercise, type Student } from '../../domain/types'
 import {
   addDays, aggregateSessions, classifySessionLevel, divergenceAlert, fmtBR, fmtNum, LEVEL_LABEL, toISODate, weekStart,
   type DivergenceAlert, type SessionLevel,
@@ -244,15 +244,29 @@ function exerciseToDraft(e: SessionExercise): Draft {
  * Abaixo da última vez fica em alerta (para não regredir sem querer); igual ou acima fica verde.
  */
 const kgFmt = (k: number) => fmtNum(k, Number.isInteger(k) ? 0 : 1)
+/** Série de maior carga (a referência para progredir): "30 kg de cada lado × 8". Empate na carga: a de mais reps. */
+function topSetText(loads: (number | null | undefined)[], reps: (RepRange | undefined)[], perSide: boolean): string {
+  let best = -1
+  let bestReps = -1
+  loads.forEach((kg, i) => {
+    if (kg == null) return
+    const r = reps[i] ?? reps[reps.length - 1]
+    const n = r ? (r.failure ? 99 : r.max || r.min) : 0
+    if (kg > (best < 0 ? -1 : loads[best]!) || (kg === loads[best] && n > bestReps)) { best = i; bestReps = n }
+  })
+  if (best < 0) return '—'
+  const r = reps[best] ?? reps[reps.length - 1]
+  const rt = !r ? '' : r.failure ? ' × Máx' : ` × ${r.min === r.max ? r.min : `${r.min}-${r.max}`}`
+  return `${kgFmt(loads[best]!)} kg${perSide ? ' de cada lado' : ''}${rt}`
+}
 function LastLoadHint({ last, peak }: { last?: LastLoad; peak: number | null }) {
   if (!last) return null
-  const unit = last.perSide ? 'kg/lado' : 'kg'
   const diff = peak != null ? Math.round((peak - last.peak) * 10) / 10 : null
   const tone = diff == null ? '' : diff < 0 ? 'down' : diff > 0 ? 'up' : 'same'
-  const sets = last.sets.map((x) => `${x.kg != null ? kgFmt(x.kg) : '—'}${x.reps ? `×${x.reps}` : ''}`).join(' · ')
+  const top = topSetText(last.exercise.loads ?? last.sets.map((x) => x.kg), last.exercise.reps, last.perSide)
   return (
     <div className={`last-load ${tone}`}>
-      <span><b>Última vez</b> ({fmtBR(last.date).slice(0, 5)}): {sets} {unit}</span>
+      <span><b>Última vez</b> ({fmtBR(last.date).slice(0, 5)}): {top}</span>
       {diff != null && <b className="ll-diff">{diff < 0 ? `▼ ${kgFmt(-diff)} kg abaixo` : diff > 0 ? `▲ +${kgFmt(diff)} kg` : '= mesma carga'}</b>}
     </div>
   )
@@ -628,19 +642,14 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           <div className="card grid">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <h2 style={{ margin: 0 }}>Cargas do {previous.label} anterior ({fmtBR(previous.date).slice(0, 5)})</h2>
-              <span className="muted">toque em Repetir para criar o card com as mesmas cargas e ajustar</span>
+              <span className="muted">maior carga de cada exercício · Repetir cria o card com as mesmas séries para ajustar</span>
             </div>
             {previous.exercises.filter((e) => e.valid_sets > 0).map((e) => {
               const done = session.exercises.some((x) => x.exercise_key === e.exercise_key)
-              const unit = e.per_side ? 'kg/lado' : 'kg'
-              const sets = Array.from({ length: e.valid_sets }, (_, i) => {
-                const kg = e.loads?.[i] ?? e.load_kg
-                const r = e.reps[i] ?? e.reps[e.reps.length - 1]
-                return `${kg != null ? kgFmt(kg) : '—'}${r ? `×${r.failure ? 'Máx' : r.min === r.max ? r.min : `${r.min}-${r.max}`}` : ''}`
-              }).join(' · ')
+              const top = topSetText(Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg), e.reps, !!e.per_side)
               return (
                 <div key={e.id} className={`prev-row ${done ? 'done' : ''}`}>
-                  <div><b>{done ? '✓ ' : ''}{e.display_name}</b><div className="muted">{sets} {unit}</div></div>
+                  <div><b>{done ? '✓ ' : ''}{e.display_name}</b><div className="prev-top">{top}</div></div>
                   {!done && <button className="btn sm" onClick={() => setDrafts((d) => [...d, exerciseToDraft(e)])}>Repetir</button>}
                 </div>
               )

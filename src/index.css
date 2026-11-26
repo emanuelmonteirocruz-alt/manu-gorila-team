@@ -363,3 +363,4 @@ details > summary::-webkit-details-marker { display: none; }
 .last-load .ll-diff { white-space: nowrap; }
 .prev-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .prev-row.done { opacity: .55; }
+.prev-top { font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 2px; }
