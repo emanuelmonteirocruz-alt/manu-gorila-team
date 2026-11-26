@@ -33,5 +33,10 @@ describe('músculos: classificação e séries fracionadas', () => {
     expect(find('Voador invertido').muscle_group).toBe('Ombro')
     expect(shares('Triceps pulley')).toEqual({ 'Tríceps': 1 })   // pulley de tríceps não ganha bíceps
     expect(shares('Abdutora')).toEqual({ 'Glúteo': 1 })
+    // posterior só nos exercícios de posterior (flexoras, stiff): agachamento/leg/búlgaro/hip thrust não somam
+    expect(shares('Elevação pélvica')).toEqual({ 'Glúteo': 1 })
+    expect(shares('Agachamento livre')['Perna - Posterior']).toBeUndefined()
+    expect(shares('Búlgaro')['Perna - Posterior']).toBeUndefined()
+    expect(shares('Mesa flexora')).toEqual({ 'Perna - Posterior': 1 })
   })
 })

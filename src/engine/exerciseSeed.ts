@@ -145,7 +145,7 @@ const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
   // afundo/passada/avanço: mais quadríceps que glúteo; leg/hack/agachamento: glúteo auxiliar
   [/(leg|hack|agach|squat|afundo|passada|avanco|lunge|step|subida|pistol|belt|pendul)/, [Q], [{ group: G, share: 0.5 }]],
   [/(stiff|terra|good morning|rdl|romeno)/, [P], [{ group: G, share: 0.5 }]],
-  [/(elevacao pelvica|hip thrust|ponte|glute bridge)/, [G], [{ group: P, share: 0.25 }]],
+  // elevação pélvica: sem posterior (Plotkin 2023: posteriores praticamente não cresceram com hip thrust nem agachamento)
   [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
   [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.5 }]],
   [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.5 }]],
