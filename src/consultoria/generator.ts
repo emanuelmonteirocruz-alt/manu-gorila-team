@@ -8,6 +8,7 @@ import type { ExerciseProfile, Microcycle, RepRange, Session, SessionExercise } 
 import { RESTRICTION_RULES } from './reminders'
 import type { Triage } from './triage'
 import { muscleShares } from '../engine/exerciseSeed'
+import { SHOCK_VARIABLES, pickWeighted, rng, usedVariables, type ShockVariable } from './shockVariables'
 
 export type Intensity = -1 | 0 | 1
 
@@ -18,6 +19,8 @@ export interface GenerateInput {
   enfases: string[]
   triage?: Triage | null
   lookup: (key: string) => ExerciseProfile | undefined
+  history?: Session[] // semanas anteriores do aluno: o choque evita repetir a variável que ele já fez no exercício
+  seed?: number // sorteio das variáveis (cada "Gerar" sai diferente; nos testes fica fixo)
 }
 
 export interface GeneratedExercise {
@@ -55,6 +58,10 @@ const isPyramid = (reps: RepRange[]) => new Set(reps.map((r) => r.min)).size > 1
 export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
   const out: GeneratedTraining[] = []
   const restr = inp.triage?.restricoes ?? []
+  const rand = rng(inp.seed ?? Date.now())
+  const used = usedVariables(inp.history ?? [])
+  const weekUse = new Map<string, number>() // variáveis já usadas nesta semana (espalhar)
+  const beginner = inp.triage?.experiencia === 'iniciante'
   for (const s of [...inp.base].sort((a, b) => a.label.localeCompare(b.label))) {
     // reagrupa bi-sets (mesmo superset_group seguidos) em uma linha "A + B"
     const groups: SessionExercise[][] = []
@@ -63,34 +70,67 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
       if (last && e.superset_group != null && last[0].superset_group === e.superset_group) last.push(e)
       else groups.push([e])
     }
-    let techDone = false
-    const exercises: GeneratedExercise[] = groups.map((g) => {
+    const meta = groups.map((g) => {
       const e = g[0]
-      const group = inp.lookup(e.exercise_key)?.muscle_group ?? ''
+      const profile = inp.lookup(e.exercise_key)
+      const group = profile?.muscle_group ?? ''
       // ênfase: músculo principal do exercício ou que ele trabalha por inteiro (glúteo no sumô/búlgaro)
       const emphShare = Math.max(0, ...g.flatMap((x) => muscleShares(x.display_name, inp.lookup(x.exercise_key)?.muscle_group ?? '').filter((m) => inp.enfases.includes(m.group)).map((m) => m.share)))
       const isEmph = inp.enfases.includes(group) || emphShare >= 1
+      const hasTech = TECH_RE.test(e.notes ?? '') || e.drop_set
+      return { profile, emphShare, isEmph, single: g.length === 1 && !hasTech }
+    })
+
+    // CHOQUE: quais exercícios recebem variável nova — sorteado (ênfase pesa mais), sem posição fixa
+    const shock = new Map<number, ShockVariable>()
+    const extraSet = new Set<number>()
+    if (inp.phase === 'choque') {
+      const emphCount = meta.filter((m) => m.isEmph).length
+      const howMany = Math.min(meta.filter((m) => m.single).length, (emphCount ? 2 : 1) + (rand() < 0.5 ? 1 : 0))
+      const pool = meta.map((_, i) => i).filter((i) => meta[i].single)
+      const inTraining = new Set<string>()
+      for (let k = 0; k < howMany && pool.length; k++) {
+        const i = pickWeighted(pool, (j) => (meta[j].isEmph ? 3 : 1), rand)!
+        pool.splice(pool.indexOf(i), 1)
+        const g = groups[i]
+        const reps0 = g[0].reps.length ? g[0].reps : [{ min: 10, max: 10 }]
+        const ctx = { profile: meta[i].profile, isEmph: meta[i].isEmph, isLast: i === groups.length - 1, pyramid: isPyramid(reps0), beginner }
+        const st = { sets: g[0].valid_sets, reps: reps0, notes: [] as string[] }
+        const hist = used.get(g[0].exercise_key)
+        const v = pickWeighted(
+          SHOCK_VARIABLES.filter((x) => x.suits(ctx, st) && !inTraining.has(x.id) && (!beginner || x.beginner)),
+          (x) => x.weight * (hist?.get(x.id) ? 0.2 : 1) * 0.4 ** (weekUse.get(x.id) ?? 0),
+          rand,
+        )
+        if (!v) continue
+        shock.set(i, v)
+        inTraining.add(v.id)
+        weekUse.set(v.id, (weekUse.get(v.id) ?? 0) + 1)
+      }
+      // parte da ênfase restante ganha volume (não todos: o aluno não identifica o padrão)
+      for (let i = 0; i < meta.length; i++) if (meta[i].isEmph && !shock.has(i) && rand() < 0.5) extraSet.add(i)
+    } else if (inp.phase === 'ordinaria') {
+      // ORDINÁRIA: +1 série em 1 ou 2 exercícios da ênfase (sorteados) com até 3 séries
+      const pool = meta.map((_, i) => i).filter((i) => meta[i].isEmph && groups[i][0].valid_sets <= 3 && !isPyramid(groups[i][0].reps))
+      const n = Math.min(pool.length, 1 + (rand() < 0.5 ? 1 : 0))
+      for (let k = 0; k < n; k++) { const i = pickWeighted(pool, () => 1, rand)!; pool.splice(pool.indexOf(i), 1); extraSet.add(i) }
+    }
+
+    const exercises: GeneratedExercise[] = groups.map((g, i) => {
+      const e = g[0]
       const changes: string[] = []
       let sets = e.valid_sets
       let reps: RepRange[] = e.reps.length ? [...e.reps] : Array.from({ length: sets }, () => ({ min: 10, max: 10 }))
       let notes = (e.notes ?? '').split(' · ').map((x) => x.trim()).filter(Boolean)
 
-      if (inp.phase === 'choque') {
-        // pirâmide mantém o formato (não ganha série); as demais ganham +1 série na ênfase
-        if (isEmph && sets < 5 && !isPyramid(reps)) { sets += 1; changes.push('+1 série (ênfase)') }
-        // reps mais baixas quando a faixa ainda está alta (a pirâmide inteira desce junto)
-        const lower = reps.some((r) => !r.failure && (r.min + r.max) / 2 > 10) ? reps.map((r) => (r.failure && !r.min ? r : (r.min + r.max) / 2 <= 6 ? r : shiftRange(r, -2))) : reps
-        if (lower.some((r, i) => r.min !== reps[i].min)) changes.push('reps mais baixas')
-        reps = lower
-        if (isEmph && !techDone && !notes.some((x) => TECH_RE.test(x)) && g.length === 1) {
-          notes.push('Drop set na última')
-          changes.push('drop set')
-          techDone = true
-        }
-      } else if (inp.phase === 'ordinaria') {
-        // ordinária: a ênfase ganha volume (+1 série) nos exercícios com até 3 séries; pirâmide mantém o formato
-        if (isEmph && sets <= 3 && !isPyramid(reps)) { sets += 1; changes.push('+1 série (ênfase)') }
-      } else if (inp.phase === 'regenerativa') {
+      const v = shock.get(i)
+      if (v) {
+        const r = v.apply({ sets, reps, notes })
+        sets = r.sets; reps = r.reps; notes = r.notes
+        changes.push(v.change)
+      }
+      if (extraSet.has(i) && sets < 5 && !isPyramid(reps)) { sets += 1; changes.push('+1 série (ênfase)') }
+      if (inp.phase === 'regenerativa') {
         if (sets > 2) { sets -= 1; changes.push('-1 série') }
         const lighter = reps.map((r) => (r.failure && !r.min ? { min: 12, max: 15 } : (r.min + r.max) / 2 < 12 ? { min: 12, max: 15 } : r))
         if (lighter.some((r, i) => r.min !== reps[i].min)) changes.push('reps 12–15')
@@ -99,7 +139,7 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
         notes = notes.filter((x) => !TECH_RE.test(x) && !/carga alta|pesad|falha|m[aá]x/i.test(x))
         if (notes.length < before) changes.push('sem técnica avançada')
       }
-      if (inp.intensity !== 0) {
+      if (inp.intensity !== 0 && !(v && /forca|cluster|piramide|fst7/.test(v.id))) {
         reps = reps.map((r) => shiftRange(r, inp.intensity === 1 ? -2 : 2))
         changes.push(inp.intensity === 1 ? 'mais intenso (-2 reps)' : 'mais leve (+2 reps)')
       }
@@ -112,12 +152,11 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
       // exercício que o aluno disse que não pode/não consegue fazer
       const asked = (inp.triage?.evitarExercicios ?? []).find((x) => names.some((nm) => norm(nm).includes(norm(x)) || norm(x).includes(norm(nm))))
       return {
-        names, sets, warmup: e.warmup_sets, reps, notes, changes, emph: emphShare,
+        names, sets, warmup: e.warmup_sets, reps, notes, changes,
         alert: asked ? 'trocar: aluno não pode fazer' : alertArea ? `revisar (${RESTRICTION_RULES[alertArea.area].titulo.toLowerCase()})` : undefined,
       }
     })
-    const emphasisScore = exercises.reduce((a, x) => a + x.sets * ((x as GeneratedExercise & { emph?: number }).emph ?? 0), 0)
-    for (const x of exercises) delete (x as GeneratedExercise & { emph?: number }).emph
+    const emphasisScore = exercises.reduce((a, x, i) => a + x.sets * meta[i].emphShare, 0)
     out.push({ label: s.label, exercises, emphasisScore })
   }
   return orderByEmphasis(out, inp.enfases)

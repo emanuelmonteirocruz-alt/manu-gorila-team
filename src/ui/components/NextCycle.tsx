@@ -48,7 +48,8 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     if (!base) return
     const sessions = await studentSessions(student, base, addDays(base, 6))
     const lookup = await profileLookup()
-    const week = generateWeek({ base: sessions, phase, intensity, enfases: emph, triage, lookup })
+    const history = (await studentSessions(student)).filter((x) => x.date < base).slice(-40) // ~últimas semanas: o choque evita repetir variável
+    const week = generateWeek({ base: sessions, phase, intensity, enfases: emph, triage, lookup, history })
     setText(weekToWhatsApp(week, alerts))
     const moved = week.filter((t) => t.movedFrom).map((t) => `${t.label}: era o ${t.movedFrom} (veio para a frente pela ênfase)`)
     setSummary([...moved, ...week.flatMap((t) => t.exercises.filter((e) => e.changes.length || e.alert).map((e) => `${t.label.replace('Treino ', '')} · ${e.names.join(' + ')}: ${[...e.changes, e.alert].filter(Boolean).join(', ')}`))])
@@ -121,7 +122,8 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
           ) : (
             <div className="muted">Sem anamnese salva para este aluno{onOpenAnamnese ? <> · <button className="link-btn" onClick={onOpenAnamnese}>colar anamnese</button></> : ''}. O rascunho sai só pela semana de referência.</div>
           )}
-          <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> Gerar treino</button>
+          <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : 'Gerar treino'}</button>
+          {phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, cluster, carga alta, pirâmide, excêntrica, isometria, parciais, FST-7, falha, série a mais) são sorteados a cada geração, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}
         </>)}
       </div>
 

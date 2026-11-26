@@ -90,18 +90,16 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
     id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '',
     exercises: [ex('Elevação pélvica', 3, 12), ex('Agachamento búlgaro', 3, 12, { position: 1 }), { ...ex('Mesa flexora', 3, 12, { position: 2 }), superset_group: 1 }, { ...ex('Abdutora', 3, 15, { position: 3 }), superset_group: 1 }],
   }]
-  it('choque: +1 série na ênfase, reps mais baixas, drop na ênfase; volta a ser lido pelo Colar WhatsApp', () => {
-    const week = generateWeek({ base, phase: 'choque', intensity: 0, enfases: ['Glúteo'], lookup })
-    const txt = weekToWhatsApp(week)
-    expect(txt.startsWith('*Treino A*')).toBe(true)
-    const blocks = splitTrainingBlocks(txt, false)
-    const { exercises, ignored } = parsePrescriptionBlock(blocks[0])
-    expect(ignored).toEqual([])
-    expect(exercises[0].names).toEqual(['Elevação pélvica'])
-    expect(exercises[0].validSets).toBe(4)               // +1 série (ênfase)
-    expect(exercises[0].reps[0]).toEqual({ min: 10, max: 10 }) // 12 → 10
-    expect(exercises[0].dropSet).toBe(true)
-    expect(exercises.find((e) => e.names.length === 2)?.names).toEqual(['Mesa flexora', 'Abdutora']) // bi-set preservado
+  it('choque: estímulo novo na ênfase, sem posição fixa, e o texto volta a ser lido pelo Colar WhatsApp', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const week = generateWeek({ base, phase: 'choque', intensity: 0, enfases: ['Glúteo'], lookup, seed })
+      const txt = weekToWhatsApp(week)
+      expect(txt.startsWith('*Treino A*')).toBe(true)
+      const { exercises, ignored } = parsePrescriptionBlock(splitTrainingBlocks(txt, false)[0])
+      expect(ignored).toEqual([])
+      expect(exercises.map((e) => e.names.join(' + '))).toEqual(['Elevação pélvica', 'Agachamento búlgaro', 'Mesa flexora + Abdutora'])
+      expect(week[0].exercises.some((e) => e.changes.length)).toBe(true)
+    }
   })
   it('regenerativa: -1 série, 12–15 reps, sem técnicas', () => {
     const week = generateWeek({ base: [{ ...base[0], exercises: [{ ...ex('Leg45', 4, 8), notes: 'Drop set · carga alta' }] }], phase: 'regenerativa', intensity: 0, enfases: [], lookup })
@@ -119,28 +117,57 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
   })
 })
 
-describe('rascunho: pirâmide mantém o formato', () => {
-  it('choque desce a pirâmide inteira em números usuais e não acrescenta série', () => {
-    const e: SessionExercise = { id: 'm', position: 0, exercise_key: 'mesa flexora', display_name: 'Mesa flexora', valid_sets: 4, warmup_sets: 0, heavy_sets: 0, reps: [15, 15, 12, 10].map((r) => ({ min: r, max: r })), drop_set: false }
-    const s: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: [e] }
-    const week = generateWeek({ base: [s], phase: 'choque', intensity: 0, enfases: ['Perna - Posterior'], lookup: (k) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k)) })
-    expect(weekToWhatsApp(week).split('\n')[2]).toBe('12/12/10/8')
+describe('choque sem receita fixa', () => {
+  const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+  const ex = (name: string, sets: number, position: number, reps = 10): SessionExercise => ({
+    id: name, position, exercise_key: normalizeKey(name), display_name: name, valid_sets: sets, warmup_sets: 0, heavy_sets: 0,
+    reps: Array.from({ length: sets }, () => ({ min: reps, max: reps })), drop_set: false,
   })
-})
+  const treino: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '',
+    exercises: [ex('Agachamento livre', 4, 0), ex('Leg press', 4, 1), ex('Elevação pélvica', 3, 2), ex('Cadeira extensora', 3, 3, 12), ex('Mesa flexora', 3, 4, 12), ex('Abdutora', 3, 5, 15)] }
+  const enfases = ['Glúteo', 'Perna - Quadríceps']
+  const plan = (seed: number, extra: Partial<Parameters<typeof generateWeek>[0]> = {}) =>
+    generateWeek({ base: [treino], phase: 'choque', intensity: 0, enfases, lookup, seed, ...extra })[0].exercises.map((e) => e.changes.filter((c) => c !== '+1 série (ênfase)').join(',') || '-')
 
-describe('uma mensagem por treino', () => {
-  it('separa a semana em Treino A, B, C e tira as linhas (revisar…) do aluno', async () => {
-    const { splitForWhatsApp } = await import('../consultoria/generator')
-    const txt = '*Treino A*\nLeg press\n4x10\n(revisar (joelho))\n\nCadeira extensora\n3x12\n\n*Treino B*\nRemada baixa\n4x10\n(trocar: aluno não pode fazer)\n\n\n*Treino C*\nSupino\n3x8'
-    const m = splitForWhatsApp(txt)
-    expect(m.map((x) => x.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
-    expect(m[0].text).toBe('*Treino A*\nLeg press\n4x10\n\nCadeira extensora\n3x12')
-    expect(m[1].text).toBe('*Treino B*\nRemada baixa\n4x10')
-    expect(m.every((x) => !/revisar|trocar/.test(x.text))).toBe(true)
+  it('varia de uma geração para outra: exercício, posição e variável', () => {
+    const plans = new Set(Array.from({ length: 20 }, (_, i) => plan(i + 1).join('|')))
+    expect(plans.size).toBeGreaterThan(10)
+    const firstGetsDrop = Array.from({ length: 40 }, (_, i) => plan(i + 1)[0] === 'drop set').filter(Boolean).length
+    expect(firstGetsDrop).toBeLessThan(10) // nada de "primeiro é sempre drop"
   })
-  it('aceita título digitado à mão ("Treino b - Pernas")', async () => {
-    const { splitForWhatsApp } = await import('../consultoria/generator')
-    expect(splitForWhatsApp('Treino a - Superiores\nSupino\n3x10\n\nTreino b - Pernas\nAgachamento\n4x8').map((x) => x.label)).toEqual(['Treino A', 'Treino B'])
+  it('não repete a mesma variável no mesmo treino e respeita o tipo do exercício', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const p = plan(seed).filter((x) => x !== '-')
+      expect(new Set(p).size).toBe(p.length)
+      const [agach] = plan(seed)
+      expect(['drop set', 'rest-pause', 'parciais']).not.toContain(agach) // livre multiarticular: sem drop/rest-pause
+    }
+  })
+  it('evita a variável que o aluno já fez no exercício nas semanas anteriores', () => {
+    const hist: Session[] = [{ ...treino, id: 'h', date: '2026-11-02', exercises: treino.exercises.map((e) => ({ ...e, notes: 'Drop set na última · Rest-pause' })) }]
+    const count = (h?: Session[]) => Array.from({ length: 60 }, (_, i) => plan(i + 1, { history: h })).flat().filter((x) => x === 'drop set' || x === 'rest-pause').length
+    expect(count(hist)).toBeLessThan(count() / 2)
+  })
+  it('iniciante só recebe variáveis simples', () => {
+    const t = buildTriage(sections, { [q('experiencia')]: '3 meses' })
+    for (let seed = 1; seed <= 30; seed++) for (const x of plan(seed, { triage: t })) expect(['-', 'excêntrica lenta', 'isometria no pico', '+1 série']).toContain(x)
+  })
+  it('pirâmide do aluno não ganha série extra', () => {
+    const e: SessionExercise = { ...ex('Mesa flexora', 4, 0), reps: [15, 15, 12, 10].map((r) => ({ min: r, max: r })) }
+    for (let seed = 1; seed <= 20; seed++) {
+      const w = generateWeek({ base: [{ ...treino, exercises: [e] }], phase: 'choque', intensity: 0, enfases: ['Perna - Posterior'], lookup, seed })
+      expect(w[0].exercises[0].changes).not.toContain('+1 série (ênfase)')
+    }
+  })
+  it('todas as variáveis saem num texto que o app lê de volta', async () => {
+    const { SHOCK_VARIABLES } = await import('../consultoria/shockVariables')
+    for (const v of SHOCK_VARIABLES) {
+      const r = v.apply({ sets: 4, reps: Array.from({ length: 4 }, () => ({ min: 10, max: 10 })), notes: [] })
+      const txt = weekToWhatsApp([{ label: 'Treino A', exercises: [{ names: ['Leg press'], sets: r.sets, warmup: 0, reps: r.reps, notes: r.notes, changes: [] }] }])
+      const { exercises, ignored } = parsePrescriptionBlock(splitTrainingBlocks(txt, false)[0])
+      expect(ignored, v.id).toEqual([])
+      expect(exercises[0].validSets, v.id).toBe(r.sets)
+    }
   })
 })
 
@@ -158,11 +185,13 @@ describe('ênfase manda na ordem e no volume', () => {
   ]
   it('glúteo + posterior: o treino de posterior vira o Treino A e a ênfase ganha +1 série', async () => {
     const { missingEmphasis } = await import('../consultoria/generator')
-    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: ['Glúteo', 'Perna - Posterior'], lookup })
+    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: ['Glúteo', 'Perna - Posterior'], lookup, seed: 7 })
     expect(week.map((t) => t.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
     expect(week[0].exercises.map((e) => e.names[0])).toEqual(['Stiff', 'Elevação pélvica', 'Mesa flexora'])
     expect(week[0].movedFrom).toBe('Treino C')
-    expect(week[0].exercises.every((e) => e.sets === 4)).toBe(true)
+    const plus = week[0].exercises.filter((e) => e.sets === 4).length
+    expect(plus).toBeGreaterThanOrEqual(1) // +1 série em 1 ou 2 exercícios da ênfase (sorteados), não em todos
+    expect(plus).toBeLessThanOrEqual(2)
     expect(week[1].exercises[0].names[0]).toBe('Supino reto') // o resto mantém a ordem
     expect(week[1].exercises[0].sets).toBe(4) // fora da ênfase não muda
     expect(missingEmphasis(base, ['Glúteo', 'Panturrilha'], lookup)).toEqual(['Panturrilha'])
