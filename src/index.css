@@ -286,3 +286,23 @@ label.row:has(> input[type=checkbox]) { flex-wrap: nowrap; align-items: center; 
   .m-item .m-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
   .m-item .m-sub { color: var(--sub); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 }
+
+/* ---------- consultoria: semanas enviadas e próxima a colar ---------- */
+.week-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+.week-strip .wk { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px dashed var(--line-strong); color: var(--sub); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--panel); }
+.week-strip .wk.ok { border-style: solid; border-color: #A7F3D0; background: #ECFDF5; color: #047857; }
+.week-strip .wk.next { border-style: solid; border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.btn.wide { width: 100%; }
+.btn.link-btn { justify-self: start; border-color: transparent; background: transparent; color: var(--sub); padding: 0 4px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; white-space: normal; height: auto; min-height: 44px; text-align: left; }
+.tile-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tile-actions .trash-btn { margin-left: auto; }
+.consult-bar, .consult-tile { min-width: 0; overflow: hidden; }
+@media (max-width: 760px) {
+  .consult-facts { grid-template-columns: 1fr 1fr; }
+  .consult-facts label.f { grid-column: 1 / -1; }
+  .consult-meta { grid-template-columns: 1fr 1fr !important; }
+  /* nenhum botão passa da largura da tela */
+  .btn { max-width: 100%; }
+  .btn.big.wide { white-space: normal; height: auto; min-height: 48px; padding: 8px 14px; }
+  .page-head .row { width: 100%; }
+}

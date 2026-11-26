@@ -3,7 +3,8 @@ import { BookOpen, Download, History as HistoryIcon, Save } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { db, getKV, setKV } from '../../data/db'
-import { importWhatsApp, resetTimeline, whatsappInWeeks } from '../../data/repo'
+import { importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
+import { nextChangeAfter } from '../../domain/plan'
 import { getBrand, type Brand } from '../../data/brand'
 import { drawPreview } from '../../pdf/charts'
 import { sharePdf, templateA, templateE } from '../../pdf/templates'
@@ -52,8 +53,11 @@ export default function ImportWhatsApp() {
   const blocks = useMemo(() => {
     const m = new Map<string, typeof parsed>()
     for (const t of parsed) m.set(t.date, [...(m.get(t.date) ?? []), t])
-    return [...m.entries()].map(([msgDate, trainings]) => ({ msgDate, trainings, week: blockWeek[msgDate] ?? suggestWeekFor(msgDate) }))
-  }, [parsed, blockWeek])
+    const entries = [...m.entries()]
+    // veio do atalho "Colar semana de dd/mm": um bloco colado vai para essa semana
+    const preset = params.get('semana')
+    return entries.map(([msgDate, trainings]) => ({ msgDate, trainings, week: blockWeek[msgDate] ?? (preset && entries.length === 1 ? weekStart(preset) : suggestWeekFor(msgDate)) }))
+  }, [parsed, blockWeek, params])
   // todos os treinos do bloco ficam na segunda-feira da semana escolhida, na ordem A, B, C, D
   const flat = useMemo(() => blocks.flatMap((b) => b.trainings.map((t) => ({ ...t, date: b.week, week: b.week }))), [blocks])
   const weeks = useMemo(() => regroupByDate(flat), [flat])
@@ -69,6 +73,11 @@ export default function ImportWhatsApp() {
     if (!fresh) return setMsg('Selecione o aluno.')
     const n = await importWhatsApp(fresh, weeks, true)
     const wk = weeks[weeks.length - 1].week
+    // treino colado = treino enviado: agenda a próxima troca pelo plano (domingo antes do próximo bloco)
+    if (fresh.plan_period) {
+      const nextChange = nextChangeAfter(fresh.plan_period, wk)
+      await saveStudent({ ...(await db.students.get(fresh.id))!, next_change_date: nextChange })
+    }
     // na hora: semana nova × semana anterior salva (ou só a semana, se for a primeira)
     const brand: Brand = await getBrand()
     const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality }
@@ -81,7 +90,7 @@ export default function ImportWhatsApp() {
       setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, o) })
     }
     setImported({ n, wk })
-    setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas`}.`)
+    setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, wk))}.` : ''}`)
     setRaw('')
     setReadText('')
     setBlockWeek({})
@@ -100,7 +109,7 @@ export default function ImportWhatsApp() {
             <input defaultValue={trainerName} onBlur={(e) => setKV('trainer_name', e.target.value)} />
           </label>
         </div>
-        {student && <ConsultancyBar student={student} />}
+        {student && <ConsultancyBar student={student} showPaste={false} />}
         {student && (
           <div className="row">
             <ConfirmButton label="Novo Aluno (Zerar Base)" confirmLabel="Confirmar: começar a linha do tempo do zero" onConfirm={async () => { await resetTimeline(student); setMsg('Base zerada: os próximos treinos salvos começam uma linha do tempo nova.') }} />

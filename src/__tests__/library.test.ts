@@ -61,3 +61,18 @@ describe('ditado: peso corporal e métodos', () => {
     expect(e.series.map((x) => [x.kg, x.repsMin])).toEqual([[200, 12], [200, 12], [200, 12], [200, 12]])
   })
 })
+
+import { nextChangeAfter, nextWeekToPaste } from '../domain/plan'
+describe('consultoria: semanas', () => {
+  it('próxima semana a colar e próxima troca', () => {
+    // quinta 26/11, última colada 23/11 (semanal) → próxima 30/11; troca no domingo 29/11
+    expect(nextWeekToPaste('semanal', '2026-11-23', '2026-11-26')).toBe('2026-11-30')
+    expect(nextChangeAfter('semanal', '2026-11-23')).toBe('2026-11-29')
+    // quinzenal: bloco de 2 semanas
+    expect(nextWeekToPaste('quinzenal', '2026-11-16', '2026-11-18')).toBe('2026-11-30')
+    expect(nextChangeAfter('quinzenal', '2026-11-16')).toBe('2026-11-29')
+    // sem treino há semanas: volta para a semana atual; no domingo, a que começa amanhã
+    expect(nextWeekToPaste('semanal', '2026-10-05', '2026-11-26')).toBe('2026-11-23')
+    expect(nextWeekToPaste('semanal', null, '2026-11-29')).toBe('2026-11-30')
+  })
+})
