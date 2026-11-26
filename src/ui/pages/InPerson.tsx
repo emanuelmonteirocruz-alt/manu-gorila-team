@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, ChevronLeft, Circle, CircleDot, Droplet, FileText, Flame, Mic, Square, X } from 'lucide-react'
+import { Check, ChevronLeft, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
 import { getCheckin, getWeekContext, previousBests, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
@@ -14,6 +14,9 @@ import { parseSpoken, type SpokenEntry, type SpokenSet } from '../../voice/spoke
 import { autocorrect, type Correction } from '../../voice/autocorrect'
 import { getBrand } from '../../data/brand'
 import { sharePdf, templateD } from '../../pdf/templates'
+import { drawPreview } from '../../pdf/charts'
+import { saveFile } from '../../artifact/claude'
+import type { jsPDF } from 'jspdf'
 import { useSpeech } from '../../voice/useSpeech'
 import { SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
@@ -57,16 +60,16 @@ export default function InPerson() {
   return (
     <>
       <div className="steps">
-        <span className={step === 1 ? 'on' : ''}>1 · Aluno{student ? `: ${student.full_name.split(' ')[0]}` : ''}</span>
-        <span className={step === 2 ? 'on' : ''}>2 · Treino{label ? `: ${label.slice(-1)}` : ''}</span>
-        <span className={step === 3 ? 'on' : ''}>3 · Check-in do dia</span>
+        <span className={step === 1 ? 'on' : ''}>1 · Aluno<em>{student ? `: ${student.full_name.split(' ')[0]}` : ''}</em></span>
+        <span className={step === 2 ? 'on' : ''}>2 · Treino<em>{label ? `: ${label.slice(-1)}` : ''}</em></span>
+        <span className={step === 3 ? 'on' : ''}>3 · Check-in<em> do dia</em></span>
         <span className={step === 4 ? 'on' : ''}>Sessão</span>
       </div>
 
       {step === 1 && (
         <div className="big-tiles">
           {students.map((s) => (
-            <button key={s.id} className="tile" onClick={() => setStudent(s)}>{s.full_name}<small>{s.plan_name ?? ''} · {s.weekly_frequency ?? '?'}x/sem</small></button>
+            <button key={s.id} className="tile" onClick={() => setStudent(s)}>{s.full_name}<small>{[s.plan_name, s.weekly_frequency ? `${s.weekly_frequency}x/sem` : ''].filter(Boolean).join(' · ') || 'Presencial'}</small></button>
           ))}
           {!students.length && <div className="muted">Cadastre alunos com modalidade Presencial.</div>}
         </div>
@@ -188,6 +191,11 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   const [ending, setEnding] = useState(false)
   const [pse, setPse] = useState<number | null>(null)
   const [result, setResult] = useState<{ level: SessionLevel; alert: DivergenceAlert | null; kcal: number; fatGrams: number } | null>(null)
+  const [pdf, setPdf] = useState<{ doc: jsPDF; make: () => jsPDF; name: string } | null>(null)
+  const pdfCanvas = useRef<HTMLCanvasElement | null>(null)
+  useEffect(() => {
+    if (pdf && pdfCanvas.current) drawPreview(pdfCanvas.current, pdf.make)
+  }, [pdf])
   const pendingParse = useRef(false)
   const ac = (t: string) => autocorrect(t, { activeGroups: session.muscle_groups, cache })
   // durante a gravação a caixa mostra o texto já corrigido; ao parar, gera os cards
@@ -333,11 +341,18 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     const ctx = await getWeekContext(student.id, weekStart(session.date))
     const c = { sleep: sleep ?? undefined, diet: ctx?.diet, menstrual: student.sex === 'F' && !!ctx?.menstrual }
     setResult({ level: classifySessionLevel(pse, agg, c), alert: divergenceAlert(session.planned_microcycle, pse, c), kcal: agg.kcal, fatGrams: agg.fatGrams })
+    // PDF do treino já pronto ao encerrar: o aluno está na sua frente
+    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const }
+    const bests = await previousBests(student.id, session)
+    const make = () => templateD(session, lookup, pse, o, bests)
+    setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
   }
 
   const upd = (k: string, patch: Partial<Draft>) => setDrafts((d) => d.map((x) => (x.key === k ? { ...x, ...patch } : x)))
 
   if (result) {
+    const phone = (student.phone ?? '').replace(/\D/g, '')
+    const wa = phone ? `https://wa.me/${phone.length <= 11 ? '55' + phone : phone}` : ''
     return (
       <div className="card grid" style={{ maxWidth: 720 }}>
         <h1>Sessão encerrada</h1>
@@ -348,13 +363,20 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           <div className="card kpi"><div className="v row" style={{ gap: 8 }}><Droplet size={22} strokeWidth={1.8} color="var(--sub)" />{fmtNum(result.fatGrams)} g</div><div className="l">equivalente em gordura</div></div>
         </div>
         {result.alert && <div className="alert danger"><b>Alerta de divergência</b><br />{result.alert.message}<br /><span className="muted">Contexto: {result.alert.reasons.join(', ')}</span></div>}
-        <div className="row">
-          <button className="btn big" onClick={async () => {
-            const lookup = await profileLookup()
-            const d = templateD(session, lookup, pse, { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const }, await previousBests(student.id, session))
-            await sharePdf(d, `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf`)
-          }}><FileText size={16} strokeWidth={1.8} /> PDF do treino</button>
-          <button className="btn primary big" onClick={onDone}>Próximo aluno</button>
+        {pdf ? (
+          <>
+            <div className="row stack-sm">
+              {/* compartilha na hora (sem espera), senão o celular bloqueia a janela de envio */}
+              <button className="btn primary big" onClick={() => sharePdf(pdf.doc, pdf.name)}><Send size={16} strokeWidth={1.8} /> Enviar PDF pelo WhatsApp</button>
+              {wa && <a className="btn big" href={wa} target="_blank" rel="noreferrer">Abrir conversa com {student.full_name.split(' ')[0]}</a>}
+            </div>
+            <div className="muted">No celular abre a janela de compartilhar: escolha o WhatsApp e o contato do aluno. No computador o PDF é baixado{wa ? ' e você anexa na conversa' : ''}.</div>
+            <canvas ref={pdfCanvas} className="pdf-preview" aria-label="Prévia do PDF do treino" />
+          </>
+        ) : <div className="muted">Gerando o PDF do treino…</div>}
+        <div className="row stack-sm">
+          {pdf && <button className="btn big" onClick={() => saveFile(pdf.name, pdf.doc.output('blob'))}><Download size={16} strokeWidth={1.8} /> Baixar PDF</button>}
+          <button className="btn big" onClick={onDone}>Próximo aluno</button>
         </div>
       </div>
     )

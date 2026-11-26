@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Bell, Trash2 } from 'lucide-react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
 import { fmtBR } from '../../engine/metrics'
 import { deleteStudent, newStudent } from '../../data/repo'
@@ -28,7 +28,21 @@ export default function Students() {
         ))}
         <button className={`chip sm ${filter === 'vencer' ? 'on' : ''}`} onClick={() => setFilter('vencer')}><Bell size={14} /> Treinos a vencer ({due.length})</button>
       </div>
-      <div className="card scroll-x">
+      <div className="m-list only-mobile">
+        {shown.map((s) => (
+          <Link key={s.id} className="m-item" to={`/alunos/${s.id}`}>
+            <div className="m-top"><span>{s.full_name} <ChangeBadge student={s} /></span><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'choque' : 'warn'}`}>{s.payment_status.replace('_', ' ')}</span></div>
+            <div className="m-sub">
+              <span>{s.modality === 'online' ? 'Consultoria' : 'Presencial'}{s.modality === 'online' ? (s.plan_period ? ` · ${PERIOD_LABEL[s.plan_period]}` : '') : s.weekly_frequency ? ` · ${s.weekly_frequency}x/sem` : ''}</span>
+              {(s.due_date || s.due_day) && <span>Venc. {s.due_date ? fmtBR(s.due_date) : `dia ${s.due_day}`}</span>}
+              {s.modality === 'online' && s.next_change_date && <span>Troca {fmtBR(s.next_change_date)}</span>}
+              {s.plan_value ? <span>R$ {s.plan_value.toFixed(2).replace('.', ',')}</span> : null}
+            </div>
+          </Link>
+        ))}
+        {!shown.length && <div className="muted">Nenhum aluno neste filtro.</div>}
+      </div>
+      <div className="card scroll-x only-desktop">
         <table className="t">
           <thead><tr><th>Nome</th><th>Modalidade</th><th>Plano</th><th>Freq.</th><th>Venc.</th><th>Troca de treino</th><th>Valor</th><th>Hora/aula</th><th>Pagamento</th><th></th></tr></thead>
           <tbody>

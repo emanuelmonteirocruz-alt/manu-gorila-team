@@ -233,3 +233,56 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 /* estado da nuvem */
 .nav .sync .cloud-alert { display: inline-flex; gap: 6px; align-items: center; color: var(--danger, #B91C1C); padding: 0; font-weight: 600; }
 .cloud-banner { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 1px solid #FECACA; background: #FEF2F2; color: #991B1B; font-size: 13px; font-weight: 600; text-decoration: none; }
+
+/* ---------- celular: navegação com "Mais" ---------- */
+.nav-more, .more-sheet { display: none; }
+input[type=checkbox] { width: 22px; height: 22px; flex: none; accent-color: var(--accent); margin: 0; }
+label.row:has(> input[type=checkbox]) { flex-wrap: nowrap; align-items: center; min-height: 44px; cursor: pointer; }
+.only-mobile { display: none; }
+@media (max-width: 760px) {
+  .only-mobile { display: initial; }
+  .only-desktop { display: none !important; }
+  .nav { overflow: visible; justify-content: space-around; }
+  .nav a.extra { display: none; }
+  .nav a, .nav-more { flex: 1 1 0; min-width: 0; padding: 0 4px; font-size: 11px; }
+  .nav-more { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 52px; border: 0; border-radius: 10px; background: transparent; color: var(--sub); font-weight: 600; cursor: pointer; font-family: inherit; }
+  .nav-more.active { background: var(--accent-soft); color: var(--accent); }
+  .more-sheet { display: block; position: fixed; inset: 0; z-index: 40; background: rgb(15 23 42 / .25); }
+  .more-panel { position: absolute; left: 8px; right: 8px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: 0 16px 40px rgb(15 23 42 / .2); display: grid; gap: 2px; }
+  .more-panel a { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 14px; border-radius: 10px; color: var(--ink); font-weight: 600; font-size: 16px; text-decoration: none; }
+  .more-panel a.active { background: var(--accent-soft); color: var(--accent); }
+  .more-status { padding: 10px 14px 6px; border-top: 1px solid var(--line); margin-top: 4px; font-size: 13px; color: var(--sub); }
+  .more-status .cloud-alert { color: var(--danger); font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+
+  /* tipografia e espaços um pouco menores */
+  h1 { font-size: 20px; }
+  .page-head { margin-bottom: 12px; }
+  .card { padding: 14px; }
+  .cloud-banner { font-size: 12.5px; }
+
+  /* alvos de toque de pelo menos 44 px */
+  .chip.sm, .btn.sm, .trash-btn { height: 44px; }
+  .chips { gap: 8px; }
+
+  /* passos do presencial: só o essencial */
+  .steps { gap: 6px; margin-bottom: 12px; }
+  .steps span { font-size: 12px; padding: 0 4px; height: 34px; }
+  .steps span em { display: none; }
+
+  /* botões de escolha (aluno/treino) em 2 colunas */
+  .big-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tile { min-height: 68px; font-size: 15px; padding: 12px; }
+
+  /* microfone: botão flutuante redondo no canto, sem cobrir a tela */
+  .mic-btn { left: auto; width: auto; min-width: 64px; height: 64px; border-radius: 999px; padding: 0 22px; }
+
+  /* ações principais ocupam a largura toda */
+  .row.stack-sm { flex-direction: column; align-items: stretch; }
+  .row.stack-sm > .btn { width: 100%; }
+
+  /* listas em cartões (no lugar de tabelas largas) */
+  .m-list { display: grid; gap: 8px; }
+  .m-item { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-decoration: none; }
+  .m-item .m-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+  .m-item .m-sub { color: var(--sub); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+}

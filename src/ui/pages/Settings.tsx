@@ -37,7 +37,14 @@ export default function Settings() {
     let error: { message: string } | null
     try { ({ error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd })) }
     catch (e) { return setMsg(`Não consegui falar com o Supabase (${(e as Error).message}). Confira a URL na Vercel e se o projeto não está pausado.`) }
-    if (error) return setMsg(/invalid/i.test(error.message) ? 'E-mail ou senha incorretos. Confira o usuário em Authentication → Users no Supabase.' : error.message)
+    if (error) {
+      const m = error.message
+      if (/not confirmed/i.test(m)) return setMsg('E-mail ainda não confirmado. No Supabase: Authentication → Users → abra o usuário → "Confirm user" (ou rode o SQL de correção de login).')
+      if (/invalid login|invalid credentials/i.test(m)) return setMsg('E-mail ou senha não conferem no Supabase. Se o usuário foi criado pelo SQL, crie de novo em Authentication → Users → Add user (com "Auto Confirm"), ou rode o SQL de correção de login.')
+      if (/not found|404/i.test(m)) return setMsg('O Supabase respondeu "não encontrado": confira se a URL na Vercel é só https://xxxx.supabase.co e faça o Redeploy.')
+      if (/database error/i.test(m)) return setMsg('Usuário criado de forma incompleta no Supabase. Apague-o em Authentication → Users e crie de novo pelo botão Add user (com "Auto Confirm").')
+      return setMsg(m)
+    }
     setWho(email.trim())
     setPwd('')
     setMsg('Treinador conectado neste aparelho. Sincronizando…')

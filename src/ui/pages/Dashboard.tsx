@@ -97,7 +97,16 @@ export default function Dashboard() {
 
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-head"><h2>Últimas sessões</h2><Link className="btn sm" to="/historico">Ver histórico</Link></div>
-        <div className="scroll-x"><table className="t">
+        <div className="m-list only-mobile">
+          {data?.recent.map((s) => (
+            <Link key={s.id} className="m-item" to={`/alunos/${s.student_id}`}>
+              <div className="m-top"><span>{name(s.student_id)}</span><span className={`tag src-${s.source}`}>{SOURCE_LABEL[s.source] ?? s.source}</span></div>
+              <div className="m-sub"><span>{fmtBR(s.date)} · {s.label}</span><span>{s.exercises.reduce((a, e) => a + e.valid_sets, 0)} válidas · {s.exercises.reduce((a, e) => a + e.heavy_sets, 0)} pesadas</span></div>
+            </Link>
+          ))}
+          {data && !data.recent.length && <div className="muted">Nenhuma sessão registrada ainda.</div>}
+        </div>
+        <div className="scroll-x only-desktop"><table className="t">
           <thead><tr><th>Data</th><th>Aluno</th><th>Treino</th><th>Origem</th><th className="n">Válidas</th><th className="n">Pesadas</th></tr></thead>
           <tbody>
             {data?.recent.map((s) => (
