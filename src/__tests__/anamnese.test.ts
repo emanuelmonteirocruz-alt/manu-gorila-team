@@ -143,3 +143,32 @@ describe('uma mensagem por treino', () => {
     expect(splitForWhatsApp('Treino a - Superiores\nSupino\n3x10\n\nTreino b - Pernas\nAgachamento\n4x8').map((x) => x.label)).toEqual(['Treino A', 'Treino B'])
   })
 })
+
+describe('ênfase manda na ordem e no volume', () => {
+  const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+  const ex = (name: string, sets: number, position = 0): SessionExercise => ({
+    id: name, position, exercise_key: normalizeKey(name), display_name: name, valid_sets: sets, warmup_sets: 0, heavy_sets: 0,
+    reps: Array.from({ length: sets }, () => ({ min: 10, max: 10 })), drop_set: false,
+  })
+  const sess = (label: string, exs: SessionExercise[]): Session => ({ id: label, student_id: 'x', date: '2026-11-23', label, source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: exs })
+  const base = [
+    sess('Treino A', [ex('Supino reto', 4), ex('Crucifixo', 3, 1), ex('Tríceps corda', 3, 2)]),
+    sess('Treino B', [ex('Puxada frontal', 4), ex('Remada baixa', 3, 1)]),
+    sess('Treino C', [ex('Stiff', 3), ex('Elevação pélvica', 3, 1), ex('Mesa flexora', 3, 2)]),
+  ]
+  it('glúteo + posterior: o treino de posterior vira o Treino A e a ênfase ganha +1 série', async () => {
+    const { missingEmphasis } = await import('../consultoria/generator')
+    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: ['Glúteo', 'Perna - Posterior'], lookup })
+    expect(week.map((t) => t.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
+    expect(week[0].exercises.map((e) => e.names[0])).toEqual(['Stiff', 'Elevação pélvica', 'Mesa flexora'])
+    expect(week[0].movedFrom).toBe('Treino C')
+    expect(week[0].exercises.every((e) => e.sets === 4)).toBe(true)
+    expect(week[1].exercises[0].names[0]).toBe('Supino reto') // o resto mantém a ordem
+    expect(week[1].exercises[0].sets).toBe(4) // fora da ênfase não muda
+    expect(missingEmphasis(base, ['Glúteo', 'Panturrilha'], lookup)).toEqual(['Panturrilha'])
+  })
+  it('sem ênfase a ordem da semana base fica igual', () => {
+    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: [], lookup })
+    expect(week.map((t) => t.exercises[0].names[0])).toEqual(['Supino reto', 'Puxada frontal', 'Stiff'])
+  })
+})

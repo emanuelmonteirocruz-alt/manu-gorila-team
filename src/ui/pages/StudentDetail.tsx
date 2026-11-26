@@ -6,6 +6,7 @@ import { db } from '../../data/db'
 import { resetTimeline } from '../../data/repo'
 import { toISODate, weekStart } from '../../engine/metrics'
 import Copilot from '../components/Copilot'
+import NextCycle from '../components/NextCycle'
 import { ChangeBadge, ConfirmButton, PayBadge, SleepCheckin, StudentForm, WeekContextEditor } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
 import { WeeklyTable } from '../components/WeeklyTable'
@@ -58,11 +59,11 @@ export default function StudentDetail() {
       ) : (<>
       <div className="chips" style={{ marginBottom: 14 }}>
         <button className={`chip sm ${tab === 'historico' ? 'on' : ''}`} onClick={() => setTab('historico')}>Histórico & semanas</button>
-        <button className={`chip sm ${tab === 'copiloto' ? 'on' : ''}`} onClick={() => setTab('copiloto')}>Copiloto do próximo ciclo</button>
+        <button className={`chip sm ${tab === 'copiloto' ? 'on' : ''}`} onClick={() => setTab('copiloto')}>Próximo ciclo</button>
         <button className={`chip sm ${tab === 'ficha' ? 'on' : ''}`} onClick={() => setTab('ficha')}>Ficha / financeiro</button>
-        <button className={`chip sm ${tab === 'anamnese' ? 'on' : ''}`} onClick={() => setTab('anamnese')}>Anamnese & montagem</button>
+        <button className={`chip sm ${tab === 'anamnese' ? 'on' : ''}`} onClick={() => setTab('anamnese')}>Anamnese</button>
       </div>
-      {tab === 'anamnese' && <AnamnesePanel student={student} />}
+      {tab === 'anamnese' && <AnamnesePanel student={student} onGoCycle={() => setTab('copiloto')} />}
 
       {tab === 'ficha' && (
         <div className="grid">
@@ -74,7 +75,15 @@ export default function StudentDetail() {
           </div>
         </div>
       )}
-      {tab === 'copiloto' && <Copilot student={student} />}
+      {tab === 'copiloto' && (
+        <div className="grid">
+          <NextCycle student={student} onOpenAnamnese={() => setTab('anamnese')} />
+          <details className="card">
+            <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Gerador antigo (tempo disponível e IA)</summary>
+            <div style={{ marginTop: 10 }}><Copilot student={student} /></div>
+          </details>
+        </div>
+      )}
       {tab === 'historico' && (
         <div className="grid">
           {student.modality === 'online' ? <ConsultancyBar student={student} /> : (

@@ -7,6 +7,7 @@
 import type { ExerciseProfile, Microcycle, RepRange, Session, SessionExercise } from '../domain/types'
 import { RESTRICTION_RULES } from './reminders'
 import type { Triage } from './triage'
+import { muscleShares } from '../engine/exerciseSeed'
 
 export type Intensity = -1 | 0 | 1
 
@@ -28,7 +29,12 @@ export interface GeneratedExercise {
   changes: string[] // o que mudou em relação à semana base (para você conferir)
   alert?: string
 }
-export interface GeneratedTraining { label: string; exercises: GeneratedExercise[] }
+export interface GeneratedTraining {
+  label: string
+  exercises: GeneratedExercise[]
+  emphasisScore?: number // séries da ênfase no treino (para pôr o treino prioritário primeiro)
+  movedFrom?: string // rótulo que o treino tinha na semana base, quando a ênfase mudou a ordem
+}
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 const TECH_RE = /\b(drop|rest[ -]?pause|cluster|fst|excentric|negativ|isometri|piramide)\w*[^·]*/i
@@ -61,7 +67,9 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
     const exercises: GeneratedExercise[] = groups.map((g) => {
       const e = g[0]
       const group = inp.lookup(e.exercise_key)?.muscle_group ?? ''
-      const isEmph = inp.enfases.includes(group)
+      // ênfase: músculo principal do exercício ou que ele trabalha por inteiro (glúteo no sumô/búlgaro)
+      const emphShare = Math.max(0, ...g.flatMap((x) => muscleShares(x.display_name, inp.lookup(x.exercise_key)?.muscle_group ?? '').filter((m) => inp.enfases.includes(m.group)).map((m) => m.share)))
+      const isEmph = inp.enfases.includes(group) || emphShare >= 1
       const changes: string[] = []
       let sets = e.valid_sets
       let reps: RepRange[] = e.reps.length ? [...e.reps] : Array.from({ length: sets }, () => ({ min: 10, max: 10 }))
@@ -79,6 +87,9 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
           changes.push('drop set')
           techDone = true
         }
+      } else if (inp.phase === 'ordinaria') {
+        // ordinária: a ênfase ganha volume (+1 série) nos exercícios com até 3 séries; pirâmide mantém o formato
+        if (isEmph && sets <= 3 && !isPyramid(reps)) { sets += 1; changes.push('+1 série (ênfase)') }
       } else if (inp.phase === 'regenerativa') {
         if (sets > 2) { sets -= 1; changes.push('-1 série') }
         const lighter = reps.map((r) => (r.failure && !r.min ? { min: 12, max: 15 } : (r.min + r.max) / 2 < 12 ? { min: 12, max: 15 } : r))
@@ -101,13 +112,15 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
       // exercício que o aluno disse que não pode/não consegue fazer
       const asked = (inp.triage?.evitarExercicios ?? []).find((x) => names.some((nm) => norm(nm).includes(norm(x)) || norm(x).includes(norm(nm))))
       return {
-        names, sets, warmup: e.warmup_sets, reps, notes, changes,
+        names, sets, warmup: e.warmup_sets, reps, notes, changes, emph: emphShare,
         alert: asked ? 'trocar: aluno não pode fazer' : alertArea ? `revisar (${RESTRICTION_RULES[alertArea.area].titulo.toLowerCase()})` : undefined,
       }
     })
-    out.push({ label: s.label, exercises })
+    const emphasisScore = exercises.reduce((a, x) => a + x.sets * ((x as GeneratedExercise & { emph?: number }).emph ?? 0), 0)
+    for (const x of exercises) delete (x as GeneratedExercise & { emph?: number }).emph
+    out.push({ label: s.label, exercises, emphasisScore })
   }
-  return out
+  return orderByEmphasis(out, inp.enfases)
 }
 
 /** "4x10", "3x8-12", "15/12/10/8", "3xMáx" — o padrão que o leitor do WhatsApp entende. */
@@ -157,4 +170,29 @@ export function splitForWhatsApp(text: string): TrainingMessage[] {
       text: b.lines.filter((l) => !/^\s*\((revisar|trocar)\b[^)]*\)?.*$/i.test(l)).join('\n').replace(/\n{3,}/g, '\n\n').trim(),
     }))
     .filter((b) => b.text)
+}
+
+/**
+ * Com ênfase escolhida, o treino com mais séries da ênfase vira o Treino A (o aluno começa a semana por ele).
+ * As letras ficam na sequência (A, B, C…); empate mantém a ordem da semana base.
+ */
+export function orderByEmphasis(week: GeneratedTraining[], enfases: string[]): GeneratedTraining[] {
+  if (!enfases.length || week.length < 2) return week
+  const labels = week.map((t) => t.label)
+  const sorted = week.map((t, i) => ({ t, i })).sort((a, b) => (b.t.emphasisScore ?? 0) - (a.t.emphasisScore ?? 0) || a.i - b.i).map((x) => x.t)
+  const LETTER = /^\s*treino\s+\S+/i
+  return sorted.map((t, i) => {
+    if (t.label === labels[i]) return t
+    const want = labels[i].match(LETTER)?.[0]
+    const have = t.label.match(LETTER)?.[0]
+    const label = want && have ? t.label.replace(have, want.trim()) : labels[i]
+    return { ...t, label, movedFrom: t.label }
+  })
+}
+
+/** Músculos da ênfase que não aparecem em nenhum exercício da semana base (o rascunho não inventa exercício). */
+export function missingEmphasis(base: Session[], enfases: string[], lookup: GenerateInput['lookup']): string[] {
+  const seen = new Set<string>()
+  for (const s of base) for (const e of s.exercises) for (const m of muscleShares(e.display_name, lookup(e.exercise_key)?.muscle_group ?? '')) if (m.share >= 0.5) seen.add(m.group)
+  return enfases.filter((g) => !seen.has(g))
 }
