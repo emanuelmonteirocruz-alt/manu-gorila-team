@@ -10,6 +10,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { db, getKV, nowISO, setKV } from './db'
+import { CLOUD_KEY, CLOUD_URL } from './cloudProject'
 import type { ExerciseProfile, Session, SessionExercise } from '../domain/types'
 
 let client: SupabaseClient | null = null
@@ -33,8 +34,8 @@ export async function cloudConfig(): Promise<{ url: string; key: string }> {
     if (md) t = md[1].trim()
     return t
   }
-  const url = clean((await getKV<string>('supabase_url', '')) || import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
-  const key = clean((await getKV<string>('supabase_key', '')) || import.meta.env.VITE_SUPABASE_ANON_KEY)
+  const url = clean((await getKV<string>('supabase_url', '')) || CLOUD_URL || import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+  const key = clean((await getKV<string>('supabase_key', '')) || CLOUD_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)
   return { url, key }
 }
 
@@ -61,7 +62,7 @@ export function resetSupabaseClient() {
 }
 
 /** A nuvem veio configurada no deploy (Vercel)? Então os campos de URL/chave ficam escondidos. */
-export const envConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+export const envConfigured = !!(CLOUD_URL && CLOUD_KEY) || !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 /** E-mail do treinador conectado neste aparelho (sessão salva), ou null. */
 export async function currentTrainer(): Promise<string | null> {
