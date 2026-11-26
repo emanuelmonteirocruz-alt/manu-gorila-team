@@ -147,14 +147,14 @@ export function ExerciseLine({ e }: { e: SessionExercise }) {
       </div>
       <div className="chips">
         {(e.warmup_detail ?? []).map((w, i) => (
-          <span key={`w${i}`} className="tag">Aq{i + 1}{w.kg != null ? ` · ${fmtNum(w.kg, 1)} ${unit}` : ''} × {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}</span>
+          <span key={`w${i}`} className="tag">Aq{i + 1} · {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}{w.kg != null ? ` × ${fmtNum(w.kg, Number.isInteger(w.kg) ? 0 : 1)} ${unit}` : ''}</span>
         ))}
         {Array.from({ length: e.valid_sets }, (_, i) => {
           const r = e.reps[i]
           const kg = e.loads?.[i] ?? e.load_kg
           const reps = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`
           const heavy = !!r && isHeavy(r)
-          return <span key={i} className={`tag ${heavy ? 'warn' : ''}`}>S{i + 1}{kg != null ? ` · ${fmtNum(kg, 1)} ${unit}` : ''}{reps ? ` × ${reps}` : ''}{heavy ? ' · pesada' : ''}</span>
+          return <span key={i} className={`tag ${heavy ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${fmtNum(kg, Number.isInteger(kg) ? 0 : 1)} ${unit}` : '—'}{heavy ? ' · pesada' : ''}</span>
         })}
       </div>
     </div>

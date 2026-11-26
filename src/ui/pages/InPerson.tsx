@@ -256,8 +256,8 @@ function topSetText(loads: (number | null | undefined)[], reps: (RepRange | unde
   })
   if (best < 0) return '—'
   const r = reps[best] ?? reps[reps.length - 1]
-  const rt = !r ? '' : r.failure ? ' × Máx' : ` × ${r.min === r.max ? r.min : `${r.min}-${r.max}`}`
-  return `${kgFmt(loads[best]!)} kg${perSide ? ' de cada lado' : ''}${rt}`
+  const rt = !r ? '' : r.failure ? 'Máx × ' : `${r.min === r.max ? r.min : `${r.min}-${r.max}`} × `
+  return `${rt}${kgFmt(loads[best]!)} kg${perSide ? ' de cada lado' : ''}`
 }
 function LastLoadHint({ last, peak }: { last?: LastLoad; peak: number | null }) {
   if (!last) return null
@@ -569,11 +569,11 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                       return (
                         <div key={i} className={`set-row ${x.warmup ? 'is-warmup' : ''}`}>
                           <span className="set-n">{x.warmup ? `Aquec. ${warmIndex}` : `Série ${(joins ? last.valid_sets : 0) + workIndex}`}</span>
-                          <label className="f"><span>{unit}</span>
-                            <input inputMode="decimal" value={x.kg ?? ''} onChange={(e) => put({ kg: e.target.value === '' ? null : Number(e.target.value.replace(',', '.')) })} />
-                          </label>
                           <label className="f"><span>reps</span>
                             <input key={repsLabel(x)} defaultValue={repsLabel(x)} placeholder="10 ou Máx" onBlur={(e) => put(parseRepsInput(e.target.value))} />
+                          </label>
+                          <label className="f"><span>{unit}</span>
+                            <input inputMode="decimal" value={x.kg ?? ''} onChange={(e) => put({ kg: e.target.value === '' ? null : Number(e.target.value.replace(',', '.')) })} />
                           </label>
                           <button type="button" className={`warm-toggle ${x.warmup ? 'on' : ''}`} aria-pressed={!!x.warmup}
                             title="Aquecimento não conta como série válida" onClick={() => put({ warmup: !x.warmup, heavy: x.warmup ? null : false })}>
@@ -623,13 +623,13 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                 <LastLoadHint last={lastFor(e.display_name, e.exercise_key)} peak={e.load_kg ?? null} />
                 <div className="chips">
                   {(e.warmup_detail ?? []).map((w, i) => (
-                    <span key={`w${i}`} className="tag">Aq{i + 1}{w.kg != null ? ` · ${fmtNum(w.kg, 1)} ${unit}` : ''} × {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}</span>
+                    <span key={`w${i}`} className="tag">Aq{i + 1} · {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}{w.kg != null ? ` × ${kgFmt(w.kg)} ${unit}` : ''}</span>
                   ))}
                   {Array.from({ length: e.valid_sets }, (_, i) => {
                     const r = e.reps[i]
                     const kg = e.loads?.[i] ?? e.load_kg
                     const reps = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`
-                    return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {kg != null ? `${fmtNum(kg, 1)} ${unit}` : '—'}{reps ? ` × ${reps}` : ''}{r && isHeavy(r) ? ' · pesada' : ''}</span>
+                    return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) ? ' · pesada' : ''}</span>
                   })}
                 </div>
               </div>
