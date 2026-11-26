@@ -99,7 +99,7 @@ export default function Dashboard() {
         <div className="card-head"><h2>Últimas sessões</h2><Link className="btn sm" to="/historico">Ver histórico</Link></div>
         <div className="m-list only-mobile">
           {data?.recent.map((s) => (
-            <Link key={s.id} className="m-item" to={`/alunos/${s.student_id}`}>
+            <Link key={s.id} className="m-item" to={`/alunos/${s.student_id}?treino=${s.id}`}>
               <div className="m-top"><span>{name(s.student_id)}</span><span className={`tag src-${s.source}`}>{SOURCE_LABEL[s.source] ?? s.source}</span></div>
               <div className="m-sub"><span>{fmtBR(s.date)} · {s.label}</span><span>{s.exercises.reduce((a, e) => a + e.valid_sets, 0)} válidas · {s.exercises.reduce((a, e) => a + e.heavy_sets, 0)} pesadas</span></div>
             </Link>
@@ -110,7 +110,7 @@ export default function Dashboard() {
           <thead><tr><th>Data</th><th>Aluno</th><th>Treino</th><th>Origem</th><th className="n">Válidas</th><th className="n">Pesadas</th></tr></thead>
           <tbody>
             {data?.recent.map((s) => (
-              <tr key={s.id} className="click" onClick={() => nav(`/alunos/${s.student_id}`)}>
+              <tr key={s.id} className="click" onClick={() => nav(`/alunos/${s.student_id}?treino=${s.id}`)}>
                 <td className="num">{fmtBR(s.date)}</td>
                 <td><b>{name(s.student_id)}</b></td>
                 <td>{s.label}</td>

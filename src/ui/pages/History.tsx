@@ -130,7 +130,7 @@ function HistoryRow({ s, agg, pse, showStudent, student, open, onToggle, hideKg,
   )
 }
 
-function ExerciseLine({ e }: { e: SessionExercise }) {
+export function ExerciseLine({ e }: { e: SessionExercise }) {
   const unit = e.per_side ? 'kg/lado' : 'kg'
   const t = tonnage(e)
   return (
