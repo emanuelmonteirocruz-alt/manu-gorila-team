@@ -41,6 +41,7 @@ export default function Settings() {
       const m = error.message
       if (/not confirmed/i.test(m)) return setMsg('E-mail ainda não confirmado. No Supabase: Authentication → Users → abra o usuário → "Confirm user" (ou rode o SQL de correção de login).')
       if (/invalid login|invalid credentials/i.test(m)) return setMsg('E-mail ou senha não conferem no Supabase. Se o usuário foi criado pelo SQL, crie de novo em Authentication → Users → Add user (com "Auto Confirm"), ou rode o SQL de correção de login.')
+      if (/failed to fetch|load failed|networkerror/i.test(m)) return setMsg(`Não consegui falar com o Supabase em ${project?.host ?? 'este endereço'}. Confira se o endereço está certo (toque em "Corrigir endereço") e se há internet.`)
       if (/not found|404/i.test(m)) return setMsg('O Supabase respondeu "não encontrado": confira se a URL na Vercel é só https://xxxx.supabase.co e faça o Redeploy.')
       if (/database error/i.test(m)) return setMsg('Usuário criado de forma incompleta no Supabase. Apague-o em Authentication → Users e crie de novo pelo botão Add user (com "Auto Confirm").')
       return setMsg(m)
@@ -75,6 +76,7 @@ export default function Settings() {
           )}
           {project && <div className="muted">Projeto: <b>{project.host || '(sem URL)'}</b> · chave {project.key}</div>}
           {project?.problem && <div className="alert danger">{project.problem}</div>}
+          {envConfigured && <FixUrl current={project?.host ?? ''} onSaved={(host) => { setProject((p) => (p ? { ...p, host } : p)); setMsg('Endereço salvo neste aparelho. Agora entre com o e-mail e a senha.') }} />}
           {!envConfigured && (
             <>
               <ol className="muted" style={{ margin: 0, paddingLeft: 18 }}>
@@ -219,6 +221,28 @@ function ChangePassword({ onMsg }: { onMsg: (m: string) => void }) {
         <button className="btn" onClick={() => setOpen(false)}>Cancelar</button>
         {p1 && p1.length < 6 && <span className="muted">mínimo 6 caracteres</span>}
         {p2 && p1 !== p2 && <span className="muted">as senhas não são iguais</span>}
+      </div>
+    </div>
+  )
+}
+
+/** Corrige o endereço do Supabase só neste aparelho (vale mais que o da Vercel). */
+function FixUrl({ current, onSaved }: { current: string; onSaved: (host: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [v, setV] = useState('')
+  if (!open) return <div className="row"><button className="btn sm" onClick={() => { setV(current ? `https://${current}` : ''); setOpen(true) }}>Corrigir endereço</button></div>
+  return (
+    <div className="grid">
+      <label className="f">Endereço do Supabase (Project URL)<input value={v} onChange={(e) => setV(e.target.value)} placeholder="https://xxxx.supabase.co" autoCapitalize="off" autoCorrect="off" spellCheck={false} /></label>
+      <div className="row">
+        <button className="btn primary" disabled={!/^https:\/\/[a-z0-9]+\.supabase\.co\/?$/i.test(v.trim())} onClick={async () => {
+          const url = v.trim().replace(/\/+$/, '')
+          await setKV('supabase_url', url)
+          resetSupabaseClient()
+          setOpen(false)
+          onSaved(url.replace(/^https?:\/\//, ''))
+        }}>Salvar endereço</button>
+        <button className="btn" onClick={() => setOpen(false)}>Cancelar</button>
       </div>
     </div>
   )
