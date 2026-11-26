@@ -148,6 +148,7 @@ export const MUSCLE_GROUPS = [
   'Perna - Quadríceps',
   'Perna - Posterior',
   'Glúteo',
+  'Adutores',
   'Panturrilha',
   'Ombro',
   'Costas',

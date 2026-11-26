@@ -2,11 +2,11 @@
  * Biblioteca ampla de exercícios (offline): academia comercial, funcional, peso corporal,
  * máquinas articuladas, cabos e variações. Complementa a semente básica do exerciseSeed.
  * Formato: [nome, grupo, sub-região, multi|mono, livre|maq, apelidos?]
- * Grupos = MUSCLE_GROUPS do app (antebraço → Bíceps, trapézio → Ombro, lombar → Costas, adutores → Glúteo).
+ * Grupos = MUSCLE_GROUPS do app (antebraço → Bíceps, trapézio → Ombro, lombar → Costas).
  */
 export type LibSeed = [name: string, group: string, sub: string, mech: 'multi' | 'mono', impl: 'livre' | 'maq', aliases?: string[]]
 
-const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo', PA = 'Panturrilha', O = 'Ombro', C = 'Costas', PE = 'Peito', B = 'Bíceps', T = 'Tríceps', A = 'Abdômen'
+const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo', AD = 'Adutores', PA = 'Panturrilha', O = 'Ombro', C = 'Costas', PE = 'Peito', B = 'Bíceps', T = 'Tríceps', A = 'Abdômen'
 
 export const LIBRARY: LibSeed[] = [
   // ---------------- Quadríceps ----------------
@@ -62,8 +62,8 @@ export const LIBRARY: LibSeed[] = [
   ['Abdução no cabo', G, 'glúteo médio', 'mono', 'maq', ['abdução polia', 'abducao cabo']],
   ['Abdução deitado', G, 'glúteo médio', 'mono', 'livre', ['abdução de quadril deitado', 'abducao lateral deitado']],
   ['Abdução com elástico', G, 'glúteo médio', 'mono', 'livre', ['abdução mini band', 'mini band', 'caminhada lateral', 'monster walk']],
-  ['Adutora', G, 'adutores', 'mono', 'maq', ['cadeira adutora', 'adutor', 'adução']],
-  ['Adução no cabo', G, 'adutores', 'mono', 'maq', ['adução polia', 'aducao cabo']],
+  ['Adutora', AD, 'adutores', 'mono', 'maq', ['cadeira adutora', 'adutor', 'adução', 'banco adutor', 'cadeira adutor']],
+  ['Adução no cabo', AD, 'adutores', 'mono', 'maq', ['adução polia', 'aducao cabo']],
   ['Kettlebell swing', G, 'glúteo/posterior', 'multi', 'livre', ['swing', 'kb swing', 'balanço kettlebell']],
   ['Pull through', G, 'glúteo', 'multi', 'maq', ['pull through cabo', 'puxada entre pernas']],
   ['Extensão de quadril no banco romano', G, 'glúteo', 'mono', 'livre', ['hiperextensão gluteo', 'reverse hyper', 'hiper reversa']],

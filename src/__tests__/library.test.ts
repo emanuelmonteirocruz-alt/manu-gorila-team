@@ -20,7 +20,7 @@ describe('banco de exercícios', () => {
     const cases: [string, string][] = [
       ['paralela', 'Tríceps'], ['remada cavalinho', 'Costas'], ['puxada supinada', 'Costas'], ['graviton', 'Costas'],
       ['face pull', 'Ombro'], ['encolhimento', 'Ombro'], ['flexão de braço', 'Peito'], ['agachamento sumô', 'Perna - Quadríceps'],
-      ['nórdico', 'Perna - Posterior'], ['panturrilha sentado', 'Panturrilha'], ['kettlebell swing', 'Glúteo'], ['adutora', 'Glúteo'],
+      ['nórdico', 'Perna - Posterior'], ['panturrilha sentado', 'Panturrilha'], ['kettlebell swing', 'Glúteo'], ['adutora', 'Adutores'],
       ['rosca bayesian', 'Bíceps'], ['tríceps coice', 'Tríceps'], ['elevação de pernas na barra', 'Abdômen'], ['hiperextensão lombar', 'Costas'],
     ]
     for (const [n, g] of cases) expect(find(n)?.muscle_group, n).toBe(g)

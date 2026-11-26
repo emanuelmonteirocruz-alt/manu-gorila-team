@@ -92,7 +92,7 @@ export const SEED_PROFILES: ExerciseProfile[] = (() => {
 })()
 
 /** Versão do banco: quando muda, aparelhos já instalados recebem os exercícios novos. */
-export const SEED_VERSION = 3
+export const SEED_VERSION = 4
 
 /** Heurística offline usada só quando IA indisponível (marcada como 'heuristic' para revisão). */
 export function heuristicProfile(name: string, activeGroups: string[]): ExerciseProfile {
@@ -107,7 +107,8 @@ export function heuristicProfile(name: string, activeGroups: string[]): Exercise
     [/remada|puxada|pulley|pulldown|dorsal|costas|barra fixa|pull up|chin|lombar|hiperext|superman|serrote/, 'Costas'],
     [/desenvolv|\blateral|frontal|ombro|deltoide|militar|arnold|encolh|trapezio|rotacao/, 'Ombro'],
     [/flexora|flexor|stiff|terra|posterior|nordic|good morning|isquio/, 'Perna - Posterior'],
-    [/gluteo|pelvica|thrust|abdut|adut|coice|ponte|quatro apoios|swing/, 'Glúteo'],
+    [/\badut|\baduc/, 'Adutores'],
+    [/gluteo|pelvica|thrust|abdut|coice|ponte|quatro apoios|swing/, 'Glúteo'],
     [/panturr|gemeo|soleo|tibial/, 'Panturrilha'],
     [/agach|squat|leg|hack|extensora|extensor|afundo|passada|avanco|lunge|bulgaro|quadri|step|subida|sissy|pistol|salto/, 'Perna - Quadríceps'],
     [/supino|crucifixo|peck|voador|peito|peitoral|fly|flexao bra|push up|apoio|cross/, 'Peito'],
@@ -148,7 +149,8 @@ const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
   [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
   [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.5 }]],
   [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.5 }]],
-  [/(remada|puxada|pulley|barra fixa|pull up|chin|serrote)/, ['Costas'], [{ group: 'Bíceps', share: 0.5 }]],
+  // remada/puxada: costas trabalha muito mais que bíceps (no máximo 30%)
+  [/(remada|puxada|pulley|barra fixa|pull up|chin|serrote)/, ['Costas'], [{ group: 'Bíceps', share: 0.3 }]],
 ]
 
 /** Distribuição de uma série entre músculos: principal = 1, auxiliares = fração (sem repetir o principal). */

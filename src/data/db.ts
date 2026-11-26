@@ -90,7 +90,7 @@ export async function ensureExerciseLibrary(): Promise<number> {
   if (missing.length) await db.exerciseCache.bulkAdd(missing)
   // v3: reclassifica o que foi adivinhado automaticamente (ex.: "rosca direta cross" ia para Peito).
   // Correções do treinador ('trainer') e classificações da IA nunca são tocadas.
-  if (from < 3) {
+  if (from < SEED_VERSION) {
     const byAlias = new Map<string, (typeof SEED_PROFILES)[number]>()
     for (const p of SEED_PROFILES) for (const a of [p.key, ...p.aliases]) byAlias.set(a, p)
     const fixes = []

@@ -25,7 +25,12 @@ describe('músculos: classificação e séries fracionadas', () => {
     expect(shares('Afundo com carga')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 0.5 })
     expect(shares('Stiff')).toEqual({ 'Perna - Posterior': 1, 'Glúteo': 0.5 })
     expect(shares('Supino reto')).toEqual({ Peito: 1, 'Tríceps': 0.5, Ombro: 0.25 })
-    expect(shares('Pulley frente')).toEqual({ Costas: 1, 'Bíceps': 0.5 })
+    expect(shares('Pulley frente')).toEqual({ Costas: 1, 'Bíceps': 0.3 })
+    expect(find('Adutor').muscle_group).toBe('Adutores')
+    expect(find('Banco adutor').muscle_group).toBe('Adutores')
+    expect(find('Abdutora').muscle_group).toBe('Glúteo')
+    expect(find('Voador').muscle_group).toBe('Peito')
+    expect(find('Voador invertido').muscle_group).toBe('Ombro')
     expect(shares('Triceps pulley')).toEqual({ 'Tríceps': 1 })   // pulley de tríceps não ganha bíceps
     expect(shares('Abdutora')).toEqual({ 'Glúteo': 1 })
   })
