@@ -235,8 +235,10 @@ function hRows(d: jsPDF, y: number, rows: HRow[], rowH = 28, rightLabel = 'Tonel
   d.setFontSize(5.8)
   const tw = Math.max(0, ...rows.map((r) => (r.tag ? d.getTextWidth(r.tag) : 0)))
   const labelW = Math.min(150, Math.max(62, lw + 10, tw + 10)), rightW = 70
-  const markW = rows.some((r) => r.mark) ? (rows.some((r) => r.down) ? 68 : 56) : 0 // coluna fixa da evolução ("+9% carga" / selo da regenerativa)
-  const barW = W - labelW - rightW - 18 - markW
+  d.setFont('helvetica', 'bold'); d.setFontSize(6.6)
+  const downW = Math.max(0, ...rows.filter((r) => r.down && r.mark).map((r) => d.getTextWidth(r.mark!) + 14))
+  const markW = rows.some((r) => r.mark) ? Math.max(56, downW) : 0 // coluna fixa da evolução ("+9% carga" / selo da regenerativa)
+  const barW = W - labelW - rightW - 18 - markW - (VOLUME_ONLY && markW ? 36 : 0) // espaço do "76 séries" depois da barra
   const max = Math.max(...rows.map((r) => r.valid), 1)
   legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries válidas' }, { c: C.sub, l: rightLabel }] : [{ c: C.volume, l: 'Válidas' }, { c: C.heavy, l: 'Pesadas' }, { c: C.sub, l: rightLabel }])
   chartSeal(d, PAGE.m + W, y)
@@ -581,7 +583,7 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
     heavy: w.agg.heavySets,
     right: rightOf(w.agg, o),
     // regenerativa: selo curto mostrando o que diminuiu (ex.: "força 9 > 5"), com seta para baixo
-    ...regenMark(w, i ? weeks[i - 1] : undefined),
+    ...regenMark(w, i ? weeks[i - 1] : undefined, isOnline(o)),
   })), rowH, rightLabelOf(o))
 
   if (o.showEmphasis) y = focusSection(d, y + 2, monthAgg)
@@ -605,13 +607,15 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
 }
 
 /** Regenerativa: o que diminuiu em relação à semana anterior (só o essencial, para o selo). */
-function regenMark(w: WeekPoint, prev?: WeekPoint): { mark?: string; down?: boolean } {
+function regenMark(w: WeekPoint, prev: WeekPoint | undefined, online: boolean): { mark?: string; down?: boolean } {
   if (w.verdict.final !== 'regenerativa' || !prev || !prev.agg.validSets) return {}
   const a = w.agg, b = prev.agg
-  if (w.verdict.justification.some((j) => /menstrual/i.test(j))) return { mark: 'ciclo', down: true }
-  if (a.validSets <= b.validSets * 0.85) return { mark: `volume ${b.validSets} > ${a.validSets}`, down: true }
-  if (a.heavySets < b.heavySets) return { mark: `força ${b.heavySets} > ${a.heavySets}`, down: true }
-  if (w.verdict.justification.some((j) => /PSE/i.test(j))) return { mark: 'esforço', down: true }
+  const n = (x: number, um: string, varios: string) => `${x} ${x === 1 ? um : varios}`
+  // ciclo menstrual e esforço só existem no presencial (a consultoria não tem esse retorno)
+  if (!online && w.verdict.justification.some((j) => /menstrual/i.test(j))) return { mark: 'semana do ciclo', down: true }
+  if (a.validSets <= b.validSets * 0.85) return { mark: `${n(b.validSets - a.validSets, 'série', 'séries')} a menos`, down: true }
+  if (a.heavySets < b.heavySets) return { mark: `${n(b.heavySets - a.heavySets, 'série', 'séries')} de força a menos`, down: true }
+  if (!online && w.verdict.justification.some((j) => /PSE/i.test(j))) return { mark: 'esforço menor', down: true }
   return {}
 }
 
