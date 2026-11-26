@@ -35,6 +35,8 @@ export interface Triage {
   sono: string | null
   ciclo: string | null
   observacoes: string[]
+  glp1: boolean // Monjaro/Ozempic & cia: o gerador segura a densidade e as técnicas
+  notasTreinador: string | null // "Observações do treinador" (texto livre, entra na montagem)
 }
 
 const n = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -82,6 +84,11 @@ const CONDITIONS: [RegExp, string][] = [
   [/cardiac|coracao|arritmia/, 'cardiaco'],
 ]
 
+/** Chave das "Observações do treinador" dentro das respostas da anamnese (sincroniza junto). */
+export const TRAINER_NOTES_KEY = '_obs_treinador'
+export const GLP1_RE = /monjaro|mounjaro|tirzepatid|ozempic|wegovy|semaglutid|saxenda|liraglutid|glp ?1/
+const MEDS_RE = /monjaro|mounjaro|tirzepatid|ozempic|wegovy|semaglutid|saxenda|liraglutid|glp ?1|isotretino|roacutan|minoxidil|paroxetin|sertralin|fluoxetin|escitalopram|antidepress|anticoncepc|insulin|metformin|losartan|enalapril|anlodipin|propranolol|atenolol|remedio|medicament|toma |tomando|usa |usando/
+
 const firstNumber = (s: string) => {
   const m = s.match(/(\d+)/)
   return m ? Number(m[1]) : null
@@ -92,7 +99,7 @@ export function buildTriage(sections: TemplateSection[], answers: Record<string,
     objetivo: null, objetivoTipo: null, postura: false, perfil: { idade: null, altura: null, peso: null }, diasTexto: null, atividade: null,
     dificuldades: [], evitarExercicios: [], medicamentos: [],
     enfases: [], restricoes: [], condicoes: [], preferencias: [], naoGosta: [],
-    dias: null, tempoMin: null, local: null, experiencia: null, dieta: null, sono: null, ciclo: null, observacoes: [],
+    dias: null, tempoMin: null, local: null, experiencia: null, dieta: null, sono: null, ciclo: null, observacoes: [], glp1: false, notasTreinador: null,
   }
   const byField = (f: string) => sections.flatMap((s) => s.questions).filter((q) => q.field === f).map((q) => (answers[q.id] ?? '').trim()).filter((a) => a && !NONE.test(n(a)))
 
@@ -154,6 +161,20 @@ export function buildTriage(sections: TemplateSection[], answers: Record<string,
   t.sono = byField('sono').join(' · ') || null
   t.ciclo = byField('ciclo').join(' · ') || null
   t.observacoes.push(...byField('rotina').map((r) => `Rotina: ${r}`), ...byField('observacoes'))
+  // Observações do treinador (guardadas junto da anamnese): também viram restrição, condição e medicamento
+  const obs = (answers[TRAINER_NOTES_KEY] ?? '').trim()
+  if (obs) {
+    t.notasTreinador = obs
+    for (const line of obs.split(/\n|(?<=[.;])\s+/).map((x) => x.trim()).filter(Boolean)) {
+      const x = n(line)
+      for (const [re, key] of CONDITIONS) if (re.test(x) && !t.condicoes.includes(key)) t.condicoes.push(key)
+      if (MEDS_RE.test(x) && !t.medicamentos.includes(line)) t.medicamentos.push(line)
+      if (/dor|lesao|limita|machuc|cirurgia|operou/.test(x)) for (const [re, key, label] of AREAS) if (re.test(x) && !t.restricoes.some((r) => r.area === key)) t.restricoes.push({ area: key, label, source: line })
+      if (/nao pode|nao consegue|evitar|tirar|sem fazer|dor|incomoda/.test(x)) for (const name of exercisesIn(line)) if (!t.evitarExercicios.includes(name)) t.evitarExercicios.push(name)
+      if (/iniciante|nunca treinou|primeira vez/.test(x)) t.experiencia = 'iniciante'
+    }
+  }
+  t.glp1 = t.medicamentos.some((m) => GLP1_RE.test(n(m)))
   return t
 }
 

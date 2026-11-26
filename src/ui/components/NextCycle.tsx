@@ -12,6 +12,8 @@ import { MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Student } from '../..
 import { addDays, fmtBR } from '../../engine/metrics'
 import { nextWeekToPaste } from '../../domain/plan'
 import { RemList } from './AnamnesePanel'
+import TrainerNotes from './TrainerNotes'
+import { generateFirstWeek } from '../../consultoria/firstWeek'
 
 const short = (g: string) => g.replace('Perna - ', '')
 
@@ -42,9 +44,25 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
   const [copied, setCopied] = useState(false)
   const [summary, setSummary] = useState<string[]>([])
   const [notice, setNotice] = useState<string[]>([])
+  const [days, setDays] = useState<number | null>(null)
+  const [minutes, setMinutes] = useState<number | ''>('')
+  const isNew = !weeks.length
+  const daysV = days ?? Math.max(1, Math.min(5, triage?.dias ?? 3))
+  const minutesV = minutes || triage?.tempoMin || 60
   const rem = useMemo(() => (triage ? remindersFor(triage, emph) : null), [triage, emph])
 
   async function generate() {
+    if (isNew) {
+      // aluno novo: 1ª semana montada pela anamnese (dias, tempo, ênfase, restrições, experiência)
+      const week = generateFirstWeek({ triage, enfases: emph, days: daysV, minutes: minutesV })
+      setText(weekToWhatsApp(week, alerts))
+      setSummary([])
+      setNotice([
+        ...(triage?.glp1 ? ['Monjaro/Ozempic nas observações ou na anamnese: volume moderado, foco em força e progressão de carga para preservar massa magra; vá ajustando pela resposta dela.'] : []),
+        ...(!triage ? ['Sem anamnese salva: montei só pelos dias, tempo e ênfase escolhidos.'] : []),
+      ])
+      return
+    }
     if (!base) return
     const sessions = await studentSessions(student, base, addDays(base, 6))
     const lookup = await profileLookup()
@@ -54,7 +72,10 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     const moved = week.filter((t) => t.movedFrom).map((t) => `${t.label}: era o ${t.movedFrom} (veio para a frente pela ênfase)`)
     setSummary([...moved, ...week.flatMap((t) => t.exercises.filter((e) => e.changes.length || e.alert).map((e) => `${t.label.replace('Treino ', '')} · ${e.names.join(' + ')}: ${[...e.changes, e.alert].filter(Boolean).join(', ')}`))])
     const miss = missingEmphasis(sessions, emph, lookup)
-    setNotice(miss.length ? [`${miss.map(short).join(' e ')} não aparece${miss.length > 1 ? 'm' : ''} em nenhum exercício da semana de referência: inclua um exercício no texto antes de mandar.`] : [])
+    setNotice([
+      ...(miss.length ? [`${miss.map(short).join(' e ')} não aparece${miss.length > 1 ? 'm' : ''} em nenhum exercício da semana de referência: inclua um exercício no texto antes de mandar.`] : []),
+      ...(triage?.glp1 ? ['Monjaro/Ozempic: o rascunho segurou as técnicas (no máximo uma variável por treino, sem FST-7, falha ou parciais). Volume moderado e foco em força para preservar massa magra.'] : []),
+    ])
   }
   const toggle = (g: string) => setEnfases(emph.includes(g) ? emph.filter((x) => x !== g) : [...emph, g])
   const digits = (student.phone ?? '').replace(/\D/g, '')
@@ -69,7 +90,18 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
           <h2 style={{ margin: 0 }}><Sparkles size={16} strokeWidth={1.8} /> Gerar próximo ciclo</h2>
           <span className="muted">no seu padrão do WhatsApp</span>
         </div>
-        {!weeks.length ? <div className="muted">Cole pelo menos uma semana de treino deste aluno: o rascunho parte da última semana e evolui a partir dela.</div> : (<>
+        <>
+          {isNew ? (<>
+            <div className="muted">Aluno novo, sem semana colada: o app monta a <b>1ª semana</b> pela anamnese e pelas suas observações (dias, tempo, ênfase, experiência, restrições e o que ele não pode fazer). Depois de colar as semanas, o próximo ciclo parte do que você mandou.</div>
+            <div className="grid cols-2">
+              <label className="f">Dias por semana
+                <select value={daysV} onChange={(e) => setDays(Number(e.target.value))}>
+                  {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d}>{d}{triage?.diasTexto && d === Math.min(5, triage.dias ?? 0) ? ` (anamnese: ${triage.diasTexto})` : ''}</option>)}
+                </select>
+              </label>
+              <label className="f">Minutos por treino<input type="number" inputMode="numeric" value={minutes === '' ? minutesV : minutes} onChange={(e) => setMinutes(e.target.value ? Number(e.target.value) : '')} /></label>
+            </div>
+          </>) : (<>
           <label className="f">Semana de referência
             <select value={base} onChange={(e) => setWk(e.target.value)}>
               {weeks.map((w) => <option key={w.wk} value={w.wk}>{weekLabel(w)}</option>)}
@@ -88,6 +120,9 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
                 <button key={v} className={`chip sm ${intensity === v ? 'on' : ''}`} onClick={() => setIntensity(v)}>{l}</button>
               ))}
             </div>
+          </div>
+          </>)}
+          <div className="grid" style={{ gap: 6 }}>
             <span className="muted" style={{ fontWeight: 600 }}>Ênfase (toque para escolher)</span>
             <div className="chips">
               {MUSCLE_GROUPS.map((g) => (
@@ -120,11 +155,12 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
               )}
             </details>
           ) : (
-            <div className="muted">Sem anamnese salva para este aluno{onOpenAnamnese ? <> · <button className="link-btn" onClick={onOpenAnamnese}>colar anamnese</button></> : ''}. O rascunho sai só pela semana de referência.</div>
+            <div className="muted">Sem anamnese nem observações para este aluno{onOpenAnamnese ? <> · <button className="link-btn" onClick={onOpenAnamnese}>colar anamnese</button></> : ''}.</div>
           )}
-          <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : 'Gerar treino'}</button>
-          {phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, cluster, carga alta, pirâmide, excêntrica, isometria, parciais, FST-7, falha, série a mais) são sorteados a cada geração, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}
-        </>)}
+          <TrainerNotes student={student} compact />
+          <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : isNew ? 'Montar 1ª semana' : 'Gerar treino'}</button>
+          {!isNew && phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, cluster, carga alta, pirâmide, excêntrica, isometria, parciais, FST-7, falha, série a mais) são sorteados a cada geração, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}
+        </>
       </div>
 
       {text && (

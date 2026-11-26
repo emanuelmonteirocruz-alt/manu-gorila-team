@@ -8,6 +8,7 @@ import { buildTriage } from '../../consultoria/triage'
 import { remindersFor } from '../../consultoria/reminders'
 import type { Student } from '../../domain/types'
 import { fmtBR } from '../../engine/metrics'
+import TrainerNotes from './TrainerNotes'
 
 const short = (g: string) => g.replace('Perna - ', '')
 
@@ -25,7 +26,7 @@ export function AnamnesePanel({ student, onGoCycle }: { student: Student; onGoCy
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const cur = answers ?? saved?.answers ?? {}
-  const filled = Object.values(cur).filter((v) => v.trim()).length
+  const filled = Object.entries(cur).filter(([k, v]) => !k.startsWith('_') && v.trim()).length
   const total = sections.reduce((a, s) => a + s.questions.length, 0)
   const triage = useMemo(() => buildTriage(sections, cur), [sections, cur])
   const enfases = student.emphasis?.length ? student.emphasis : triage.enfases
@@ -33,7 +34,9 @@ export function AnamnesePanel({ student, onGoCycle }: { student: Student; onGoCy
   useEffect(() => { if (saved && answers == null && !filled) setOpen(false) }, [saved, answers, filled])
 
   async function doSave() {
-    await saveAnamnese(student.id, cur, paste.trim() || undefined)
+    const latest = await getAnamnese(student.id) // não perde as observações do treinador salvas à parte
+    const extras = Object.fromEntries(Object.entries(latest?.answers ?? {}).filter(([k]) => k.startsWith('_')))
+    await saveAnamnese(student.id, { ...cur, ...extras }, paste.trim() || undefined)
     setAnswers(null)
     setMsg('Anamnese salva.')
     setTimeout(() => setMsg(null), 2500)
@@ -85,11 +88,14 @@ export function AnamnesePanel({ student, onGoCycle }: { student: Student; onGoCy
         </div>
       </div>
 
+      {/* Observações do treinador (entram na triagem e na montagem) */}
+      <TrainerNotes student={student} />
+
       {/* 2) Resumo de triagem */}
-      {filled > 0 && <TriageCard triage={triage} enfases={enfases} fromFicha={!!student.emphasis?.length} />}
+      {(filled > 0 || !!triage.notasTreinador) && <TriageCard triage={triage} enfases={enfases} fromFicha={!!student.emphasis?.length} />}
 
       {/* 3) Lembretes */}
-      {filled > 0 && (
+      {(filled > 0 || !!triage.notasTreinador) && (
         <div className="card grid">
           <h2 style={{ margin: 0 }}>Lembretes antes de fechar o treino</h2>
           <RemList title="Processos recomendados" items={rem.processos} />
@@ -141,6 +147,7 @@ export function TriageCard({ triage: t, enfases, fromFicha }: { triage: ReturnTy
     ['Sono', t.sono],
     ['Ciclo', t.ciclo],
     ['Observações', t.observacoes.join(' · ') || null],
+    ['Suas observações', t.notasTreinador, t.glp1],
   ]
   return (
     <div className="card grid">

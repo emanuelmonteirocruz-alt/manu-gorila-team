@@ -86,7 +86,8 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
     const extraSet = new Set<number>()
     if (inp.phase === 'choque') {
       const emphCount = meta.filter((m) => m.isEmph).length
-      const howMany = Math.min(meta.filter((m) => m.single).length, (emphCount ? 2 : 1) + (rand() < 0.5 ? 1 : 0))
+      const glp1 = !!inp.triage?.glp1 // Monjaro/Ozempic: uma variável por treino, sem as mais extenuantes
+      const howMany = Math.min(meta.filter((m) => m.single).length, glp1 ? 1 : (emphCount ? 2 : 1) + (rand() < 0.5 ? 1 : 0))
       const pool = meta.map((_, i) => i).filter((i) => meta[i].single)
       const inTraining = new Set<string>()
       for (let k = 0; k < howMany && pool.length; k++) {
@@ -98,7 +99,7 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
         const st = { sets: g[0].valid_sets, reps: reps0, notes: [] as string[] }
         const hist = used.get(g[0].exercise_key)
         const v = pickWeighted(
-          SHOCK_VARIABLES.filter((x) => x.suits(ctx, st) && !inTraining.has(x.id) && (!beginner || x.beginner)),
+          SHOCK_VARIABLES.filter((x) => x.suits(ctx, st) && !inTraining.has(x.id) && (!beginner || x.beginner) && !(glp1 && /fst7|falha|parciais/.test(x.id))),
           (x) => x.weight * (hist?.get(x.id) ? 0.2 : 1) * 0.4 ** (weekUse.get(x.id) ?? 0),
           rand,
         )

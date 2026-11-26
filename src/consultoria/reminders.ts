@@ -109,6 +109,7 @@ export const EXPERIENCE_RULES: Record<NonNullable<Triage['experiencia']>, string
 
 /** Medicamentos que pedem atenção no treino (pontos de atenção, não orientação médica). */
 export const MEDICATION_RULES: [RegExp, string][] = [
+  [/monjaro|mounjaro|tirzepatid|ozempic|wegovy|semaglutid|saxenda|liraglutid|glp ?1/, 'Monjaro / Ozempic (tirzepatida, semaglutida): apetite e energia menores e risco de perder massa magra junto com a gordura. Priorizar treino de força com progressão de carga e volume moderado; evitar treinos muito longos ou densos e excesso de técnicas até ver como ela responde; atenção a tontura, náusea e hipoglicemia; conferir proteína e hidratação (nutricionista).'],
   [/isotretino|roacutan/, 'Isotretinoína: pode dar dores musculares e articulares e recuperação mais lenta; ajustar volume se houver dor.'],
   [/minoxidil/, 'Minoxidil: pode baixar a pressão; atenção a tontura ao levantar rápido entre séries.'],
   [/paroxetin|sertralin|fluoxetin|escitalopram|antidepress/, 'Antidepressivo: atenção a sono, energia e motivação; manter regularidade nos treinos.'],

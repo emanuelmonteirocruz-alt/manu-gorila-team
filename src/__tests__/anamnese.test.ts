@@ -201,3 +201,68 @@ describe('ênfase manda na ordem e no volume', () => {
     expect(week.map((t) => t.exercises[0].names[0])).toEqual(['Supino reto', 'Puxada frontal', 'Stiff'])
   })
 })
+
+describe('aluno novo: 1ª semana pela anamnese', () => {
+  it('todos os exercícios das listas existem no banco', async () => {
+    const { unknownPoolNames } = await import('../consultoria/firstWeek')
+    expect(unknownPoolNames()).toEqual([])
+  })
+  it('4 dias, 60 min, ênfase glúteo + posterior, não pode elevação pélvica e dor no joelho', async () => {
+    const { generateFirstWeek } = await import('../consultoria/firstWeek')
+    const t = buildTriage(sections, { [q('dias')]: '4', [q('tempo')]: '1 hora', [q('nao_consegue')]: 'Elevação pélvica', [q('dores')]: 'dor no joelho', [q('experiencia')]: '2 anos' })
+    for (let seed = 1; seed <= 20; seed++) {
+      const w = generateFirstWeek({ triage: t, enfases: ['Glúteo', 'Perna - Posterior'], seed })
+      expect(w.map((x) => x.label)).toEqual(['Treino A', 'Treino B', 'Treino C', 'Treino D'])
+      expect(w.every((x) => x.exercises.length === 6)).toBe(true)
+      const names = w.flatMap((x) => x.exercises.map((e) => e.names[0]))
+      expect(names).not.toContain('Elevação pélvica')
+      expect(names.some((n) => /búlgaro|afundo/i.test(n))).toBe(false) // joelho
+      expect(w[0].exercises.map((e) => e.names[0]).some((n) => /stiff|flexora|terra|sumô|abdutora|glúteo/i.test(n))).toBe(true)
+      const { exercises, ignored } = parsePrescriptionBlock(splitTrainingBlocks(weekToWhatsApp(w), false)[0])
+      expect(ignored).toEqual([])
+      expect(exercises.length).toBe(6)
+    }
+  })
+  it('iniciante: 3 séries de 12 a 15', async () => {
+    const { generateFirstWeek } = await import('../consultoria/firstWeek')
+    const t = buildTriage(sections, { [q('experiencia')]: 'nunca treinei', [q('dias')]: '3', [q('tempo')]: '45 min' })
+    const w = generateFirstWeek({ triage: t, enfases: [], seed: 3 })
+    expect(w).toHaveLength(3)
+    expect(w[0].exercises).toHaveLength(5)
+    expect(w.flatMap((x) => x.exercises).every((e) => e.sets === 3 && [12, 15].includes(e.reps[0].min))).toBe(true)
+  })
+})
+
+describe('observações do treinador', () => {
+  it('Monjaro nas observações vira ponto de atenção e segura o choque', async () => {
+    const { TRAINER_NOTES_KEY } = await import('../consultoria/triage')
+    const t = buildTriage(sections, { [TRAINER_NOTES_KEY]: 'Aluna nova, está tomando Monjaro. Sente dor no ombro no desenvolvimento.' })
+    expect(t.glp1).toBe(true)
+    expect(t.notasTreinador).toMatch(/Monjaro/)
+    expect(t.restricoes.map((r) => r.area)).toEqual(['ombro'])
+    expect(remindersFor(t, []).atencao.join(' ')).toMatch(/massa magra/)
+    const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+    const ex = (name: string, i: number): SessionExercise => ({ id: name, position: i, exercise_key: normalizeKey(name), display_name: name, valid_sets: 3, warmup_sets: 0, heavy_sets: 0, reps: [10, 10, 10].map((r) => ({ min: r, max: r })), drop_set: false })
+    const s: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: ['Leg press', 'Cadeira extensora', 'Mesa flexora', 'Abdutora', 'Elevação pélvica'].map(ex) }
+    for (let seed = 1; seed <= 20; seed++) {
+      const w = generateWeek({ base: [s], phase: 'choque', intensity: 0, enfases: ['Glúteo', 'Perna - Quadríceps'], triage: t, lookup, seed })
+      const vars = w[0].exercises.flatMap((e) => e.changes.filter((c) => c !== '+1 série (ênfase)'))
+      expect(vars.length).toBeLessThanOrEqual(1)
+      expect(vars.some((v) => /FST|falha|parciais/.test(v))).toBe(false)
+    }
+  })
+})
+
+describe('1ª semana: sem variações do mesmo exercício no mesmo treino', () => {
+  it('nunca duas elevações pélvicas no mesmo treino; ênfase abre o treino', async () => {
+    const { generateFirstWeek } = await import('../consultoria/firstWeek')
+    for (let seed = 1; seed <= 40; seed++) {
+      const w = generateFirstWeek({ triage: null, enfases: ['Glúteo'], days: 4, minutes: 60, seed })
+      for (const t of w) {
+        const fam = t.exercises.map((e) => normalizeKey(e.names[0]).split(' ').slice(0, 2).join(' '))
+        expect(new Set(fam).size).toBe(fam.length)
+      }
+      expect(['Elevação pélvica', 'Agachamento sumô', 'Abdutora', 'Glúteo no cabo', 'Elevação pélvica na máquina']).toContain(w[0].exercises[0].names[0])
+    }
+  })
+})
