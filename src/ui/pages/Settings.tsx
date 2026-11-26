@@ -105,6 +105,7 @@ export default function Settings() {
               catch { await saveFile('em-treino-setup-sql.txt', new Blob([SETUP_SQL], { type: 'text/plain' })) ; setMsg('Cópia bloqueada aqui — o arquivo SQL foi oferecido para salvar.') }
             }}><ClipboardCopy size={16} strokeWidth={1.8} /> Copiar SQL de instalação</button>
           </div>
+          {who && <ChangePassword onMsg={setMsg} />}
           {msg && <div className="alert ok">{msg}</div>}
           <div className="muted">Perfil Aluno: modelado no banco e <b>desativado</b> (Fase 2). Sem Supabase o app funciona 100% offline neste dispositivo.</div>
         </div>
@@ -191,6 +192,34 @@ function BrandSection() {
       </div>
       {err && <div className="alert danger">{err}</div>}
       <div className="muted">A logo oficial Manu Gorila Team já vem embutida no app. Toque nela para trocar; ela aparece no menu, no topo dos PDFs e dentro de cada gráfico.</div>
+    </div>
+  )
+}
+
+/** Trocar a senha do treinador (ex.: depois de entrar com uma senha provisória). */
+function ChangePassword({ onMsg }: { onMsg: (m: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [p1, setP1] = useState('')
+  const [p2, setP2] = useState('')
+  if (!open) return <div className="row"><button className="btn" onClick={() => setOpen(true)}>Trocar senha</button></div>
+  return (
+    <div className="grid">
+      <div className="grid cols-2">
+        <label className="f">Nova senha<input type="password" autoComplete="new-password" value={p1} onChange={(e) => setP1(e.target.value)} /></label>
+        <label className="f">Repita a nova senha<input type="password" autoComplete="new-password" value={p2} onChange={(e) => setP2(e.target.value)} /></label>
+      </div>
+      <div className="row">
+        <button className="btn primary" disabled={p1.length < 6 || p1 !== p2} onClick={async () => {
+          const sb = await getSupabase()
+          const r = await sb?.auth.updateUser({ password: p1 })
+          if (r?.error) return onMsg(r.error.message)
+          setOpen(false); setP1(''); setP2('')
+          onMsg('Senha trocada. Use a nova senha para entrar nos outros aparelhos.')
+        }}>Salvar nova senha</button>
+        <button className="btn" onClick={() => setOpen(false)}>Cancelar</button>
+        {p1 && p1.length < 6 && <span className="muted">mínimo 6 caracteres</span>}
+        {p2 && p1 !== p2 && <span className="muted">as senhas não são iguais</span>}
+      </div>
     </div>
   )
 }

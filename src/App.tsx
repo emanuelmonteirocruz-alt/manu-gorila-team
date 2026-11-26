@@ -3,6 +3,7 @@ import { Dumbbell, FileText, History as HistoryIcon, LayoutDashboard, MessageSqu
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { installAutoSync, type SyncResult } from './data/sync'
+import { storageWarning } from './data/storageGuard'
 import { getBrand } from './data/brand'
 import { Emblem } from './ui/components/Emblem'
 import { db } from './data/db'
@@ -42,6 +43,7 @@ export default function App() {
   const [sync, setSync] = useState<SyncResult | null>(null)
   const [online, setOnline] = useState(navigator.onLine)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [storeWarn] = useState(storageWarning)
   const loc = useLocation()
   const brand = useLiveQuery(getBrand, [])
   const changeCount = useLiveQuery(async () => (await db.students.toArray()).filter((s) => !s._deleted && !s.archived && changeStatus(s)).length, []) ?? 0
@@ -100,6 +102,7 @@ export default function App() {
         </div>
       )}
       <main>
+        {storeWarn && <div className="cloud-banner">{storeWarn}</div>}
         {(sync?.state === 'login' || sync?.state === 'error') && (
           <NavLink to="/config" className="cloud-banner"><CloudOff size={16} strokeWidth={1.8} /> {sync.state === 'login' ? 'Nuvem desconectada neste aparelho: toque para entrar como treinador (só uma vez).' : `Nuvem com erro: ${sync.error}`}</NavLink>
         )}
