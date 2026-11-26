@@ -93,10 +93,11 @@ export default function StudentDetail() {
               <SleepCheckin student={student} />
             </div>
           )}
-          <label className="row muted"><input type="checkbox" checked={emph} onChange={(e) => setEmph(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
           <FocusCheck student={student} />
-          <WeeklyTable student={student} emph={emph} />
           <SessionList student={student} initialOpen={params.get('treino')} />
+          {/* evolução semanal no fim da página (não fica entre as informações e o colar/enviar) */}
+          <label className="row muted"><input type="checkbox" checked={emph} onChange={(e) => setEmph(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
+          <WeeklyTable student={student} emph={emph} />
           <div><Link className="btn" to={`/historico?aluno=${student.id}`}><HistoryIcon size={16} strokeWidth={1.8} /> Histórico completo</Link></div>
         </div>
       )}

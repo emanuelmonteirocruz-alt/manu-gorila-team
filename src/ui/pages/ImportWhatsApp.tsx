@@ -197,7 +197,7 @@ export default function ImportWhatsApp() {
                   const warm = t.exercises.reduce((a, e) => a + e.warmupSets * e.names.length, 0)
                   return (
                     <div key={ti} className="wa-card">
-                      <div className="row" style={{ justifyContent: 'space-between' }}><b>{t.label}</b><span className="tag">desafio {Math.round(t.exercises.reduce((a, e) => a + itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }), 0))} pts</span></div>
+                      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}><b>{t.label}</b><span className="tag">desafio {Math.round(t.exercises.reduce((a, e) => a + itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }), 0))} pts</span></div>
                       <div className="set-sum">{valid} séries válidas{warm ? ` • ${warm} aquec. fora da conta` : ''}</div>
                       <table className="t"><tbody>
                         {t.exercises.map((e, i) => (
@@ -211,7 +211,7 @@ export default function ImportWhatsApp() {
                                 {techniquesOf({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }).map((k) => <span key={k} className={`tag ${k === 'cadencia' ? '' : 'warn'}`}>{TECHNIQUES.find((t) => t.key === k)?.label}</span>)}
                               </div>
                             </td>
-                            <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{e.validSets * e.names.length} válidas{e.warmupSets ? <span className="muted"> · {e.warmupSets * e.names.length} aquec.</span> : ''}<div className="muted">{itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })} pts</div></td>
+                            <td className="wa-right">{e.validSets * e.names.length} válidas{e.warmupSets ? <div className="muted">{e.warmupSets * e.names.length} aquec.</div> : ''}<div className="muted">{itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })} pts</div></td>
                           </tr>
                         ))}
                       </tbody></table>

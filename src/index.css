@@ -379,3 +379,9 @@ details > summary::-webkit-details-marker { display: none; }
 .edit-row .f span { font-size: 11px; }
 .edit-row input { width: 100%; }
 @media (max-width: 760px) { .edit-row { grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr) 44px; } .edit-row .set-n { grid-column: auto; align-self: center; padding-top: 14px; font-size: 13px; } }
+/* colar semana: cartões dos treinos sem estourar a largura no celular */
+.wa-cards { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.wa-card table.t { table-layout: fixed; }
+.wa-card .t td:first-child { overflow-wrap: anywhere; }
+.wa-card .t td.wa-right { width: 84px; text-align: right; white-space: nowrap; font-size: 13px; padding-left: 4px; padding-right: 0; }
+.wa-read .tag { white-space: normal; max-width: 100%; height: auto; line-height: 1.35; padding-top: 3px; padding-bottom: 3px; }
