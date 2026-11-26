@@ -17,9 +17,12 @@ describe('músculos: classificação e séries fracionadas', () => {
     expect(find('Búlgaro com carga').muscle_group).toBe('Perna - Quadríceps')
     expect(find('Banco extensor').muscle_group).toBe('Perna - Quadríceps')
   })
-  it('leg/agachamento/búlgaro também contam glúteo; sumô conta mais', () => {
+  it('leg/agachamento/afundo contam meia série de glúteo; búlgaro e sumô contam glúteo inteiro', () => {
     expect(shares('Leg45')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 0.5 })
-    expect(shares('Leg45 pes sumo')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 0.75 })
+    expect(shares('Leg45 pes sumo')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 1 })
+    expect(shares('Agachamento sumo')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 1 })
+    expect(shares('Búlgaro')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 1 })
+    expect(shares('Afundo com carga')).toEqual({ 'Perna - Quadríceps': 1, 'Glúteo': 0.5 })
     expect(shares('Stiff')).toEqual({ 'Perna - Posterior': 1, 'Glúteo': 0.5 })
     expect(shares('Supino reto')).toEqual({ Peito: 1, 'Tríceps': 0.5, Ombro: 0.25 })
     expect(shares('Pulley frente')).toEqual({ Costas: 1, 'Bíceps': 0.5 })

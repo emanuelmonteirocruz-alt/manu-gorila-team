@@ -137,9 +137,12 @@ export function heuristicProfile(name: string, activeGroups: string[]): Exercise
 const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo'
 // [nome, músculos principais em que vale, auxiliares]
 const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
-  // pés afastados / sumô: glúteo e adutores quase tanto quanto quadríceps
-  [/(sumo|afastad|pes abertos)/, [Q, P], [{ group: G, share: 0.75 }]],
-  [/(leg|hack|agach|squat|afundo|passada|avanco|lunge|bulgaro|step|subida|pistol|belt|pendul)/, [Q], [{ group: G, share: 0.5 }]],
+  // sumô: amplitude maior, abaixo de 90° entra o glúteo (acima, quadríceps) → os dois por igual
+  [/(sumo|afastad|pes abertos)/, [Q, P], [{ group: G, share: 1 }]],
+  // búlgaro: quadríceps e glúteo por igual
+  [/bulgaro/, [Q], [{ group: G, share: 1 }]],
+  // afundo/passada/avanço: mais quadríceps que glúteo; leg/hack/agachamento: glúteo auxiliar
+  [/(leg|hack|agach|squat|afundo|passada|avanco|lunge|step|subida|pistol|belt|pendul)/, [Q], [{ group: G, share: 0.5 }]],
   [/(stiff|terra|good morning|rdl|romeno)/, [P], [{ group: G, share: 0.5 }]],
   [/(elevacao pelvica|hip thrust|ponte|glute bridge)/, [G], [{ group: P, share: 0.25 }]],
   [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
@@ -154,7 +157,7 @@ export function muscleShares(name: string, primary: string): { group: string; sh
   const out: { group: string; share: number }[] = [{ group: primary, share: 1 }]
   for (const [re, primaries, list] of SECONDARY) {
     if (!primaries.includes(primary) || !re.test(k)) continue
-    // cada músculo entra uma vez: no sumô o glúteo já entrou com 0,75 (não soma os 0,5 do leg/agachamento)
+    // cada músculo entra uma vez: no sumô/búlgaro o glúteo já entrou inteiro (não soma os 0,5 do leg/agachamento)
     for (const x of list) if (x.group !== primary && !out.some((o) => o.group === x.group)) out.push(x)
   }
   return out
