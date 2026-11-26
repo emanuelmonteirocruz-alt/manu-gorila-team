@@ -76,7 +76,8 @@ vi.stubEnv('VITE_SUPABASE_URL', 'https://fake.supabase.co')
 vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'sb_publishable_fake')
 
 const { db, save, softDelete, uid } = await import('../data/db')
-const { syncNow } = await import('../data/sync')
+const { syncNow, configProblem, resetSupabaseClient } = await import('../data/sync')
+const { setKV } = await import('../data/db')
 const { SEED_PROFILES } = await import('../engine/exerciseSeed')
 import type { Session, Student } from '../domain/types'
 
@@ -184,5 +185,26 @@ describe('sincronização entre aparelhos', () => {
     await syncNow() // envia a do PC (última gravação vence) e não perde a edição local
     expect((await db.students.get(st.id))!.full_name).toBe('Marina Costa Silva')
     expect(server.students[0].full_name).toBe('Marina Costa Silva')
+  })
+
+  it('configuração errada na Vercel vira mensagem clara (nunca fica em "verificando")', async () => {
+    await use('celular')
+    await setKV('supabase_url', 'sb_publishable_trocada')
+    resetSupabaseClient()
+    const r = await syncNow()
+    expect(r.state).toBe('error')
+    expect(r.error).toMatch(/trocadas/)
+    await setKV('supabase_url', '')
+    resetSupabaseClient()
+  })
+})
+
+describe('validação da URL/chave do Supabase', () => {
+  it('aceita as formas certas e explica as erradas', () => {
+    expect(configProblem('https://abcd.supabase.co', 'sb_publishable_x1')).toBeNull()
+    expect(configProblem('https://abcd.supabase.co', 'eyJhbGciOi')).toBeNull()
+    expect(configProblem('abcd.supabase.co', 'eyJ')).toMatch(/inválida/)
+    expect(configProblem('https://abcd.supabase.co', 'sb_secret_x')).toMatch(/SECRETA/)
+    expect(configProblem('https://abcd.supabase.co', 'https://abcd.supabase.co')).toMatch(/URL/)
   })
 })

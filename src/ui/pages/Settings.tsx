@@ -7,7 +7,7 @@ import { InstallApp } from '../components/InstallApp'
 import { Emblem } from '../components/Emblem'
 import SETUP_SQL from '../../../supabase/setup_completo.sql?raw'
 import { DEFAULT_BRAND, getBrand, imageToLogo, isOfficialLogo, saveBrand } from '../../data/brand'
-import { currentTrainer, envConfigured, getSupabase, resetSupabaseClient, requestSync, signOut, syncNow } from '../../data/sync'
+import { cloudConfig, configProblem, currentTrainer, envConfigured, getSupabase, resetSupabaseClient, requestSync, signOut, syncNow } from '../../data/sync'
 import { saveTrainerProfile } from '../../engine/classifier'
 import { MUSCLE_GROUPS, type ExerciseProfile } from '../../domain/types'
 import { setTrainerLink } from '../../links/linkResolver'
@@ -23,13 +23,20 @@ export default function Settings() {
   const links = useLiveQuery(() => db.links.toArray(), []) ?? []
 
   const [who, setWho] = useState<string | null>(null)
-  useEffect(() => { currentTrainer().then(setWho) }, [])
+  const [project, setProject] = useState<{ host: string; key: string; problem: string | null } | null>(null)
+  useEffect(() => {
+    currentTrainer().then(setWho)
+    cloudConfig().then(({ url, key }) => setProject(url || key ? { host: url.replace(/^https?:\/\//, ''), key: key ? `${key.slice(0, 16)}…` : '(vazia)', problem: configProblem(url, key) } : null))
+  }, [])
 
   async function login() {
     resetSupabaseClient()
-    const sb = await getSupabase()
+    let sb
+    try { sb = await getSupabase() } catch (e) { return setMsg((e as Error).message) }
     if (!sb) return setMsg('Informe a URL e a chave do Supabase.')
-    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd })
+    let error: { message: string } | null
+    try { ({ error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd })) }
+    catch (e) { return setMsg(`Não consegui falar com o Supabase (${(e as Error).message}). Confira a URL na Vercel e se o projeto não está pausado.`) }
     if (error) return setMsg(/invalid/i.test(error.message) ? 'E-mail ou senha incorretos. Confira o usuário em Authentication → Users no Supabase.' : error.message)
     setWho(email.trim())
     setPwd('')
@@ -59,6 +66,8 @@ export default function Settings() {
           ) : (
             <div className="muted">Para sincronizar, entre com o e-mail e a senha do treinador <b>uma vez em cada aparelho</b> (celular, tablet, PC). Depois disso o app abre direto no painel, sem pedir login.</div>
           )}
+          {project && <div className="muted">Projeto: <b>{project.host || '(sem URL)'}</b> · chave {project.key}</div>}
+          {project?.problem && <div className="alert danger">{project.problem}</div>}
           {!envConfigured && (
             <>
               <ol className="muted" style={{ margin: 0, paddingLeft: 18 }}>

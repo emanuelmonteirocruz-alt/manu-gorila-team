@@ -16,11 +16,38 @@ let client: SupabaseClient | null = null
 
 export async function getSupabase(): Promise<SupabaseClient | null> {
   if (client) return client
-  const url = (await getKV<string>('supabase_url', '')) || import.meta.env.VITE_SUPABASE_URL
-  const key = (await getKV<string>('supabase_key', '')) || import.meta.env.VITE_SUPABASE_ANON_KEY
+  const { url, key } = await cloudConfig()
   if (!url || !key) return null
+  const problem = configProblem(url, key)
+  if (problem) throw new Error(problem)
   client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } })
   return client
+}
+
+/** URL e chave em uso (Config. deste aparelho > variáveis da Vercel), sem espaços/aspas coladas por engano. */
+export async function cloudConfig(): Promise<{ url: string; key: string }> {
+  const clean = (v: unknown) => String(v ?? '').trim().replace(/^["']|["']$/g, '').trim()
+  const url = clean((await getKV<string>('supabase_url', '')) || import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+  const key = clean((await getKV<string>('supabase_key', '')) || import.meta.env.VITE_SUPABASE_ANON_KEY)
+  return { url, key }
+}
+
+/** Erros comuns de configuração, explicados (em vez de travar em "verificando"). */
+export function configProblem(url: string, key: string): string | null {
+  if (/^(sb_|eyJ)/.test(url)) return 'A URL e a chave do Supabase estão trocadas na Vercel: VITE_SUPABASE_URL deve ser https://xxxx.supabase.co.'
+  if (!/^https:\/\/[^\s/]+$/.test(url)) return `VITE_SUPABASE_URL inválida ("${url.slice(0, 40)}"). Use só https://xxxx.supabase.co, sem /rest/v1 nem espaços.`
+  if (/^https?:/.test(key)) return 'A chave do Supabase está com uma URL: VITE_SUPABASE_ANON_KEY deve ser a chave anon (eyJ…) ou publishable (sb_publishable_…).'
+  if (/^sb_secret_/.test(key)) return 'Você usou a chave SECRETA do Supabase. Troque na Vercel pela chave publishable (sb_publishable_…) ou anon — a secreta nunca pode ir no app.'
+  if (!/^(eyJ|sb_publishable_)/.test(key) || /\s/.test(key)) return 'VITE_SUPABASE_ANON_KEY não parece uma chave do Supabase (deve começar com eyJ ou sb_publishable_).'
+  return null
+}
+
+/** Nenhuma etapa da sincronização pode ficar pendurada para sempre. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((res, rej) => {
+    const t = setTimeout(() => rej(new Error(`timeout:${what}`)), ms)
+    p.then((v) => { clearTimeout(t); res(v) }, (e) => { clearTimeout(t); rej(e) })
+  })
 }
 
 export function resetSupabaseClient() {
@@ -32,10 +59,14 @@ export const envConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta
 
 /** E-mail do treinador conectado neste aparelho (sessão salva), ou null. */
 export async function currentTrainer(): Promise<string | null> {
-  const sb = await getSupabase()
-  if (!sb) return null
-  const { data } = await sb.auth.getSession()
-  return data.session?.user.email ?? null
+  try {
+    const sb = await getSupabase()
+    if (!sb) return null
+    const { data } = await withTimeout(sb.auth.getSession(), 8000, 'sessão')
+    return data.session?.user.email ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function signOut() {
@@ -79,6 +110,12 @@ function explain(e: unknown): string {
   const m = (e as { message?: string })?.message ?? String(e)
   if (/row-level security|permission denied|42501/i.test(m)) return 'O Supabase recusou os dados (RLS). Rode o SQL 0006_sync_fase1.sql no SQL Editor e entre de novo.'
   if (/column .*(synced_at|deleted)|schema cache/i.test(m)) return 'Banco desatualizado: rode o SQL 0006_sync_fase1.sql no SQL Editor do Supabase.'
+  if (/^timeout:sessão/.test(m)) return 'O login salvo neste navegador travou. Feche as outras abas do app e recarregue a página.'
+  if (/^timeout/.test(m)) return 'O Supabase não respondeu em 40 s. Veja em supabase.com se o projeto está pausado (botão Restore) e se a URL na Vercel está certa.'
+  if (/Failed to fetch|NetworkError|Load failed|ERR_NAME_NOT_RESOLVED/i.test(m)) return 'Não consegui falar com o Supabase. Confira a URL na Vercel (https://xxxx.supabase.co) e se o projeto não está pausado em supabase.com.'
+  if (/Invalid API key|No API key|apikey/i.test(m)) return 'Chave do Supabase recusada: confira VITE_SUPABASE_ANON_KEY na Vercel (Project Settings → API Keys → publishable) e faça o redeploy.'
+  if (/relation .* does not exist|Could not find the table/i.test(m)) return 'As tabelas não existem no Supabase: rode o setup_completo.sql no SQL Editor.'
+  if (/stack depth|infinite recursion/i.test(m)) return 'Banco com a regra antiga de permissão: rode o setup_completo.sql no SQL Editor.'
   if (/JWT|token|refresh/i.test(m)) return 'Sessão expirada: entre de novo em Config.'
   return m
 }
@@ -87,7 +124,12 @@ let running: Promise<SyncResult> | null = null
 
 /** Uma sincronização por vez (o intervalo, a volta da rede e o botão podem disparar juntos). */
 export function syncNow(): Promise<SyncResult> {
-  running ??= doSync().finally(() => { running = null })
+  running ??= withTimeout(doSync(), 40_000, 'sync')
+    .catch((e): SyncResult => {
+      console.error('[sync]', e)
+      return { pushed: 0, pulled: 0, state: 'error', error: explain(e) }
+    })
+    .finally(() => { running = null })
   return running
 }
 
@@ -95,7 +137,7 @@ async function doSync(): Promise<SyncResult> {
   const sb = await getSupabase()
   if (!sb) return { pushed: 0, pulled: 0, state: 'local', error: 'Nuvem não configurada (dados só neste aparelho).' }
   if (!navigator.onLine) return { pushed: 0, pulled: 0, state: 'offline', error: 'Offline — dados salvos neste aparelho.' }
-  const { data: sess } = await sb.auth.getSession()
+  const { data: sess } = await withTimeout(sb.auth.getSession(), 8000, 'sessão')
   const user = sess.session?.user
   if (!user) return { pushed: 0, pulled: 0, state: 'login', error: 'Nuvem desconectada: entre como treinador em Config. (uma vez por aparelho).' }
 
