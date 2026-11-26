@@ -82,7 +82,41 @@ function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRo
  * Cartão de destaque: número principal grande + variação, anel de intensidade e
  * terceira métrica (tonelagem no presencial; séries pesadas na consultoria).
  */
-function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Aggregate | undefined, title: string): number {
+/** PSE em palavras (escala 0–10 de esforço percebido). */
+export function pseWord(p: number): string {
+  if (p >= 10) return 'Máximo'
+  if (p >= 9) return 'Muito intenso'
+  if (p >= 7) return 'Intenso'
+  if (p >= 5) return 'Moderado'
+  if (p >= 3) return 'Leve'
+  return 'Muito leve'
+}
+
+/** Presencial: anel com a PSE (o que o aluno relatou) — "8/10 · Intenso". Sem PSE: % de séries pesadas. */
+function effortRing(d: jsPDF, cx: number, cy: number, r: number, a: Aggregate, pse: number | null) {
+  if (pse == null) {
+    ring(d, cx, cy, r, a.heavyPct, C.intensity, 'SÉRIES PESADAS %')
+    return
+  }
+  const p = Math.round(pse * 10) / 10
+  ring(d, cx, cy, r, p * 10, C.intensity, '')
+  // o ring escreve o valor 0–100; cobre com o valor em /10
+  fill(d, '#FFFFFF')
+  d.circle(cx, cy, r - 4, 'F')
+  // número + "/10" centralizados juntos
+  const num = fmtNum(p, Number.isInteger(p) ? 0 : 1)
+  d.setFont('helvetica', 'bold')
+  d.setFontSize(r * 0.72)
+  const nw = d.getTextWidth(num)
+  d.setFontSize(6.5)
+  const sw = d.getTextWidth('/10')
+  const x0 = cx - (nw + 1.5 + sw) / 2
+  text(d, num, x0, cy + 5, { size: r * 0.72, bold: true, c: C.ink })
+  text(d, '/10', x0 + nw + 1.5, cy + 5, { size: 6.5, bold: true, c: C.sub })
+  text(d, `ESFORÇO · ${pseWord(p).toUpperCase()}`, cx, cy + r + 11, { size: 6, bold: true, c: C.sub, align: 'center' })
+}
+
+function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Aggregate | undefined, title: string, pse: number | null = a.avgPse ?? null): number {
   card(d, PAGE.m, y, W, 84, '#FFFFFF')
   fill(d, C.heavy)
   d.roundedRect(PAGE.m, y, 4, 84, 2, 2, 'F')
@@ -90,7 +124,8 @@ function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Agg
   text(d, String(a.validSets), PAGE.m + 14, y + 48, { size: 32, bold: true, c: C.ink })
   text(d, 'séries válidas', PAGE.m + 14, y + 60, { size: 7, c: C.sub })
   deltaPill(d, PAGE.m + 14, y + 64, pct(a.validSets, prev?.validSets))
-  ring(d, PAGE.m + 178, y + 38, 22, intensityOf(a, o), C.intensity, isOnline(o) ? 'INTENSIDADE PRESCRITA' : 'INTENSIDADE REAL')
+  if (isOnline(o)) ring(d, PAGE.m + 178, y + 38, 22, intensityOf(a, o), C.intensity, 'INTENSIDADE PRESCRITA')
+  else effortRing(d, PAGE.m + 178, y + 38, 22, a, pse)
   const rx = PAGE.m + W - 12
   if (isOnline(o)) {
     text(d, 'PESADAS', rx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'right' })
@@ -113,7 +148,7 @@ function achievementsOf(weeks: WeekPoint[], o: ReportOptions): string[] {
   const prev = weeks[weeks.length - 2]
   if (!last) return out
   if (weeks.length > 1 && last.agg.validSets >= Math.max(...weeks.map((w) => w.agg.validSets))) out.push('Maior volume do período')
-  if (prev && intensityOf(last.agg, o) > intensityOf(prev.agg, o)) out.push('Intensidade em alta')
+  if (prev && isOnline(o) && intensityOf(last.agg, o) > intensityOf(prev.agg, o)) out.push('Intensidade em alta')
   if (!isOnline(o) && weeks.length > 1 && last.agg.tonnageKg > 0 && last.agg.tonnageKg >= Math.max(...weeks.map((w) => w.agg.tonnageKg))) out.push('Recorde de tonelagem')
   let streak = 0
   for (let i = weeks.length - 1; i >= 0 && weeks[i].agg.sessions > 0; i--) streak++
@@ -231,12 +266,13 @@ export interface PerTraining {
 }
 
 /** Placar "antes → depois" de uma métrica, com barras lado a lado. */
-function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: string, before: number, after: number, fmt: (n: number) => string, hasBefore: boolean, first = 'primeiro mês') {
+function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: string, before: number, after: number, fmt: (n: number) => string, hasBefore: boolean, first = 'primeiro mês', neutral = false) {
   card(d, x, y, w, h, '#FFFFFF')
   text(d, label.toUpperCase(), x + 10, y + 15, { size: 6.3, bold: true, c: C.sub })
   text(d, fmt(after), x + 10, y + 46, { size: 22, bold: true, c: C.ink })
   text(d, hasBefore ? `antes ${fmt(before)}` : first, x + 10, y + 59, { size: 7, c: C.sub })
-  if (hasBefore && before > 0) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
+  // neutral: PSE mais baixa com mais carga é adaptação, não piora — sem seta de queda
+  if (hasBefore && before > 0 && !neutral) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
   // barras verticais: antes (cinza) × depois (destaque)
   const bx = x + w - 52, base = y + h - 14, hMax = h - 36
   const max = Math.max(before, after, 1)
@@ -244,7 +280,7 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
   const ha = Math.max(2, (after / max) * hMax)
   fill(d, C.grid)
   if (hb) d.roundedRect(bx, base - hb, 18, hb, 3, 3, 'F')
-  fill(d, after >= before ? C.heavy : C.volume)
+  fill(d, after >= before || neutral ? C.heavy : C.volume)
   d.roundedRect(bx + 22, base - ha, 18, ha, 3, 3, 'F')
   text(d, 'antes', bx + 9, base + 8, { size: 5.2, c: C.sub, align: 'center' })
   text(d, 'depois', bx + 31, base + 8, { size: 5.2, bold: true, c: C.heavy, align: 'center' })
@@ -296,7 +332,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     if (!isOnline(o) && b.tonnageKg) cands.push(['mais carga levantada', pct(a.tonnageKg, b.tonnageKg)!])
     cands.push(['mais volume de treino', pct(a.validSets, b.validSets)!])
     if (b.heavySets) cands.push(['mais séries pesadas', pct(a.heavySets, b.heavySets)!])
-    if (intensityOf(b, o)) cands.push(['mais intensidade', pct(intensityOf(a, o), intensityOf(b, o))!])
+    if (isOnline(o) && intensityOf(b, o)) cands.push(['mais intensidade', pct(intensityOf(a, o), intensityOf(b, o))!])
   }
   const best = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
   fill(d, best ? C.heavy : C.headerBg)
@@ -316,7 +352,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   const tw = (W - 10) / 2, th = 92
   scoreTile(d, PAGE.m, y, tw, th, 'Séries válidas', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
   scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
-  scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Intensidade (0-100)', intensityOf(b, o), intensityOf(a, o), (n) => String(Math.round(n)), hasBefore, first)
+  if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Intensidade (0-100)', intensityOf(b, o), intensityOf(a, o), (n) => String(Math.round(n)), hasBefore, first)
+  else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Treinos realizados', b.sessions, a.sessions, (n) => fmtNum(n), hasBefore, first)
   else scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Tonelagem', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
   y += th * 2 + 22
@@ -380,7 +417,7 @@ function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportO
       if (ds > 0) pill = `+${ds} ${ds === 1 ? "série" : "séries"}`
       else if (dh > 0) pill = `+${dh} ${dh === 1 ? "pesada" : "pesadas"}`
       else if (dt >= 1) pill = `+${Math.round(dt)}% carga`
-      else if (di >= 1) pill = `+${Math.round(di)} intens.`
+      else if (di >= 1 && isOnline(o)) pill = `+${Math.round(di)} intens.`
     }
     pairRow(d, y, r.label, bs, as, max, b ? `${bs} séries` : '—', a ? `${as} séries` : '—', pill, 62)
     y += rowH
@@ -432,6 +469,8 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
   monthAgg.heavyPct = monthAgg.validSets ? (monthAgg.heavySets / monthAgg.validSets) * 100 : 0
   monthAgg.intensityPrescribed = Math.round(weeks.reduce((s, w) => s + w.agg.intensityPrescribed, 0) / weeks.length)
   monthAgg.intensityReal = Math.round(weeks.reduce((s, w) => s + w.agg.intensityReal, 0) / weeks.length)
+  const wp = weeks.map((w) => w.agg.avgPse).filter((x): x is number => x != null)
+  monthAgg.avgPse = wp.length ? wp.reduce((x, y) => x + y, 0) / wp.length : null
 
   let y = heroCard(d, 92, o, monthAgg, undefined, `${monthAgg.sessions} treinos no mês`)
   const ach = achievementsOf(weeks, o)
@@ -499,7 +538,7 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   header(d, 'Treino do Dia', `${session.label} · ${fmtBR(session.date)}`, nm(o))
   const a = aggregateSessions([session], lookup)
   if (pse != null && !isOnline(o)) a.intensityReal = Math.round(0.45 * pse * 10 + 0.55 * a.intensityPrescribed)
-  let y = heroCard(d, 92, o, a, undefined, `${session.exercises.length} exercícios`)
+  let y = heroCard(d, 92, o, a, undefined, `${session.exercises.length} exercícios`, pse)
 
   // recordes pessoais (só presencial, com carga)
   const peakOf = (e: Session['exercises'][number]) => Math.max(e.load_kg ?? 0, ...(e.loads ?? []).map((k) => k ?? 0))
@@ -507,7 +546,7 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   const ach: string[] = []
   if (prKeys.size) ach.push(`${prKeys.size} ${prKeys.size === 1 ? 'recorde pessoal' : 'recordes pessoais'}`)
   if (a.heavySets) ach.push(`${a.heavySets} séries pesadas`)
-  if (pse != null && pse >= 8) ach.push(`Entrega alta · PSE ${pse}`)
+  if (pse != null && pse >= 8 && isOnline(o)) ach.push(`Entrega alta · PSE ${pse}`)
   ach.push('Treino concluído')
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))
 
@@ -575,7 +614,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   if (distinct >= 3 && distinct === items.length) ach.push('Divisão completa')
   if (items.length > distinct) ach.push('Treino extra na semana')
   if (prev?.validSets && cur.validSets > prev.validSets) ach.push('Mais volume que a semana anterior')
-  if (prev && intensityOf(cur, o) > intensityOf(prev, o)) ach.push('Intensidade em alta')
+  if (prev && isOnline(o) && intensityOf(cur, o) > intensityOf(prev, o)) ach.push('Intensidade em alta')
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))
 
   // uma linha por treino (A, B, C, D, A 2ª vez…)
