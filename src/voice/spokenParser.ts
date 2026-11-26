@@ -85,6 +85,61 @@ const FAILURE = /\b(do maximo|ate o maximo|ao maximo|ate a falha|na falha|falha|
 const HEAVY_WORDS = /\b(pesad[ao]s?|carga alta|serie pesada)\b/
 const PER_SIDE = /\b(de cada lado|cada lado|por lado)\b/
 
+// sem carga externa: não faz parte do nome do exercício
+const BODYWEIGHT = /\b(peso (?:do )?corpo(?:ral)?|corporal|sem carga|sem peso|so (?:o )?peso do corpo)\b/
+// "peso livre" só descreve o implemento
+const FREE_WEIGHT = /\bpeso livre\b/
+// métodos/técnicas: viram observação do exercício (e saem do nome)
+const METHODS: [RegExp, string][] = [
+  [/\bpiramide (?:crescente|ascendente)\b/, 'Pirâmide crescente'],
+  [/\bpiramide (?:decrescente|descendente|invertida)\b/, 'Pirâmide decrescente'],
+  [/\bpiramide\b/, 'Pirâmide'],
+  [/\brest[ -]?pause\b/, 'Rest-pause'],
+  [/\bcluster(?: set)?\b/, 'Cluster'],
+  [/\bfst[ -]?7\b/, 'FST-7'],
+  [/\bgvt\b/, 'GVT'],
+  [/\b(?:bi[ -]?set|biset)\b/, 'Bi-set'],
+  [/\b(?:tri[ -]?set|triset)\b/, 'Tri-set'],
+  [/\b(?:giant set|serie gigante)\b/, 'Série gigante'],
+  [/\bsuper ?series?\b/, 'Super série'],
+  [/\b(?:negativa|excentrica|enfase excentrica)\b/, 'Excêntrica'],
+  [/\b(?:isometria|isometrica|pico de contracao)\b/, 'Isometria'],
+  [/\b(?:metodo|serie) 21\b/, 'Método 21'],
+  [/\b(?:parciais|repeticoes parciais)\b/, 'Parciais'],
+  [/\b(?:pre[ -]?exaustao)\b/, 'Pré-exaustão'],
+  [/\b(?:pos[ -]?exaustao)\b/, 'Pós-exaustão'],
+  [/\b(?:tempo sob tensao|tst)\b/, 'Tempo sob tensão'],
+  [/\bdrop[ -]?set\b/, 'Drop-set'],
+]
+const CADENCE = /\bcadencia\s*((?:\d\s*){2,4})/
+
+/** Separa do trecho os modificadores (sem carga, métodos, cadência) e devolve o texto limpo + observações. */
+function extractModifiers(seg: string): { clean: string; notes: string[]; bodyweight: boolean } {
+  let clean = seg
+  const notes: string[] = []
+  const bodyweight = BODYWEIGHT.test(clean)
+  if (bodyweight) { clean = clean.replace(new RegExp(BODYWEIGHT.source, 'g'), ' '); notes.push('Peso corporal') }
+  if (FREE_WEIGHT.test(clean)) clean = clean.replace(new RegExp(FREE_WEIGHT.source, 'g'), ' ')
+  for (const [re, label] of METHODS) {
+    if (re.test(clean)) {
+      if (!notes.includes(label)) notes.push(label)
+      clean = clean.replace(new RegExp(re.source, 'g'), ' ')
+    }
+  }
+  const cad = clean.match(CADENCE)
+  if (cad) { notes.push(`Cadência ${cad[1].replace(/\s+/g, '-').replace(/-$/, '')}`); clean = clean.replace(CADENCE, ' ') }
+  return { clean: clean.replace(/\s+/g, ' ').trim(), notes, bodyweight }
+}
+
+/** Início de uma sequência de reps ("12 10 8 6"): 2+ números até 30, sem unidade, que não sejam "séries". */
+function seqStart(seg: string): number {
+  for (const m of seg.matchAll(/\s(\d{1,2})((?:[\s,/]+\d{1,2}){1,7})\b(?!\s*(?:series?|x\b|vezes|kg|quilos?|kilos?|de cada lado|por lado|cada lado))/g)) {
+    const nums = (m[1] + m[2]).split(/[\s,/]+/).filter(Boolean).map(Number)
+    if (nums.every((n) => n > 0 && n <= 30)) return m.index!
+  }
+  return -1
+}
+
 export function parseSpoken(transcript: string): SpokenEntry[] {
   const norm = wordsToNumbers(transcript)
     // formato escrito: "4x15" → "4 series de 15"; "3x8-10" → "3 series de 8 a 10"
@@ -103,15 +158,19 @@ export function parseSpoken(transcript: string): SpokenEntry[] {
   }
 
   return segments
-    .map((seg): SpokenEntry => {
-      const cut = seg.search(/\s(\d+\s*(?:series?|x|vezes)\b|com\s+\d|\d+(?:\.\d+)?\s*(?:kg|quilos?|kilos?)\b|\d+\s*(?:de cada lado|por lado|cada lado)|aquec|progred|comec|buscando|do maximo|ate a falha|na falha)/)
+    .map((raw): SpokenEntry => {
+      const mods = extractModifiers(raw)
+      const seg = mods.clean
+      const pyramid = mods.notes.some((n) => n.startsWith('Pirâmide'))
+      const cuts0 = [seg.search(/\s(\d+\s*(?:series?|x|vezes)\b|com\s+\d|\d+(?:\.\d+)?\s*(?:kg|quilos?|kilos?)\b|\d+\s*(?:de cada lado|por lado|cada lado)|aquec|progred|comec|buscando|do maximo|ate a falha|na falha)/), seqStart(seg)].filter((c) => c >= 0)
+      const cut = cuts0.length ? Math.min(...cuts0) : -1
       const name = (cut >= 0 ? seg.slice(0, cut) : seg).replace(/\b(com|de)$/, '').trim()
       const detail = cut >= 0 ? seg.slice(cut) : ''
 
       // vários blocos no mesmo exercício: "2 séries de 20 de aquecimento com 50 kg e 3 séries de 8 com 90 kg"
       const starts = [...detail.matchAll(/(\d+)\s*(?:series?|x|vezes)\b/g)].map((m) => m.index!)
       const cuts = starts.length > 1 ? [0, ...starts.slice(1), detail.length] : [0, detail.length]
-      const blocks = cuts.slice(0, -1).map((c, i) => parseBlock(detail.slice(c, cuts[i + 1]), seg))
+      const blocks = cuts.slice(0, -1).map((c, i) => parseBlock(detail.slice(c, cuts[i + 1]), seg, pyramid))
       const series = blocks.flatMap((bl) => bl.series)
       const work = blocks.filter((bl) => !bl.warmup)
       const main = work[0] ?? blocks[0]
@@ -128,15 +187,15 @@ export function parseSpoken(transcript: string): SpokenEntry[] {
         series,
         warmup: series.length > 0 && series.every((x) => x.warmup),
         drop: /drop/.test(seg),
-        notes: '',
-        needsReview: series.length === 0 || (!anyDeclared && main.loads.length < 2) || (main.rMin == null && !main.failure),
+        notes: mods.notes.join(' · '),
+        needsReview: series.length === 0 || (!anyDeclared && main.loads.length < 2 && !mods.bodyweight && main.reps.length < 2) || (main.rMin == null && !main.failure),
       }
     })
     .filter((e) => e.name.length > 1)
 }
 
 /** Um bloco de séries ("3 séries de 8 com 90 kg"); aquecimento vale só para o próprio bloco. */
-function parseBlock(detail: string, seg: string) {
+function parseBlock(detail: string, seg: string, pyramid = false) {
   // localiza o que é séries/reps no texto; os números que sobram são as cargas, na ordem ditada
   const spans: [number, number][] = []
   const find = (re: RegExp) => {
@@ -147,8 +206,25 @@ function parseBlock(detail: string, seg: string) {
   const setsM = find(/(\d+)\s*(?:series?|x|vezes)\b/)
   const targetM = find(/buscando\s*(\d+)/) ?? find(/para\s*(\d+)\s*(?:repeticoes|reps?)\b/)
   find(/(\d+)\s*(?:repeticoes|reps?)\b/) // "10 repetições" junto do "buscando"
+  // reps diferentes por série ("12 10 8 6", "séries de 15 12 10 8"): vale quando vem antes das cargas
+  // ("com 60 70…", "60 kg…") ou num método de pirâmide; sozinha, uma lista de números continua sendo carga
+  let reps: number[] = []
+  {
+    let pre = detail
+    for (const [i, j] of spans) pre = pre.slice(0, i) + ' '.repeat(j - i) + pre.slice(j)
+    const m = pre.match(/^(\s*(?:de\s+)?)(\d{1,2}(?:[\s,/]+\d{1,2}){1,7})\b(?!\s*(?:kg|quilos?|kilos?|de cada lado|por lado|cada lado))/)
+    if (m) {
+      const nums = m[2].split(/[\s,/]+/).filter(Boolean).map(Number)
+      const rest = pre.slice(m[0].length)
+      const loadsAfter = /\bcom\s+\d|\d+(?:\.\d+)?\s*(?:kg|quilos?|kilos?)\b/.test(rest)
+      if (nums.every((x) => x > 0 && x <= 30) && (loadsAfter || pyramid)) {
+        reps = nums
+        spans.push([m[1].length, m[0].length])
+      }
+    }
+  }
   // "séries de 8 a 10" (mas "séries de 20 kg" é carga)
-  const repsM =
+  const repsM = reps.length ? null :
     find(/(?:series?|x)\s*(?:de\s*)?(\d+)(?:\s*(?:a|ate)\s*(\d+))?\b(?!\s*(?:kg|quilos?|kilos?|de cada lado|por lado|cada lado))/) ??
     find(/(\d+)(?:\s*(?:a|ate)\s*(\d+))?\s*(?:repeticoes|reps?)\b/)
   let masked = detail
@@ -159,17 +235,17 @@ function parseBlock(detail: string, seg: string) {
   const failure = FAILURE.test(detail) || (FAILURE.test(seg) && !warmup)
   const declared = setsM ? Number(setsM[1]) : null
   const target = targetM ? Number(targetM[1]) : null
-  const rMin = target ?? (repsM ? Number(repsM[1]) : null)
-  const rMax = target ?? (repsM ? Number(repsM[2] ?? repsM[1]) : null)
-  const n = Math.max(declared ?? 0, loads.length)
+  const rMin = target ?? (reps.length ? reps[0] : repsM ? Number(repsM[1]) : null)
+  const rMax = target ?? (reps.length ? reps[0] : repsM ? Number(repsM[2] ?? repsM[1]) : null)
+  const n = Math.max(declared ?? 0, loads.length, reps.length)
   const series: SpokenSet[] = Array.from({ length: n }, (_, i) => ({
     // faltando cargas ("5 séries progredindo 20, 30, 40, 50"): repete a última carga dita
     kg: loads.length ? loads[Math.min(i, loads.length - 1)] : null,
-    repsMin: rMin,
-    repsMax: rMax,
+    repsMin: reps.length ? reps[Math.min(i, reps.length - 1)] : rMin,
+    repsMax: reps.length ? reps[Math.min(i, reps.length - 1)] : rMax,
     failure: failure && target == null && rMin == null,
     heavy: warmup ? false : HEAVY_WORDS.test(detail) || HEAVY_WORDS.test(seg) ? true : null,
     warmup,
   }))
-  return { declared, rMin, rMax, loads, failure, warmup, series }
+  return { declared, rMin, rMax, loads, reps, failure, warmup, series }
 }

@@ -9,7 +9,13 @@ import { heuristicProfile, normalizeKey } from './exerciseSeed'
 
 export async function findCached(name: string): Promise<ExerciseProfile | undefined> {
   const k = normalizeKey(name)
-  return (await db.exerciseCache.get(k)) ?? (await db.exerciseCache.where('aliases').equals(k).first())
+  // singular/plural: "paralela" = "paralelas", "abdominais" ≈ "abdominal"
+  const variants = [k, k.endsWith('s') ? k.slice(0, -1) : `${k}s`, k.replace(/is\b/g, 'l')]
+  for (const v of variants) {
+    const hit = (await db.exerciseCache.get(v)) ?? (await db.exerciseCache.where('aliases').equals(v).first())
+    if (hit) return hit
+  }
+  return undefined
 }
 
 interface AiResult {

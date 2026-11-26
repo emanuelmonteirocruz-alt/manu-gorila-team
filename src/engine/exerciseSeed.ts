@@ -1,9 +1,9 @@
 /**
- * Semente mínima de classificação (não é um "banco gigante"): só o vocabulário
- * recorrente do treinador, para o app funcionar offline desde o 1º dia.
- * Todo o resto é classificado pela IA sob demanda e salvo no cache.
+ * Banco de exercícios offline: vocabulário recorrente do treinador (SEED) + biblioteca ampla
+ * (exerciseLibrary). O que ainda faltar é classificado pela IA / heurística e salvo no cache.
  */
 import type { ExerciseProfile } from '../domain/types'
+import { LIBRARY } from './exerciseLibrary'
 
 export function normalizeKey(name: string): string {
   return name
@@ -58,12 +58,12 @@ const SEED: Seed[] = [
   ['Tríceps corda', 'Tríceps', 'tríceps', 'mono', 'maq', ['triceps corda', 'corda']],
   ['Tríceps pulley', 'Tríceps', 'tríceps', 'mono', 'maq', ['triceps barra', 'triceps polia']],
   ['Tríceps francês', 'Tríceps', 'tríceps cabeça longa', 'mono', 'livre', ['frances', 'triceps testa', 'testa']],
-  ['Paralelas', 'Tríceps', 'tríceps', 'multi', 'livre', ['mergulho', 'dips']],
+  ['Paralelas', 'Tríceps', 'tríceps', 'multi', 'livre', ['paralela', 'mergulho', 'dips', 'mergulho paralela']],
   ['Abdominal', 'Abdômen', 'reto abdominal', 'mono', 'livre', ['abdominal supra', 'crunch']],
   ['Prancha', 'Abdômen', 'core', 'mono', 'livre', []],
 ]
 
-export const SEED_PROFILES: ExerciseProfile[] = SEED.map(([name, group, sub, mech, impl, aliases = [], disputed = false]) => ({
+const toProfile = ([name, group, sub, mech, impl, aliases = [], disputed = false]: Seed): ExerciseProfile => ({
   key: normalizeKey(name),
   name,
   aliases: aliases.map(normalizeKey),
@@ -73,24 +73,43 @@ export const SEED_PROFILES: ExerciseProfile[] = SEED.map(([name, group, sub, mec
   implement: impl === 'livre' ? 'livre' : 'maquina_cabo',
   disputed,
   source: 'seed',
-}))
+})
+
+/** Semente + biblioteca, sem chaves repetidas (a semente do treinador vence). */
+export const SEED_PROFILES: ExerciseProfile[] = (() => {
+  const seen = new Set<string>()
+  const out: ExerciseProfile[] = []
+  for (const s of [...SEED, ...LIBRARY.map((l): Seed => [l[0], l[1], l[2], l[3], l[4], l[5] ?? []])]) {
+    const p = toProfile(s)
+    if (seen.has(p.key)) continue
+    seen.add(p.key)
+    // apelido igual à chave de outro exercício confundiria a busca: fica só no dono da chave
+    out.push(p)
+  }
+  const keys = new Set(out.map((p) => p.key))
+  for (const p of out) p.aliases = [...new Set(p.aliases)].filter((a) => a !== p.key && !keys.has(a))
+  return out
+})()
+
+/** Versão do banco: quando muda, aparelhos já instalados recebem os exercícios novos. */
+export const SEED_VERSION = 2
 
 /** Heurística offline usada só quando IA indisponível (marcada como 'heuristic' para revisão). */
 export function heuristicProfile(name: string, activeGroups: string[]): ExerciseProfile {
   const k = normalizeKey(name)
-  const machine = /maquina|polia|cabo|cross|pulley|smith|cadeira|mesa|leg|hack|peck|voador|articulad/.test(k)
-  const multi = /supino|agach|leg|hack|remada|puxada|pulley|desenvolv|terra|stiff|afundo|passada|barra fixa|paralela|elevacao pelvica|hip/.test(k)
+  const machine = /maquina|polia|cabo|cross|pulley|smith|cadeira|mesa|leg|hack|peck|voador|articulad|graviton|pendul|aparelho/.test(k)
+  const multi = /supino|agach|leg|hack|remada|puxada|pulley|desenvolv|terra|stiff|afundo|passada|barra fixa|paralela|mergulho|flexao bra|elevacao pelvica|hip|thrust|step|subida|burpee|thruster|clean|snatch|swing|press\b|push|pull up|chin/.test(k)
   const guess: [RegExp, string][] = [
-    [/supino|crucifixo|peck|cross|peito/, 'Peito'],
-    [/remada|puxada|pulley|pulldown|dorsal|costas/, 'Costas'],
-    [/desenvolv|lateral|ombro|deltoide|frontal/, 'Ombro'],
-    [/rosca|biceps/, 'Bíceps'],
-    [/triceps|frances|testa|corda/, 'Tríceps'],
-    [/flexora|stiff|terra|posterior/, 'Perna - Posterior'],
-    [/gluteo|pelvica|abdut|coice/, 'Glúteo'],
-    [/panturr|gemeo/, 'Panturrilha'],
-    [/agach|leg|hack|extensora|afundo|passada|quadri/, 'Perna - Quadríceps'],
-    [/abdom|prancha/, 'Abdômen'],
+    [/supino|crucifixo|peck|cross|peito|peitoral|fly|flexao bra|push up|apoio/, 'Peito'],
+    [/remada|puxada|pulley|pulldown|dorsal|costas|barra fixa|pull up|chin|lombar|hiperext|superman/, 'Costas'],
+    [/desenvolv|\blateral|ombro|deltoide|frontal|militar|arnold|encolh|trapezio|face pull|rotacao/, 'Ombro'],
+    [/rosca|biceps|martelo|antebraco|punho/, 'Bíceps'],
+    [/triceps|frances|testa|corda|coice tri|mergulho|paralela|kickback/, 'Tríceps'],
+    [/flexora|stiff|terra|posterior|nordic|good morning|isquio/, 'Perna - Posterior'],
+    [/gluteo|pelvica|thrust|abdut|adut|coice|ponte|quatro apoios|swing/, 'Glúteo'],
+    [/panturr|gemeo|soleo|tibial/, 'Panturrilha'],
+    [/agach|squat|leg|hack|extensora|afundo|passada|avanco|lunge|quadri|step|subida|sissy|pistol|salto/, 'Perna - Quadríceps'],
+    [/abdom|prancha|crunch|infra|obliq|core|canivete|remador|russian|twist|escalador/, 'Abdômen'],
   ]
   // Regra 1 do prompt: priorizar grupamentos ativos para desambiguar
   const candidates = guess.filter(([re]) => re.test(k)).map(([, g]) => g)

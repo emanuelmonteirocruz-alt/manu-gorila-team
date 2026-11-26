@@ -6,7 +6,7 @@ import Dexie, { type Table } from 'dexie'
 import type {
   DailyCheckin, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
 } from '../domain/types'
-import { SEED_PROFILES } from '../engine/exerciseSeed'
+import { SEED_PROFILES, SEED_VERSION } from '../engine/exerciseSeed'
 
 export interface KV {
   key: string
@@ -77,3 +77,16 @@ export async function setKV(key: string, value: unknown) {
 
 /** Id fixo do treinador local enquanto não há login (Fase 1 offline). */
 export const LOCAL_TRAINER_ID = '00000000-0000-0000-0000-000000000001'
+
+/**
+ * Banco de exercícios atualizado em aparelhos que já tinham o app: acrescenta só o que falta
+ * (correções do treinador, IA e o que veio da nuvem nunca são sobrescritos).
+ */
+export async function ensureExerciseLibrary(): Promise<number> {
+  if ((await getKV<number>('seed_version', 1)) >= SEED_VERSION) return 0
+  const have = new Set((await db.exerciseCache.toCollection().primaryKeys()) as string[])
+  const missing = SEED_PROFILES.filter((p) => !have.has(p.key))
+  if (missing.length) await db.exerciseCache.bulkAdd(missing)
+  await setKV('seed_version', SEED_VERSION)
+  return missing.length
+}
