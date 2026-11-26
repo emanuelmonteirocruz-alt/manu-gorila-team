@@ -1,3 +1,4 @@
+import { LEVELS, LEVEL_BY_ID } from '../../consultoria/levels'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AlertCircle, Bell, Check, Lock } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -124,6 +125,15 @@ export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student;
           </select>
         </label>
       </div>
+      {s.modality === 'online' && (
+        <label className="f">Nível de treino (consultoria)
+          <select id="st-level" value={s.training_level ?? ''} onChange={(e) => setS((x) => ({ ...x, training_level: (e.target.value || null) as Student['training_level'] }))}>
+            <option value="">Pela anamnese (experiência)</option>
+            {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
+          <span className="muted" style={{ fontWeight: 400 }}>{s.training_level ? LEVEL_BY_ID[s.training_level]?.resumo : 'Define quanto método e intensidade a montagem automática usa em cada semana.'}</span>
+        </label>
+      )}
       <div className="grid" style={{ gap: 6 }}>
         <span className="muted" style={{ fontWeight: 600 }}>Ênfase desejada (opcional): o foco que você quer para este aluno</span>
         <div className="chips">

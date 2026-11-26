@@ -9,6 +9,8 @@ import { RESTRICTION_RULES } from './reminders'
 import type { Triage } from './triage'
 import { muscleShares } from '../engine/exerciseSeed'
 import { SHOCK_VARIABLES, pickWeighted, rng, usedVariables, type ShockVariable } from './shockVariables'
+import { levelFor, type LevelRule } from './levels'
+import type { TrainingLevel } from '../domain/types'
 
 export type Intensity = -1 | 0 | 1
 
@@ -21,6 +23,7 @@ export interface GenerateInput {
   lookup: (key: string) => ExerciseProfile | undefined
   history?: Session[] // semanas anteriores do aluno: o choque evita repetir a variável que ele já fez no exercício
   seed?: number // sorteio das variáveis (cada "Gerar" sai diferente; nos testes fica fixo)
+  level?: TrainingLevel | null // nível da ficha (adaptação … atleta); sem ele, vem da anamnese
 }
 
 export interface GeneratedExercise {
@@ -61,7 +64,7 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
   const rand = rng(inp.seed ?? Date.now())
   const used = usedVariables(inp.history ?? [])
   const weekUse = new Map<string, number>() // variáveis já usadas nesta semana (espalhar)
-  const beginner = inp.triage?.experiencia === 'iniciante'
+  const lv: LevelRule = levelFor(inp.level, inp.triage?.experiencia)
   for (const s of [...inp.base].sort((a, b) => a.label.localeCompare(b.label))) {
     // reagrupa bi-sets (mesmo superset_group seguidos) em uma linha "A + B"
     const groups: SessionExercise[][] = []
@@ -81,33 +84,37 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
       return { profile, emphShare, isEmph, single: g.length === 1 && !hasTech }
     })
 
-    // CHOQUE: quais exercícios recebem variável nova — sorteado (ênfase pesa mais), sem posição fixa
+    // CHOQUE (e ordinária dos avançados): quais exercícios recebem variável — sorteado (ênfase pesa mais),
+    // sem posição fixa, só variáveis do nível do aluno e no máximo UMA por família de método em cada treino
     const shock = new Map<number, ShockVariable>()
     const extraSet = new Set<number>()
-    if (inp.phase === 'choque') {
-      const emphCount = meta.filter((m) => m.isEmph).length
-      const glp1 = !!inp.triage?.glp1 // Monjaro/Ozempic: uma variável por treino, sem as mais extenuantes
-      const howMany = Math.min(meta.filter((m) => m.single).length, glp1 ? 1 : (emphCount ? 2 : 1) + (rand() < 0.5 ? 1 : 0))
+    const glp1 = !!inp.triage?.glp1 // Monjaro/Ozempic: uma variável por treino, sem as mais extenuantes
+    const assign = (howMany: number, allowed: string[]) => {
       const pool = meta.map((_, i) => i).filter((i) => meta[i].single)
-      const inTraining = new Set<string>()
+      const families = new Set<string>()
       for (let k = 0; k < howMany && pool.length; k++) {
         const i = pickWeighted(pool, (j) => (meta[j].isEmph ? 3 : 1), rand)!
         pool.splice(pool.indexOf(i), 1)
         const g = groups[i]
         const reps0 = g[0].reps.length ? g[0].reps : [{ min: 10, max: 10 }]
-        const ctx = { profile: meta[i].profile, isEmph: meta[i].isEmph, isLast: i === groups.length - 1, pyramid: isPyramid(reps0), beginner }
+        const ctx = { profile: meta[i].profile, isEmph: meta[i].isEmph, isLast: i === groups.length - 1, pyramid: isPyramid(reps0), beginner: lv.id === 'iniciante' || lv.id === 'adaptacao' }
         const st = { sets: g[0].valid_sets, reps: reps0, notes: [] as string[] }
         const hist = used.get(g[0].exercise_key)
         const v = pickWeighted(
-          SHOCK_VARIABLES.filter((x) => x.suits(ctx, st) && !inTraining.has(x.id) && (!beginner || x.beginner) && !(glp1 && /fst7|falha|parciais/.test(x.id))),
+          SHOCK_VARIABLES.filter((x) => allowed.includes(x.id) && x.suits(ctx, st) && !families.has(x.family) && !(glp1 && /fst7|falha|parciais|dropduplo|myoreps/.test(x.id))),
           (x) => x.weight * (hist?.get(x.id) ? 0.2 : 1) * 0.4 ** (weekUse.get(x.id) ?? 0),
           rand,
         )
-        if (!v) continue
+        if (!v) { k--; if (!pool.length) break; continue }
         shock.set(i, v)
-        inTraining.add(v.id)
+        families.add(v.family)
         weekUse.set(v.id, (weekUse.get(v.id) ?? 0) + 1)
       }
+    }
+    if (inp.phase === 'choque') {
+      const [lo, hi] = lv.choque
+      const n = glp1 ? Math.min(1, hi) : lo + Math.floor(rand() * (hi - lo + 1))
+      assign(Math.min(meta.filter((m) => m.single).length, n), lv.permitidas)
       // parte da ênfase restante ganha volume (não todos: o aluno não identifica o padrão)
       for (let i = 0; i < meta.length; i++) if (meta[i].isEmph && !shock.has(i) && rand() < 0.5) extraSet.add(i)
     } else if (inp.phase === 'ordinaria') {
@@ -115,6 +122,8 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
       const pool = meta.map((_, i) => i).filter((i) => meta[i].isEmph && groups[i][0].valid_sets <= 3 && !isPyramid(groups[i][0].reps))
       const n = Math.min(pool.length, 1 + (rand() < 0.5 ? 1 : 0))
       for (let k = 0; k < n; k++) { const i = pickWeighted(pool, () => 1, rand)!; pool.splice(pool.indexOf(i), 1); extraSet.add(i) }
+      // avançados: um método leve na ordinária também (não só no choque)
+      if (!glp1 && lv.ordinariaPermitidas.length && rand() < lv.ordinaria) assign(1, lv.ordinariaPermitidas)
     }
 
     const exercises: GeneratedExercise[] = groups.map((g, i) => {
@@ -131,7 +140,14 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
         changes.push(v.change)
       }
       if (extraSet.has(i) && sets < 5 && !isPyramid(reps)) { sets += 1; changes.push('+1 série (ênfase)') }
-      if (inp.phase === 'regenerativa') {
+      if (inp.phase === 'regenerativa' && lv.deloadPorVolume) {
+        // avançado 2 / atleta: deload pelo volume (cerca de 40% menos séries), mantém a faixa de reps, sem técnicas
+        const nsets = Math.max(2, Math.round(sets * 0.6))
+        if (nsets < sets) { changes.push(`-${sets - nsets} ${sets - nsets === 1 ? 'série' : 'séries'} (deload)`); sets = nsets }
+        const before = notes.length
+        notes = notes.filter((x) => !TECH_RE.test(x) && !/falha|m[aá]x|myo|parcia/i.test(x))
+        if (notes.length < before) changes.push('sem técnica avançada')
+      } else if (inp.phase === 'regenerativa') {
         if (sets > 2) { sets -= 1; changes.push('-1 série') }
         const lighter = reps.map((r) => (r.failure && !r.min ? { min: 12, max: 15 } : (r.min + r.max) / 2 < 12 ? { min: 12, max: 15 } : r))
         if (lighter.some((r, i) => r.min !== reps[i].min)) changes.push('reps 12–15')
@@ -141,7 +157,7 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
         if (notes.length < before) changes.push('sem técnica avançada')
       }
       if (inp.intensity !== 0 && !(v && /forca|cluster|piramide|fst7/.test(v.id))) {
-        reps = reps.map((r) => shiftRange(r, inp.intensity === 1 ? -2 : 2))
+        reps = reps.map((r) => shiftRange(r, inp.intensity === 1 ? -2 : 2)).map((r) => (r.failure && !r.min ? r : r.min < lv.minReps ? { min: lv.minReps, max: Math.max(lv.minReps, r.max) } : r))
         changes.push(inp.intensity === 1 ? 'mais intenso (-2 reps)' : 'mais leve (+2 reps)')
       }
       // séries: ajusta a lista de reps ao novo número de séries

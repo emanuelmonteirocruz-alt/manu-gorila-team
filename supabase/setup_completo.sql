@@ -376,5 +376,8 @@ create policy trainer_anamneses on public.anamneses for all
   with check (is_trainer() and student_id in (select id from public.students where trainer_id = auth.uid()));
 grant select, insert, update, delete on public.anamneses to authenticated;
 
+-- >>> 0010_student_training_level.sql
+alter table public.students add column if not exists training_level text;
+
 -- Resultado: confira aqui qual e-mail ficou como Treinador (é com ele que você entra no app).
 select display_name as email, role, active from app_users order by (role = 'trainer') desc, display_name;

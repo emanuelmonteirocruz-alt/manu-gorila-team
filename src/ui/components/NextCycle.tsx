@@ -13,6 +13,8 @@ import { addDays, fmtBR } from '../../engine/metrics'
 import { nextWeekToPaste } from '../../domain/plan'
 import { RemList } from './AnamnesePanel'
 import TrainerNotes from './TrainerNotes'
+import { LEVELS, REFERENCES, levelFor } from '../../consultoria/levels'
+import { db, save } from '../../data/db'
 import { generateFirstWeek } from '../../consultoria/firstWeek'
 
 const short = (g: string) => g.replace('Perna - ', '')
@@ -54,7 +56,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
   async function generate() {
     if (isNew) {
       // aluno novo: 1ª semana montada pela anamnese (dias, tempo, ênfase, restrições, experiência)
-      const week = generateFirstWeek({ triage, enfases: emph, days: daysV, minutes: minutesV })
+      const week = generateFirstWeek({ triage, enfases: emph, days: daysV, minutes: minutesV, level: student.training_level })
       setText(weekToWhatsApp(week, alerts))
       setSummary([])
       setNotice([
@@ -67,7 +69,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     const sessions = await studentSessions(student, base, addDays(base, 6))
     const lookup = await profileLookup()
     const history = (await studentSessions(student)).filter((x) => x.date < base).slice(-40) // ~últimas semanas: o choque evita repetir variável
-    const week = generateWeek({ base: sessions, phase, intensity, enfases: emph, triage, lookup, history })
+    const week = generateWeek({ base: sessions, phase, intensity, enfases: emph, triage, lookup, history, level: student.training_level })
     setText(weekToWhatsApp(week, alerts))
     const moved = week.filter((t) => t.movedFrom).map((t) => `${t.label}: era o ${t.movedFrom} (veio para a frente pela ênfase)`)
     setSummary([...moved, ...week.flatMap((t) => t.exercises.filter((e) => e.changes.length || e.alert).map((e) => `${t.label.replace('Treino ', '')} · ${e.names.join(' + ')}: ${[...e.changes, e.alert].filter(Boolean).join(', ')}`))])
@@ -122,6 +124,19 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
             </div>
           </div>
           </>)}
+          <label className="f">Nível do aluno
+            <select value={student.training_level ?? ''} onChange={(e) => void save(db.students, { ...student, training_level: (e.target.value || null) as Student['training_level'] })}>
+              <option value="">Pela anamnese ({levelFor(null, triage?.experiencia).label})</option>
+              {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+            </select>
+          </label>
+          <div className="muted">{levelFor(student.training_level, triage?.experiencia).resumo}</div>
+          <details>
+            <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Como cada nível monta o treino (com referências)</summary>
+            <ul className="rem-list">{LEVELS.map((l) => <li key={l.id}><b>{l.label}:</b> {l.resumo}</li>)}</ul>
+            <div className="muted" style={{ marginTop: 6 }}>Regra geral: no máximo um método de cada família por treino (tensão mecânica, estresse metabólico, posição alongada/tempo, falha, volume), sorteados conforme o tipo do exercício e o histórico do aluno.</div>
+            <ul className="rem-list">{REFERENCES.map((r) => <li key={r}>{r}</li>)}</ul>
+          </details>
           <div className="grid" style={{ gap: 6 }}>
             <span className="muted" style={{ fontWeight: 600 }}>Ênfase (toque para escolher)</span>
             <div className="chips">
@@ -159,7 +174,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
           )}
           <TrainerNotes student={student} compact />
           <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : isNew ? 'Montar 1ª semana' : 'Gerar treino'}</button>
-          {!isNew && phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, cluster, carga alta, pirâmide, excêntrica, isometria, parciais, FST-7, falha, série a mais) são sorteados a cada geração, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}
+          {!isNew && phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, myo-reps, cluster, carga alta, pirâmide, excêntrica, isometria, parciais alongadas, FST-7, falha, série a mais) são sorteados a cada geração, dentro do que o nível do aluno permite, um por família de método, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}
         </>
       </div>
 

@@ -167,7 +167,7 @@ const MARKER_RE = /carga alta|pesad|m[aá]x|falha|carga m[aá]xima/i
 
 // ---------- Nível do desafio (consultoria) ----------
 /** Técnicas avançadas — todas com o mesmo peso (+1 por série). */
-export const ADVANCED_RE = /drop|rest[ -]?pause|bi[ -]?set|tri[ -]?set|super ?s[eé]rie|s[eé]rie gigante|giant|cluster|fst|exc[eê]ntric|negativ|pir[aâ]mide|isometri|m[eé]todo 21|gvt|parciais|pr[eé][ -]?exaust|p[oó]s[ -]?exaust/i
+export const ADVANCED_RE = /drop|rest[ -]?pause|bi[ -]?set|tri[ -]?set|super ?s[eé]rie|s[eé]rie gigante|giant|cluster|fst|exc[eê]ntric|negativ|pir[aâ]mide|isometri|m[eé]todo 21|gvt|parciais|myo|pr[eé][ -]?exaust|p[oó]s[ -]?exaust/i
 
 /** Peso da série pela faixa de repetições: ≤6 = 3 · 7–10 = 2 · 11–15 = 1 · >15 = 0,5 (faixa 8–12 usa o meio). */
 export function repWeight(r: RepRange | undefined): number {

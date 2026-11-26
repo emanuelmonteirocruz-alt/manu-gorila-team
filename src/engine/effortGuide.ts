@@ -42,6 +42,8 @@ export const TECHNIQUES: { key: string; label: string; re: RegExp; text: string 
   { key: 'fst7', label: 'FST-7', re: /\bfst[ -]?7/i, text: '*FST-7*: 7 séries com descanso curto (30 a 45 segundos), buscando o máximo de bombeamento no músculo.' },
   { key: 'excentrica', label: 'Excêntrica', re: /exc[eê]ntric|negativ/i, text: '*Excêntrica / negativa*: desça o peso devagar, em 3 a 4 segundos, controlando todo o movimento.' },
   { key: 'isometria', label: 'Isometria', re: /isometri|pico de contra/i, text: '*Isometria*: segure a contração no ponto indicado, pelo tempo pedido, sem soltar.' },
+  { key: 'myoreps', label: 'Myo-reps', re: /\bmyo/i, text: '*Myo-reps*: faça a série perto da falha, respire 5 vezes e faça mini-séries de 3 a 5 repetições com a mesma carga, repetindo a pausa curta.' },
+  { key: 'parciais', label: 'Parciais alongadas', re: /parcia/i, text: '*Parciais na parte alongada*: quando não conseguir mais a amplitude completa, continue com repetições curtas na parte em que o músculo está mais esticado.' },
   { key: 'cadencia', label: 'Cadência', re: /cad[eê]ncia/i, text: '*Cadência* (ex.: 3-1-1): o 1º número é a descida em segundos, o 2º a pausa e o 3º a subida.' },
 ]
 

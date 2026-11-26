@@ -4,7 +4,7 @@
  * Usa só exercícios comuns de academia (listas abaixo, editáveis), sorteados para não sair sempre igual.
  */
 import { SEED_PROFILES, normalizeKey } from '../engine/exerciseSeed'
-import type { RepRange } from '../domain/types'
+import type { RepRange, TrainingLevel } from '../domain/types'
 import { RESTRICTION_RULES } from './reminders'
 import type { Triage } from './triage'
 import { orderByEmphasis, type GeneratedExercise, type GeneratedTraining } from './generator'
@@ -49,6 +49,7 @@ export interface FirstWeekInput {
   minutes?: number
   seed?: number
   lookupName?: (name: string) => boolean // exercício existe no banco (para testes)
+  level?: TrainingLevel | null // nível da ficha manda sobre a experiência da anamnese
 }
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -59,7 +60,9 @@ export function generateFirstWeek(inp: FirstWeekInput): GeneratedTraining[] {
   const days = inp.days ?? t?.dias ?? 3
   const minutes = inp.minutes ?? t?.tempoMin ?? 60
   const perTraining = minutes <= 40 ? 4 : minutes <= 50 ? 5 : minutes <= 65 ? 6 : 7
-  const exp = t?.experiencia ?? 'intermediario'
+  const exp = inp.level === 'adaptacao' || inp.level === 'iniciante' ? 'iniciante'
+    : inp.level === 'avancado1' || inp.level === 'avancado2' || inp.level === 'atleta' ? 'avancado'
+    : inp.level === 'intermediario' ? 'intermediario' : t?.experiencia ?? 'intermediario'
   const lowerEmph = inp.enfases.filter((g) => LOWER.includes(g)).length
   const upperEmph = inp.enfases.length - lowerEmph
   const lowerFirst = lowerEmph >= upperEmph // sem ênfase: começa pelos inferiores

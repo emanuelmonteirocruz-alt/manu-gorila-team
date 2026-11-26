@@ -41,6 +41,7 @@ export interface Student extends SyncMeta {
   plan_period?: 'mensal' | 'quinzenal' | 'semanal' | null // consultoria: periodicidade do plano
   next_change_date?: string | null // consultoria: data da próxima troca de treino
   emphasis?: string[] | null // ênfase do plano definida pelo treinador (relatórios e montagem automática)
+  training_level?: TrainingLevel | null // consultoria: nível de treino (quanto método/intensidade a montagem usa)
   plan_value?: number
   hourly_rate?: number | null
   hourly_rate_manual: boolean
@@ -152,6 +153,8 @@ export interface ExerciseLink {
   verified_at: string
   _dirty?: 0 | 1
 }
+
+export type TrainingLevel = 'adaptacao' | 'iniciante' | 'intermediario' | 'avancado1' | 'avancado2' | 'atleta'
 
 export const MUSCLE_GROUPS = [
   'Perna - Quadríceps',

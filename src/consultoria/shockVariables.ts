@@ -10,6 +10,7 @@
  * Objetivo: hipertrofia, massa magra e força, com estímulo diferente de uma semana para outra.
  */
 import type { ExerciseProfile, RepRange, Session } from '../domain/types'
+import type { VarFamily } from './levels'
 import { techniquesOf } from '../engine/effortGuide'
 
 export interface VarState { sets: number; reps: RepRange[]; notes: string[] }
@@ -17,6 +18,7 @@ export interface VarContext { profile?: ExerciseProfile; isEmph: boolean; isLast
 
 export interface ShockVariable {
   id: string
+  family: VarFamily // tensão mecânica, estresse metabólico, posição alongada/tempo, falha, volume
   change: string // como aparece em "O que mudou"
   weight: number
   beginner?: boolean // liberada para iniciante
@@ -30,20 +32,22 @@ const same = (n: number, min: number, max = min): RepRange[] => Array.from({ len
 const avgReps = (s: VarState) => s.reps.reduce((a, r) => a + (r.min + (r.max || r.min)) / 2, 0) / Math.max(1, s.reps.length)
 
 export const SHOCK_VARIABLES: ShockVariable[] = [
-  { id: 'drop', change: 'drop set', weight: 3, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Drop set na última'] }) },
-  { id: 'restpause', change: 'rest-pause', weight: 3, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Rest-pause na última'] }) },
-  { id: 'cluster', change: 'cluster', weight: 2, suits: (c) => multi(c), apply: (s) => ({ ...s, reps: same(s.sets, 6), notes: [...s.notes, 'Cluster na última série (pausas de 15 segundos)'] }) },
-  { id: 'forca', change: 'carga alta (6 a 8 reps)', weight: 3, beginner: false, suits: (c, s) => multi(c) && avgReps(s) > 8, apply: (s) => ({ ...s, reps: same(s.sets, 6, 8), notes: [...s.notes, 'Carga alta, descanso de 2 minutos'] }) },
-  { id: 'piramide', change: 'pirâmide de carga', weight: 2, suits: (c, s) => !c.pyramid && s.sets >= 3, apply: (s) => {
+  { id: 'drop', family: 'metabolico', change: 'drop set', weight: 3, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Drop set na última'] }) },
+  { id: 'restpause', family: 'metabolico', change: 'rest-pause', weight: 3, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Rest-pause na última'] }) },
+  { id: 'cluster', family: 'tensao', change: 'cluster', weight: 2, suits: (c) => multi(c), apply: (s) => ({ ...s, reps: same(s.sets, 6), notes: [...s.notes, 'Cluster na última série (pausas de 15 segundos)'] }) },
+  { id: 'forca', family: 'tensao', change: 'carga alta (6 a 8 reps)', weight: 3, beginner: false, suits: (c, s) => multi(c) && avgReps(s) > 8, apply: (s) => ({ ...s, reps: same(s.sets, 6, 8), notes: [...s.notes, 'Carga alta, descanso de 2 minutos'] }) },
+  { id: 'piramide', family: 'tensao', change: 'pirâmide de carga', weight: 2, suits: (c, s) => !c.pyramid && s.sets >= 3, apply: (s) => {
     const n = Math.max(4, s.sets)
     return { ...s, sets: n, reps: [12, 10, 8, 6, 6].slice(0, n).map((r) => ({ min: r, max: r })), notes: [...s.notes, 'Pirâmide: sobe a carga a cada série'] }
   } },
-  { id: 'excentrica', change: 'excêntrica lenta', weight: 2, beginner: true, suits: () => true, apply: (s) => ({ ...s, notes: [...s.notes, 'Excêntrica de 4 segundos'] }) },
-  { id: 'isometria', change: 'isometria no pico', weight: 2, beginner: true, suits: (c) => c.profile?.mechanic === 'monoarticular', apply: (s) => ({ ...s, notes: [...s.notes, 'Isometria de 2 segundos no pico'] }) },
-  { id: 'parciais', change: 'parciais', weight: 1, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Parciais no final da última série'] }) },
-  { id: 'fst7', change: 'FST-7', weight: 1, suits: (c) => c.isEmph && c.isLast && c.profile?.mechanic === 'monoarticular', apply: (s) => ({ ...s, sets: 7, reps: same(7, 10, 12), notes: [...s.notes, 'FST-7 (descanso de 30 segundos)'] }) },
-  { id: 'falha', change: 'última até a falha', weight: 2, beginner: false, suits: () => true, apply: (s) => ({ ...s, notes: [...s.notes, 'Última série até a falha'] }) },
-  { id: 'volume', change: '+1 série', weight: 2, beginner: true, suits: (c, s) => s.sets < 5 && !c.pyramid, apply: (s) => ({ ...s, sets: s.sets + 1 }) },
+  { id: 'excentrica', family: 'alongado', change: 'excêntrica lenta', weight: 2, beginner: true, suits: () => true, apply: (s) => ({ ...s, notes: [...s.notes, 'Excêntrica de 4 segundos'] }) },
+  { id: 'isometria', family: 'alongado', change: 'isometria no pico', weight: 2, beginner: true, suits: (c) => c.profile?.mechanic === 'monoarticular', apply: (s) => ({ ...s, notes: [...s.notes, 'Isometria de 2 segundos no pico'] }) },
+  { id: 'parciais', family: 'alongado', change: 'parciais alongadas', weight: 1, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Parciais na parte alongada no final da última série'] }) },
+  { id: 'myoreps', family: 'metabolico', change: 'myo-reps', weight: 2, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Myo-reps na última (mini-séries de 3 a 5 reps com 5 respirações de pausa)'] }) },
+  { id: 'dropduplo', family: 'metabolico', change: 'drop set duplo', weight: 1, suits: (c) => machineOrIso(c), apply: (s) => ({ ...s, notes: [...s.notes, 'Drop set duplo na última'] }) },
+  { id: 'fst7', family: 'metabolico', change: 'FST-7', weight: 1, suits: (c) => c.isEmph && c.isLast && c.profile?.mechanic === 'monoarticular', apply: (s) => ({ ...s, sets: 7, reps: same(7, 10, 12), notes: [...s.notes, 'FST-7 (descanso de 30 segundos)'] }) },
+  { id: 'falha', family: 'falha', change: 'última até a falha', weight: 2, beginner: false, suits: () => true, apply: (s) => ({ ...s, notes: [...s.notes, 'Última série até a falha'] }) },
+  { id: 'volume', family: 'volume', change: '+1 série', weight: 2, beginner: true, suits: (c, s) => s.sets < 5 && !c.pyramid, apply: (s) => ({ ...s, sets: s.sets + 1 }) },
 ]
 
 /** Gerador pseudoaleatório com semente (o mesmo sorteio se repete nos testes). */
@@ -75,6 +79,8 @@ export function usedVariables(history: Session[]): Map<string, Map<string, numbe
     const n = e.notes ?? ''
     if (/carga alta|descanso de 2/i.test(n)) ids.add('forca')
     if (/parcia/i.test(n)) ids.add('parciais')
+    if (/myo/i.test(n)) ids.add('myoreps')
+    if (/drop set duplo|drop duplo/i.test(n)) ids.add('dropduplo')
     if (/falha/i.test(n)) ids.add('falha')
     if (new Set(e.reps.map((r) => r.min)).size > 1) ids.add('piramide')
     if (!ids.size) continue

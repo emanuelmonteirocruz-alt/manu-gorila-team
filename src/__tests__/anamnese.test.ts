@@ -266,3 +266,52 @@ describe('1ª semana: sem variações do mesmo exercício no mesmo treino', () =
     }
   })
 })
+
+describe('nível do aluno (consultoria)', () => {
+  const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+  const ex = (name: string, sets: number, position: number, reps = 10): SessionExercise => ({
+    id: name, position, exercise_key: normalizeKey(name), display_name: name, valid_sets: sets, warmup_sets: 0, heavy_sets: 0,
+    reps: Array.from({ length: sets }, () => ({ min: reps, max: reps })), drop_set: false,
+  })
+  const treino: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '',
+    exercises: [ex('Agachamento livre', 4, 0), ex('Leg press', 4, 1), ex('Elevação pélvica', 3, 2), ex('Cadeira extensora', 3, 3, 12), ex('Mesa flexora', 3, 4, 12), ex('Abdutora', 3, 5, 15), ex('Panturrilha sentado', 3, 6, 15)] }
+  const run = (level: string, phase: 'choque' | 'ordinaria' | 'regenerativa', seed: number) =>
+    generateWeek({ base: [treino], phase, intensity: 0, enfases: ['Glúteo'], lookup, seed, level: level as never })[0].exercises
+  const vars = (exs: ReturnType<typeof run>) => exs.flatMap((e) => e.changes.filter((c) => !/série/.test(c)))
+  it('atleta: 3 métodos no choque, um de cada família; adaptação: no máximo 1 e só simples', async () => {
+    const { SHOCK_VARIABLES } = await import('../consultoria/shockVariables')
+    const fam = (change: string) => SHOCK_VARIABLES.find((v) => v.change === change)?.family
+    for (let seed = 1; seed <= 30; seed++) {
+      const a = run('atleta', 'choque', seed).flatMap((e) => e.changes.filter((c) => fam(c) && fam(c) !== 'volume'))
+      expect(a.length).toBeGreaterThanOrEqual(2)
+      expect(new Set(a.map(fam)).size).toBe(a.length) // famílias diferentes: método, não salada
+      const ad = vars(run('adaptacao', 'choque', seed))
+      expect(ad.length).toBeLessThanOrEqual(1)
+      for (const x of ad) expect(['excêntrica lenta', 'isometria no pico']).toContain(x)
+    }
+  })
+  it('mais nível = mais métodos no choque (média)', () => {
+    const avg = (lv: string) => Array.from({ length: 40 }, (_, i) => vars(run(lv, 'choque', i + 1)).length).reduce((a, b) => a + b, 0) / 40
+    expect(avg('intermediario')).toBeLessThan(avg('avancado1'))
+    expect(avg('avancado1')).toBeLessThanOrEqual(avg('avancado2'))
+    expect(avg('avancado2')).toBeLessThan(avg('atleta'))
+  })
+  it('atleta tem método na ordinária; intermediário não', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      expect(vars(run('atleta', 'ordinaria', seed)).length).toBe(1)
+      expect(vars(run('intermediario', 'ordinaria', seed)).length).toBe(0)
+    }
+  })
+  it('regenerativa do atleta: deload pelo volume, mantém as reps', () => {
+    const e = run('atleta', 'regenerativa', 1)
+    expect(e[0].sets).toBe(2) // 4 → 2 (cerca de 40% menos)
+    expect(e[0].reps[0]).toEqual({ min: 10, max: 10 })
+    const i = run('intermediario', 'regenerativa', 1)
+    expect(i[0].sets).toBe(3)
+    expect(i[0].reps[0]).toEqual({ min: 12, max: 15 })
+  })
+  it('adaptação nunca desce abaixo de 10 reps, mesmo progredindo', () => {
+    const w = generateWeek({ base: [treino], phase: 'ordinaria', intensity: 1, enfases: [], lookup, seed: 1, level: 'adaptacao' })
+    expect(w[0].exercises.every((e) => e.reps.every((r) => r.min >= 10))).toBe(true)
+  })
+})
