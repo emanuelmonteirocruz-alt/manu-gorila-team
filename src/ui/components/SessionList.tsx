@@ -99,7 +99,7 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
         {wa && <a className="btn" href={wa} target="_blank" rel="noreferrer">Abrir conversa</a>}
       </div>
       {preview && <canvas ref={canvas} className="pdf-preview" aria-label="Gráfico do treino" />}
-      {session.muscle_groups.length > 0 && <div className="muted">{session.muscle_groups.join(' + ')}</div>}
+      {session.muscle_groups.length > 0 && <div className="muted">{session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(', ')}</div>}
       {session.exercises.map((e) => <ExerciseLine key={e.id} e={e} />)}
       {!session.exercises.length && <div className="muted">Treino sem exercícios registrados.</div>}
       <div className="row" style={{ justifyContent: 'flex-end' }}>

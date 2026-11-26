@@ -44,16 +44,13 @@ describe('músculos: classificação e séries fracionadas', () => {
 })
 
 describe('grupamentos do presencial detectados pelos exercícios', () => {
-  it('músculo principal de cada exercício: supino é Peito (não só tríceps); upper/lower/full body', async () => {
-    const { detectMuscleGroups, splitName } = await import('../engine/sessionGroups')
+  it('músculo principal de cada exercício: supino é Peito (não só tríceps)', async () => {
+    const { detectMuscleGroups } = await import('../engine/sessionGroups')
     const { SEED_PROFILES, normalizeKey } = await import('../engine/exerciseSeed')
     const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
     const ex = (name: string, sets: number) => ({ id: name, position: 0, exercise_key: normalizeKey(name), display_name: name, valid_sets: sets, warmup_sets: 0, heavy_sets: 0, reps: [], drop_set: false })
     const g = detectMuscleGroups([ex('Supino reto', 4), ex('Tríceps corda', 3), ex('Crucifixo', 3)], lookup)
     expect(g).toEqual(['Peito', 'Tríceps'])
-    expect(splitName(detectMuscleGroups([ex('Supino reto', 3), ex('Remada baixa', 3), ex('Desenvolvimento com halteres', 3)], lookup))).toBe('Upper')
-    expect(splitName(detectMuscleGroups([ex('Agachamento livre', 3), ex('Stiff', 3), ex('Elevação pélvica', 3)], lookup))).toBe('Lower')
-    expect(splitName(detectMuscleGroups([ex('Agachamento livre', 3), ex('Stiff', 3), ex('Supino reto', 3), ex('Remada baixa', 3)], lookup))).toBe('Full body')
   })
 })
 

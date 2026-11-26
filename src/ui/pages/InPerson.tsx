@@ -21,7 +21,7 @@ import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
 import { topSetText } from '../format'
-import { detectMuscleGroups, splitName } from '../../engine/sessionGroups'
+import { detectMuscleGroups } from '../../engine/sessionGroups'
 import { normalizeKey } from '../../engine/exerciseSeed'
 
 const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F']
@@ -132,7 +132,7 @@ export default function InPerson() {
                 const last = lastByLabel[l]
                 if (last?.muscle_groups.length) setGroups(last.muscle_groups)
               }}>
-                {l}<small>{lastByLabel[l] ? `último: ${fmtBR(lastByLabel[l].date)} · ${lastByLabel[l].muscle_groups.join(', ')}` : 'novo'}</small>
+                {l}<small>{lastByLabel[l] ? `último: ${fmtBR(lastByLabel[l].date)} · ${lastByLabel[l].muscle_groups.map((g) => g.replace('Perna - ', '')).join(', ')}` : 'novo'}</small>
               </button>
             ))}
           </div>
@@ -484,7 +484,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     <div className="tablet single">
       <div className="left grid" style={{ alignContent: 'start' }}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div><h1>{student.full_name.split(' ')[0]} · {session.label}</h1><div className="muted">{session.exercises.length ? `${[splitName(session.muscle_groups), session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(' + ')].filter(Boolean).join(': ')} · ` : ''}{totals.valid} válidas · {totals.heavy} pesadas</div></div>
+          <div><h1>{student.full_name.split(' ')[0]} · {session.label}</h1><div className="muted">{session.exercises.length ? `${session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(', ')} · ` : ''}{totals.valid} válidas · {totals.heavy} pesadas</div></div>
           <div className="row">
             <button className={`mic-btn ${sp.recording ? 'rec' : ''}`} aria-pressed={sp.recording} onClick={() => {
               if (sp.recording) {
