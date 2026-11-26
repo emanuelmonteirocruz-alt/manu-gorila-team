@@ -5,23 +5,25 @@ import { db } from '../../data/db'
 import { getBrand } from '../../data/brand'
 import { previousBests, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
-import { sharePdf, templateA, templateC, templateD, templateE } from '../../pdf/templates'
-import { buildBeforeAfter, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
+import { sharePdf, templateA, templateC, templateD, templateE, templateL } from '../../pdf/templates'
+import { buildBeforeAfter, buildLoadProgress, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
 import { drawPreview } from '../../pdf/charts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { StudentSelect } from '../components/common'
 
-type Tpl = 'A' | 'C' | 'D' | 'E' | 'W'
+type Tpl = 'A' | 'C' | 'D' | 'E' | 'W' | 'L'
 
 export default function Reports() {
   const [params] = useSearchParams()
   const [studentId, setStudentId] = useState(params.get('aluno') ?? '')
-  const [tpl, setTpl] = useState<Tpl>(((t) => (t === 'A' || t === 'C' || t === 'D' || t === 'E' || t === 'W' ? t : 'W'))(params.get('tpl')))
+  const [tpl, setTpl] = useState<Tpl>(((t) => (t === 'A' || t === 'C' || t === 'D' || t === 'E' || t === 'W' || t === 'L' ? t : 'W'))(params.get('tpl')))
   const [showName, setShowName] = useState(true)
   const [showEmphasis, setShowEmphasis] = useState(false)
   const [weekRef, setWeekRef] = useState(params.get('semana') ?? toISODate(new Date()))
   const [month, setMonth] = useState(params.get('mes') ?? toISODate(new Date()).slice(0, 7))
   const [sessionId, setSessionId] = useState('')
+  const [loadMode, setLoadMode] = useState<'semana' | 'mes'>(params.get('modo') === 'mes' ? 'mes' : 'semana')
+  const isPresencial = useLiveQuery(async () => (studentId ? (await db.students.get(studentId))?.modality === 'presencial' : false), [studentId]) ?? false
   // semanas salvas do aluno (mais recente primeiro) — para escolher o que comparar
   const weeks = useLiveQuery(async () => {
     const st = studentId ? await db.students.get(studentId) : undefined
@@ -57,6 +59,11 @@ export default function Reports() {
       const { before, after } = await buildBeforeAfter(s, month)
       make = () => templateA(before, after, o)
       name = `antes-depois-${first}-${month}.pdf`
+    } else if (tpl === 'L') {
+      // progressão de carga: só faz sentido no presencial (consultoria não registra carga)
+      const lp = await buildLoadProgress(s, loadMode, single)
+      make = () => templateL(loadMode, lp.weeks, lp.rows, o)
+      name = `progressao-carga-${first}-${loadMode}-${lp.weeks[lp.weeks.length - 1]}.pdf`
     } else if (tpl === 'W') {
       if (!before || !after) return
       const [b, a] = before <= after ? [before, after] : [after, before]
@@ -109,6 +116,7 @@ export default function Reports() {
             <button className={`chip sm ${tpl === 'A' ? 'on' : ''}`} onClick={() => setTpl('A')}>Mês × Mês</button>
             <button className={`chip sm ${tpl === 'C' ? 'on' : ''}`} onClick={() => setTpl('C')}>Resumo do mês</button>
             <button className={`chip sm ${tpl === 'D' ? 'on' : ''}`} onClick={() => setTpl('D')}>Treino do dia</button>
+            {isPresencial && <button className={`chip sm ${tpl === 'L' ? 'on' : ''}`} onClick={() => setTpl('L')}>Progressão de carga</button>}
           </div>
           {tpl === 'A' && <label className="f">Mês "depois"<input id="report-month-a" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /><span className="muted">Compara {monthRange(prevMonth(month)).label} (antes) com {monthRange(month).label} (depois)</span></label>}
           {tpl === 'W' && (weeks.length < 2 ? <div className="muted">{studentId ? 'Este aluno precisa de pelo menos 2 semanas salvas para comparar.' : 'Escolha o aluno.'}</div> : <>
@@ -123,6 +131,20 @@ export default function Reports() {
               </select>
             </label>
             {before === after && <span className="muted">Escolha duas semanas diferentes.</span>}
+          </>)}
+          {tpl === 'L' && !isPresencial && <div className="muted">A progressão de carga é para alunos do presencial (a consultoria não registra carga).</div>}
+          {tpl === 'L' && isPresencial && (<>
+            <div className="chips">
+              <button className={`chip sm ${loadMode === 'semana' ? 'on' : ''}`} onClick={() => setLoadMode('semana')}>Semanal (× vez anterior)</button>
+              <button className={`chip sm ${loadMode === 'mes' ? 'on' : ''}`} onClick={() => setLoadMode('mes')}>Mensal (4 semanas)</button>
+            </div>
+            {weeks.length > 0 && (
+              <label className="f">{loadMode === 'semana' ? 'Semana' : 'Até a semana'}
+                <select id="report-load-week" value={single} onChange={(e) => setWeekRef(e.target.value)}>
+                  {weeks.map((w) => <option key={w.wk} value={w.wk}>{weekLabel(w)}</option>)}
+                </select>
+              </label>
+            )}
           </>)}
           {tpl === 'E' && (weeks.length ? (
             <label className="f">Semana
@@ -142,7 +164,7 @@ export default function Reports() {
           <label className="row"><input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} /> Incluir nome do aluno no cabeçalho</label>
           <label className="row"><input type="checkbox" checked={showEmphasis} onChange={(e) => setShowEmphasis(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
           <div className="row">
-            <button className="btn primary big" disabled={!studentId || (tpl === 'W' && (!before || !after || before === after))} onClick={buildReport}>Gerar prévia</button>
+            <button className="btn primary big" disabled={!studentId || (tpl === 'L' && !isPresencial) || (tpl === 'W' && (!before || !after || before === after))} onClick={buildReport}>Gerar prévia</button>
             <button className="btn ok big" disabled={!doc} onClick={() => doc && sharePdf(doc.d, doc.name)}>Enviar / baixar PDF</button>
           </div>
         </div>

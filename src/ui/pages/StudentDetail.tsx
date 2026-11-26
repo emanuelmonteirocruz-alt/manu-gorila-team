@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { FileText, History as HistoryIcon } from 'lucide-react'
+import { FileText, History as HistoryIcon, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { db } from '../../data/db'
@@ -30,6 +30,8 @@ export default function StudentDetail() {
           <div className="muted">{student.modality === 'online' ? `Consultoria Online${student.plan_period ? ` · ${student.plan_period}` : ''}` : `Personal Presencial · ${student.sex === 'F' ? 'Feminino' : 'Masculino'}`} · {student.plan_name || 'sem plano'}</div>
         </div>
         <div className="row">
+          {student.modality === 'presencial' && <Link className="btn" to={`/relatorios?aluno=${student.id}&tpl=L&modo=semana`}><TrendingUp size={16} strokeWidth={1.8} /> Progressão da semana</Link>}
+          {student.modality === 'presencial' && <Link className="btn" to={`/relatorios?aluno=${student.id}&tpl=L&modo=mes`}><TrendingUp size={16} strokeWidth={1.8} /> Progressão do mês</Link>}
           <Link className="btn" to={`/relatorios?aluno=${student.id}`}><FileText size={16} strokeWidth={1.8} /> Relatórios</Link>
         </div>
       </div>

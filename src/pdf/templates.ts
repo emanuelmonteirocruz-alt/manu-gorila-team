@@ -4,6 +4,7 @@
  * (a explicação vai no áudio do treinador). Sem notas de rodapé nem textos técnicos.
  */
 import type { jsPDF } from 'jspdf'
+import type { BestSet, LoadRow } from '../data/reportData'
 import { saveFile } from '../artifact/claude'
 import { DIET_LABEL, MICRO_LABEL, type Session, type WeekContext } from '../domain/types'
 import { aggregateSessions, tonnage, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
@@ -629,4 +630,155 @@ export async function sharePdf(d: jsPDF, filename: string) {
     }
   }
   await saveFile(filename, blob)
+}
+
+// ---------------- Template L — Progressão de carga (presencial) ----------------
+// PDF separado e enxuto: só a carga. Melhor série de trabalho de cada exercício (aquecimento fora);
+// reps diferentes são comparadas pela força estimada (Epley), mas o PDF mostra só kg × reps.
+
+const UP = { ink: '#047857', bg: '#ECFDF5', line: '#A7F3D0' }
+const DOWN = { ink: '#B91C1C', bg: '#FEF2F2', line: '#FECACA' }
+const SAME = { ink: '#475569', bg: '#F1F5F9', line: '#E2E8F0' }
+const NEW = { ink: '#64748B', bg: '#FFFFFF', line: '#E2E8F0' }
+const tone = (r: LoadRow) => (r.status === 'up' ? UP : r.status === 'down' ? DOWN : r.status === 'same' ? SAME : NEW)
+
+const kgN = (kg: number) => fmtNum(kg, Number.isInteger(kg) ? 0 : 1)
+const kgTxt = (b: BestSet | null, perSide: boolean) => (b ? `${kgN(b.kg)}${perSide ? ' kg/lado' : ' kg'}${b.reps ? ` × ${b.reps}` : ''}` : '—')
+function pillText(r: LoadRow): string {
+  if (r.status === 'new') return '1ª vez'
+  if (r.dKg && Math.abs(r.dKg) >= 0.5) return `${r.dKg > 0 ? '+' : '-'}${kgN(Math.abs(r.dKg))} kg`
+  if (r.dReps) return `${r.dReps > 0 ? '+' : '-'}${Math.abs(r.dReps)} ${Math.abs(r.dReps) === 1 ? 'rep' : 'reps'}`
+  return r.status === 'up' ? 'subiu' : r.status === 'down' ? 'caiu' : 'mantém'
+}
+function statusPill(d: jsPDF, xRight: number, y: number, r: LoadRow) {
+  const t = tone(r)
+  const label = pillText(r)
+  d.setFont('helvetica', 'bold')
+  d.setFontSize(8)
+  const w = Math.max(48, d.getTextWidth(label) + 16)
+  fill(d, t.bg)
+  d.setDrawColor(...([1, 3, 5].map((i) => parseInt(t.line.slice(i, i + 2), 16)) as [number, number, number]))
+  d.setLineWidth(0.8)
+  d.roundedRect(xRight - w, y, w, 17, 8.5, 8.5, 'FD')
+  text(d, label, xRight - w / 2, y + 11.6, { size: 8, bold: true, c: t.ink, align: 'center' })
+  if (r.pct != null && r.status !== 'same' && Math.abs(r.pct) >= 1) text(d, `${r.pct > 0 ? '+' : '-'}${Math.round(Math.abs(r.pct))}% força`, xRight - w / 2, y + 26, { size: 5.8, c: t.ink, align: 'center' })
+}
+
+export function templateL(mode: 'semana' | 'mes', weeks: string[], rows: LoadRow[], o: ReportOptions): jsPDF {
+  // (as linhas são reordenadas por treino mais abaixo)
+  const d = start(o)
+  const wk = weeks[weeks.length - 1]
+  header(d, 'Progressão de Carga', mode === 'semana' ? `Semana de ${fmtBR(wk).slice(0, 5)} · cada exercício × a vez anterior` : `${weeks.length} semanas · ${fmtBR(weeks[0]).slice(0, 5)} a ${fmtBR(addDaysISO(wk, 6)).slice(0, 5)}`, nm(o))
+  let y = 92
+  const compared = rows.filter((r) => r.status !== 'new')
+  const up = rows.filter((r) => r.status === 'up').length
+  const same = rows.filter((r) => r.status === 'same').length
+  const down = rows.filter((r) => r.status === 'down').length
+
+  // 1) manchete
+  fill(d, up ? C.heavy : C.headerBg)
+  d.roundedRect(PAGE.m, y, W, 62, 10, 10, 'F')
+  if (!rows.length) {
+    text(d, 'Sem cargas registradas', PAGE.m + 16, y + 36, { size: 16, bold: true, c: '#ffffff' })
+    return d
+  }
+  text(d, compared.length ? `${up} de ${compared.length}` : `${rows.length}`, PAGE.m + 16, y + 38, { size: 26, bold: true, c: '#ffffff' })
+  text(d, compared.length ? 'EXERCÍCIOS COM CARGA EM ALTA' : 'EXERCÍCIOS REGISTRADOS', PAGE.m + 16, y + 52, { size: 6.8, bold: true, c: '#E6F4F2' })
+  const best = rows.filter((r) => r.status === 'up').sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))[0]
+  if (best) {
+    text(d, 'MAIOR EVOLUÇÃO', PAGE.m + W - 14, y + 20, { size: 6.2, bold: true, c: '#CCFBF1', align: 'right' })
+    const nm2 = best.name.length > 22 ? best.name.slice(0, 21) + '…' : best.name
+    text(d, nm2, PAGE.m + W - 14, y + 34, { size: 9.5, bold: true, c: '#ffffff', align: 'right' })
+    text(d, pillText(best), PAGE.m + W - 14, y + 48, { size: 9, bold: true, c: '#ffffff', align: 'right' })
+  }
+  y += 72
+
+  // 2) contadores
+  const tiles: [string, number, typeof UP][] = [['subiram', up, UP], ['mantiveram', same, SAME], ['caíram', down, DOWN]]
+  const tw = (W - 16) / 3
+  tiles.forEach(([l, n, t], i) => {
+    const x = PAGE.m + i * (tw + 8)
+    fill(d, t.bg)
+    d.roundedRect(x, y, tw, 34, 8, 8, 'F')
+    text(d, String(n), x + 12, y + 23, { size: 15, bold: true, c: t.ink })
+    text(d, l, x + 12 + d.getTextWidth(String(n)) + 6, y + 22, { size: 7.5, bold: true, c: t.ink })
+  })
+  y += 46
+
+  // 3) linhas por exercício, agrupadas por treino (A, B, C…); dentro do treino, quem mais evoluiu primeiro
+  const RANKL = { up: 0, same: 1, down: 2, new: 3 } as const
+  rows = [...rows].sort((a, b) => a.label.localeCompare(b.label) || RANKL[a.status] - RANKL[b.status] || (b.pct ?? 0) - (a.pct ?? 0))
+  const rowH = mode === 'semana' ? 36 : 44
+  const groupH = 16
+  const colX0 = PAGE.m + 118, colX1 = PAGE.m + W - 66
+  const drawHeadRow = () => {
+    if (mode === 'mes') {
+      const cw = (colX1 - colX0) / weeks.length
+      weeks.forEach((w, i) => text(d, fmtBR(w).slice(0, 5), colX0 + cw * i + cw / 2, y + 6, { size: 5.8, bold: true, c: C.sub, align: 'center' }))
+      y += 12
+    }
+  }
+  sectionTitle(d, mode === 'semana' ? 'Exercício a exercício' : 'Carga por semana (melhor série)', y + 6)
+  chartSeal(d, PAGE.m + W, y + 6)
+  y += 16
+  drawHeadRow()
+  let group = ''
+  for (const r of rows) {
+    const newGroup = r.label !== group
+    if (y + rowH + (newGroup ? groupH : 0) > BOTTOM) {
+      d.addPage([PAGE.w, PAGE.h], 'portrait')
+      y = 28
+      text(d, 'PROGRESSÃO DE CARGA · CONTINUAÇÃO', PAGE.m, y, { size: 6.5, bold: true, c: C.sub })
+      chartSeal(d, PAGE.m + W, y)
+      y += 12
+      drawHeadRow()
+      group = ''
+    }
+    if (r.label !== group) {
+      group = r.label
+      text(d, `TREINO ${r.label}`, PAGE.m + 2, y + 10, { size: 7, bold: true, c: C.heavy })
+      fill(d, C.grid)
+      d.rect(PAGE.m + 52, y + 7, W - 52, 0.8, 'F')
+      y += groupH
+    }
+    const t = tone(r)
+    card(d, PAGE.m, y, W, rowH - 6, '#FFFFFF')
+    fill(d, t.ink === NEW.ink ? C.grid : t.ink)
+    d.roundedRect(PAGE.m, y, 3, rowH - 6, 1.5, 1.5, 'F')
+    const name = r.name.length > 21 ? r.name.slice(0, 20) + '…' : r.name
+    if (mode === 'semana') {
+      const [a, b] = r.points
+      text(d, name, PAGE.m + 10, y + 13, { size: 8.3, bold: true })
+      text(d, a ? `antes ${kgTxt(a, r.perSide)} · ${fmtBR(a.date).slice(0, 5)}` : 'primeira vez com carga', PAGE.m + 10, y + 24, { size: 6.2, c: C.sub })
+      text(d, kgTxt(b, r.perSide), colX0 + 8, y + 19, { size: 9.5, bold: true, c: C.ink })
+    } else {
+      text(d, name, PAGE.m + 10, y + 15, { size: 8.3, bold: true })
+      if (r.perSide) text(d, 'kg por lado', PAGE.m + 10, y + 26, { size: 6, c: C.sub })
+      const cw = (colX1 - colX0) / weeks.length
+      const vals = r.points.map((p) => p?.kg).filter((v): v is number => v != null)
+      // escala a partir de perto da menor carga: a subida fica visível (60 → 75 kg não parece "igual")
+      const max = Math.max(...vals, 1)
+      const min = Math.min(...vals)
+      const base = vals.length > 1 && max > min ? Math.max(0, min - (max - min) * 0.6) : 0
+      const hMax = rowH - 26
+      r.points.forEach((p, i) => {
+        const cx = colX0 + cw * i + cw / 2
+        if (!p) { text(d, '·', cx, y + rowH - 14, { size: 9, c: '#CBD5E1', align: 'center' }); return }
+        const h = Math.max(3, ((p.kg - base) / (max - base || 1)) * hMax)
+        const last = i === r.points.length - 1 || r.points.slice(i + 1).every((q) => !q)
+        fill(d, last ? (r.status === 'down' ? DOWN.ink : C.heavy) : '#CBD5E1')
+        d.roundedRect(cx - 7, y + rowH - 10 - h, 14, h, 2.5, 2.5, 'F')
+        text(d, kgN(p.kg), cx, y + rowH - 12 - h, { size: 5.8, bold: last, c: last ? C.ink : C.sub, align: 'center' })
+      })
+    }
+    statusPill(d, PAGE.m + W - 8, y + 6, r)
+    y += rowH
+  }
+  if (y + 14 <= BOTTOM) text(d, 'Melhor série de trabalho de cada exercício (aquecimento fora).', PAGE.m, y + 6, { size: 5.8, c: '#94A3B8' })
+  return d
+}
+const addDaysISO = (iso: string, n: number) => {
+  const x = new Date(iso + 'T12:00:00')
+  x.setDate(x.getDate() + n)
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
 }

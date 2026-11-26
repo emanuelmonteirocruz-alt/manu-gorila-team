@@ -5,6 +5,9 @@
  * Necessário porque PDF dentro de iframe fica em branco no visualizador e no Chrome Android.
  */
 type RGB = [number, number, number]
+const GAP = 14 // espaço entre páginas na prévia
+/** Páginas usadas pelo último documento desenhado (para a prévia dimensionar o canvas). */
+export let lastPageCount = 1
 type Style = 'F' | 'S' | 'FD' | 'DF' | undefined
 
 export class CanvasDoc {
@@ -15,14 +18,29 @@ export class CanvasDoc {
   private size = 16
   private bold = false
 
-  constructor(canvas: HTMLCanvasElement, w: number, h: number, scale = 2) {
+  private oy = 0 // deslocamento vertical da página atual
+  private h: number
+  private scale: number
+  constructor(canvas: HTMLCanvasElement, w: number, h: number, scale = 2, pages = 1) {
+    this.h = h
+    this.scale = scale
+    const total = h * pages + GAP * (pages - 1)
     canvas.width = w * scale
-    canvas.height = h * scale
-    canvas.style.aspectRatio = `${w} / ${h}`
+    canvas.height = total * scale
+    canvas.style.aspectRatio = `${w} / ${total}`
     this.ctx = canvas.getContext('2d')!
     this.ctx.setTransform(scale, 0, 0, scale, 0, 0)
-    this.ctx.fillStyle = '#ffffff'
-    this.ctx.fillRect(0, 0, w, h)
+    this.ctx.fillStyle = '#E2E8F0'
+    this.ctx.fillRect(0, 0, w, total)
+    for (let i = 0; i < pages; i++) { this.ctx.fillStyle = '#ffffff'; this.ctx.fillRect(0, i * (h + GAP), w, h) }
+    lastPageCount = 1
+  }
+  /** Nova página: na prévia, desenha logo abaixo da anterior. */
+  addPage() {
+    this.oy += this.h + GAP
+    lastPageCount++
+    this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, this.oy * this.scale)
+    return this
   }
 
   private rgb = (c: RGB) => `rgb(${c[0]},${c[1]},${c[2]})`
@@ -69,7 +87,13 @@ export class CanvasDoc {
   }
   addImage(src: string, _fmt: string, x: number, y: number, w: number, h: number) {
     const img = new Image()
-    img.onload = () => this.ctx.drawImage(img, x, y, w, h)
+    const oy = this.oy
+    img.onload = () => {
+      this.ctx.save()
+      this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, oy * this.scale)
+      this.ctx.drawImage(img, x, y, w, h)
+      this.ctx.restore()
+    }
     img.src = src
   }
   output(): Blob { throw new Error('Prévia em canvas não gera arquivo') }

@@ -3,7 +3,7 @@
  * Página em proporção de celular (9:16) para leitura direta no WhatsApp.
  */
 import { jsPDF } from 'jspdf'
-import { CanvasDoc } from './canvasDoc'
+import { CanvasDoc, lastPageCount } from './canvasDoc'
 
 export const PAGE = { w: 360, h: 640, m: 20 }
 
@@ -55,19 +55,26 @@ function mix(a: string, b: string, t: number): string {
 }
 
 let canvasTarget: HTMLCanvasElement | null = null
+let previewPages = 1
 
 export function newDoc(): jsPDF {
-  if (canvasTarget) return new CanvasDoc(canvasTarget, PAGE.w, PAGE.h) as unknown as jsPDF
+  if (canvasTarget) return new CanvasDoc(canvasTarget, PAGE.w, PAGE.h, 2, previewPages) as unknown as jsPDF
   return new jsPDF({ unit: 'pt', format: [PAGE.w, PAGE.h], orientation: 'portrait', compress: true })
 }
 
 /** Roda um template desenhando no canvas (prévia na tela) em vez de gerar o PDF. */
 export function drawPreview(canvas: HTMLCanvasElement, build: () => unknown) {
-  canvasTarget = canvas
   try {
+    // 1ª passada num canvas de rascunho só para contar as páginas; 2ª desenha de verdade
+    canvasTarget = document.createElement('canvas')
+    previewPages = 1
+    build()
+    previewPages = lastPageCount
+    canvasTarget = canvas
     build()
   } finally {
     canvasTarget = null
+    previewPages = 1
   }
 }
 

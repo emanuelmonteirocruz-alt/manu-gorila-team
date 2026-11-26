@@ -129,3 +129,106 @@ export function suggestWeekFor(date: string): string {
   const d = new Date(date + 'T12:00:00')
   return d.getDay() === 0 ? addDays(date, 1) : weekStart(date)
 }
+
+// ---------------- Progressão de carga (presencial) ----------------
+/** Melhor série de trabalho de um exercício (aquecimento fora). */
+export interface BestSet {
+  kg: number
+  reps: number | null // null = "Máx"/falha sem reps anotadas
+  score: number // força estimada (Epley) para comparar reps diferentes; sem reps = kg
+  date: string
+}
+
+export interface LoadRow {
+  key: string
+  name: string
+  perSide: boolean
+  label: string // treino em que aparece (A, B…)
+  /** semanal: [vez anterior, esta semana] · mensal: uma por semana */
+  points: (BestSet | null)[]
+  status: 'up' | 'same' | 'down' | 'new'
+  pct: number | null // variação da força estimada (primeira → última)
+  dKg: number | null // variação de carga (kg)
+  dReps: number | null // variação de reps quando a carga é a mesma
+}
+
+export function bestSetOf(e: Session['exercises'][number], date: string): BestSet | null {
+  let best: BestSet | null = null
+  for (let i = 0; i < e.valid_sets; i++) {
+    const kg = e.loads?.[i] ?? e.load_kg ?? null
+    if (!kg || kg <= 0) continue
+    const r = e.reps[i]
+    const reps = r && !r.failure && r.min > 0 ? r.min : null
+    const score = reps ? kg * (1 + Math.min(reps, 20) / 30) : kg
+    if (!best || score > best.score || (score === best.score && kg > best.kg)) best = { kg, reps, score, date }
+  }
+  return best
+}
+
+function compare(a: BestSet | null, b: BestSet | null): Pick<LoadRow, 'status' | 'pct' | 'dKg' | 'dReps'> {
+  if (!a || !b) return { status: 'new', pct: null, dKg: null, dReps: null }
+  // compara pela força estimada quando as duas têm reps; senão, só pela carga
+  const sa = a.reps && b.reps ? a.score : a.kg
+  const sb = a.reps && b.reps ? b.score : b.kg
+  const pct = ((sb - sa) / sa) * 100
+  const status = pct > 1 ? 'up' : pct < -1 ? 'down' : 'same'
+  return { status, pct, dKg: b.kg - a.kg, dReps: b.kg === a.kg && a.reps != null && b.reps != null ? b.reps - a.reps : null }
+}
+
+const RANK = { up: 0, same: 1, down: 2, new: 3 } as const
+const sortRows = (rows: LoadRow[]) => rows.sort((a, b) => RANK[a.status] - RANK[b.status] || (b.pct ?? 0) - (a.pct ?? 0) || a.label.localeCompare(b.label) || a.name.localeCompare(b.name))
+
+/**
+ * Semanal: cada exercício feito na semana × a última vez que foi feito antes dela.
+ * Mensal: as últimas `weeks` semanas lado a lado (melhor série de cada semana).
+ */
+export async function buildLoadProgress(student: Student, mode: 'semana' | 'mes', anyDay: string, weeks = 4): Promise<{ weeks: string[]; rows: LoadRow[] }> {
+  const all = (await studentSessions(student)).filter((s) => s.source === 'presencial' || s.exercises.some((e) => e.load_kg || e.loads?.some(Boolean)))
+    .sort((x, z) => (x.date + x.created_at).localeCompare(z.date + z.created_at))
+  const wk = weekStart(anyDay)
+  const end = addDays(wk, 6)
+  const label = (l: string) => l.replace('Treino ', '')
+  if (mode === 'semana') {
+    const map = new Map<string, LoadRow>()
+    for (const s of all.filter((x) => x.date >= wk && x.date <= end)) {
+      for (const e of s.exercises) {
+        const b = bestSetOf(e, s.date)
+        if (!b) continue
+        const cur = map.get(e.exercise_key)
+        if (cur && cur.points[1] && cur.points[1].score >= b.score) continue
+        map.set(e.exercise_key, { key: e.exercise_key, name: e.display_name, perSide: !!e.per_side, label: label(s.label), points: [null, b], status: 'new', pct: null, dKg: null, dReps: null })
+      }
+    }
+    for (const row of map.values()) {
+      // vez anterior: a sessão mais recente antes da semana com esse exercício
+      for (let i = all.length - 1; i >= 0; i--) {
+        const s = all[i]
+        if (s.date >= wk) continue
+        const e = s.exercises.find((x) => x.exercise_key === row.key)
+        const b = e && bestSetOf(e, s.date)
+        if (b) { row.points[0] = b; break }
+      }
+      Object.assign(row, compare(row.points[0], row.points[1]))
+    }
+    return { weeks: [wk], rows: sortRows([...map.values()]) }
+  }
+  const list = Array.from({ length: weeks }, (_, i) => addDays(wk, -7 * (weeks - 1 - i)))
+  const map = new Map<string, LoadRow>()
+  for (const s of all.filter((x) => x.date >= list[0] && x.date <= end)) {
+    const wi = list.indexOf(weekStart(s.date))
+    if (wi < 0) continue
+    for (const e of s.exercises) {
+      const b = bestSetOf(e, s.date)
+      if (!b) continue
+      const row = map.get(e.exercise_key) ?? { key: e.exercise_key, name: e.display_name, perSide: !!e.per_side, label: label(s.label), points: list.map(() => null), status: 'new' as const, pct: null, dKg: null, dReps: null }
+      if (!row.points[wi] || row.points[wi]!.score < b.score) row.points[wi] = b
+      row.name = e.display_name
+      map.set(e.exercise_key, row)
+    }
+  }
+  for (const row of map.values()) {
+    const pts = row.points.filter((x): x is BestSet => !!x)
+    Object.assign(row, pts.length >= 2 ? compare(pts[0], pts[pts.length - 1]) : compare(null, null))
+  }
+  return { weeks: list, rows: sortRows([...map.values()]) }
+}
