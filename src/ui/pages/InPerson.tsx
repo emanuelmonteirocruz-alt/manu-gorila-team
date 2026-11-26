@@ -267,7 +267,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   useEffect(() => { saveDrafts(session.id, drafts) }, [session.id, drafts])
   const [box, setBox] = useState('') // transcrição já corrigida (editável)
   const [changes, setChanges] = useState<Correction[]>([])
-  const [typed, setTyped] = useState('') // digitação rápida (mesmo motor da voz)
+  const lastText = useRef('') // último texto ditado/digitado (contexto para classificar exercícios novos)
   const [manualOpen, setManualOpen] = useState(false)
   const [manual, setManual] = useState({ name: '', sets: '3', reps: '10', kg: '', perSide: false })
   const cache = useLiveQuery(() => db.exerciseCache.toArray(), []) ?? []
@@ -308,22 +308,19 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     heavy: session.exercises.reduce((a, e) => a + e.heavy_sets, 0),
   }), [session])
 
-  /** Corrige o texto (vocabulário de musculação), mostra na caixa e (re)gera os cards pendentes. */
+  /**
+   * Uma caixa só para ditar OU digitar: corrige o texto (vocabulário de musculação) e ADICIONA os cards
+   * (não apaga os que ainda não foram aprovados). Se nada for entendido, o texto fica na caixa para ajustar.
+   */
   function correctAndBuild(text: string) {
     const r = ac(text)
-    setBox(r.text)
     setChanges(r.changes)
-    setDrafts(mergeConsecutive(parseSpoken(r.text).map((e) => ({ ...e, key: uid() }))))
-  }
-
-  /** Digitação rápida: mesmo motor do microfone (autocorreção + séries progressivas), ADICIONA cards. */
-  function addTyped() {
-    const r = ac(typed)
     const fresh = parseSpoken(r.text).map((e) => ({ ...e, key: uid() }))
-    if (!fresh.length) return
-    setChanges(r.changes)
+    if (!fresh.length) { setBox(r.text); return }
+    lastText.current = r.text
     setDrafts((d) => mergeConsecutive([...d, ...fresh]))
-    setTyped('')
+    setBox('')
+    sp.setFinalText('')
   }
 
   /** Card montado à mão: exercício, séries, reps (número, faixa ou Máx) e carga. */
@@ -361,7 +358,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     if (!ok.length) return
     setBusy(true)
     try {
-      const profiles = await resolveProfiles(ok.map((d) => d.name), session.muscle_groups, box || sp.finalText)
+      const profiles = await resolveProfiles(ok.map((d) => d.name), session.muscle_groups, box || lastText.current || sp.finalText)
       const exercises = [...session.exercises]
       for (const d of ok) {
         const p = profiles.get(d.name)!
@@ -476,7 +473,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   }
 
   return (
-    <div className="tablet">
+    <div className="tablet single">
       <div className="left grid" style={{ alignContent: 'start' }}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div><h1>{student.full_name.split(' ')[0]} · {session.label}</h1><div className="muted">{session.muscle_groups.join(' + ')} · {totals.valid} válidas · {totals.heavy} pesadas</div></div>
@@ -497,16 +494,23 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         </div>
 
         <div className="card grid manual-entry">
-          <div className="row">
-            <input id="typed-entry" className="set-note" value={typed} onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && typed.trim()) addTyped() }}
-              placeholder="Digite como fala: Supino máquina, 4 séries do máximo, 20, 30, 40, 50 kg de cada lado  ·  Extensora 4x15 30kg" />
-            <button className="btn primary" disabled={!typed.trim()} onClick={addTyped}>Adicionar</button>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <b>Dite ou digite</b>
+            {sp.recording && <span className="tag danger"><Mic size={12} /> gravando</span>}
           </div>
+          <textarea id="voice-box" className="code" style={{ minHeight: 84 }} value={box} readOnly={sp.recording}
+            placeholder="Toque em Gravar e dite, ou digite como fala: extensora 4 séries de 15 com 20 kg; supino máquina 4 séries 20, 30, 40, 50 kg de cada lado"
+            onChange={(e) => setBox(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && box.trim() && !sp.recording) { e.preventDefault(); correctAndBuild(box) } }} />
+          {sp.recording && sp.interim && <div className="muted">… {sp.interim}</div>}
+          {changes.length > 0 && (
+            <div className="chips">{changes.map((c, i) => <span key={i} className="tag ordinaria">{c.from} → {c.to}</span>)}</div>
+          )}
           <div className="row">
-            <button className="btn" onClick={() => setManualOpen((v) => !v)}>{manualOpen ? 'Fechar' : '+ Adicionar Exercício Manual'}</button>
-            <span className="muted">Passa pela mesma leitura do microfone (autocorreção, séries progressivas, kg/lado, Máx).</span>
+            <button className="btn primary" disabled={sp.recording || !box.trim()} onClick={() => correctAndBuild(box)}>Criar cards</button>
+            <button className="btn" onClick={() => setManualOpen((v) => !v)}>{manualOpen ? 'Fechar' : 'Montar à mão'}</button>
           </div>
+          {sp.error && <div className="alert warn">{sp.error}</div>}
           {manualOpen && (
             <div className="manual-form">
               <label className="f">Exercício<ExerciseNameInput id="manual-name" value={manual.name} onChange={(v) => setManual({ ...manual, name: v })} groups={session.muscle_groups} placeholder="Comece a digitar: ex → Extensora" /></label>
@@ -652,25 +656,6 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         )}
       </div>
 
-      <div className="right">
-        <div className="card grid">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <b>Transcrição corrigida</b>
-            {sp.recording && <span className="tag danger"><Mic size={12} /> gravando</span>}
-          </div>
-          <textarea id="voice-box" className="code" style={{ minHeight: 140 }} value={box} readOnly={sp.recording}
-            placeholder="Toque em Gravar e dite, ou digite aqui: extensora 4 séries de 15 com 20 kg; leg press 45 com 200 kg"
-            onChange={(e) => setBox(e.target.value)} />
-          {sp.recording && sp.interim && <div className="muted">… {sp.interim}</div>}
-          {changes.length > 0 && (
-            <div className="chips">{changes.map((c, i) => <span key={i} className="tag ordinaria">{c.from} → {c.to}</span>)}</div>
-          )}
-          <button className="btn primary" disabled={sp.recording || !box.trim()} onClick={() => correctAndBuild(box)}>
-            {drafts.length ? 'Atualizar cards' : 'Gerar cards'}
-          </button>
-          {sp.error && <div className="alert warn">{sp.error}</div>}
-        </div>
-      </div>
     </div>
   )
 }
