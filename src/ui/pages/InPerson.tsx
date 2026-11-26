@@ -21,6 +21,7 @@ import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
 import { topSetText } from '../format'
+import { detectMuscleGroups, splitName } from '../../engine/sessionGroups'
 import { normalizeKey } from '../../engine/exerciseSeed'
 
 const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F']
@@ -142,15 +143,17 @@ export default function InPerson() {
       {step === 3 && student && (
         <div className="grid">
           <DayCheckin student={student} />
-          <h2 style={{ margin: '4px 0 0' }}>Grupamentos de hoje</h2>
-          <div className="chips">
-            {MUSCLE_GROUPS.map((g) => (
-              <button key={g} className={`chip ${groups.includes(g) ? 'on' : ''}`} onClick={() => setGroups((x) => (x.includes(g) ? x.filter((y) => y !== g) : [...x, g]))}>{g}</button>
-            ))}
-          </div>
+          <details className="groups-opt">
+            <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Grupamentos de hoje (opcional: o app detecta pelos exercícios registrados)</summary>
+            <div className="chips" style={{ marginTop: 8 }}>
+              {MUSCLE_GROUPS.map((g) => (
+                <button key={g} className={`chip ${groups.includes(g) ? 'on' : ''}`} onClick={() => setGroups((x) => (x.includes(g) ? x.filter((y) => y !== g) : [...x, g]))}>{g}</button>
+              ))}
+            </div>
+          </details>
           <div className="row">
             <button className="btn" onClick={() => setLabel(null)}><ChevronLeft size={16} /> Voltar</button>
-            <button className="btn primary big" disabled={!groups.length || !todaySleep} onClick={start}>Iniciar sessão ({groups.join(' + ') || 'selecione'})</button>
+            <button className="btn primary big" disabled={!todaySleep} onClick={start}>Iniciar sessão</button>
             {!todaySleep && <span className="muted">Registre o sono de hoje para iniciar.</span>}
           </div>
         </div>
@@ -268,6 +271,11 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   const [box, setBox] = useState('') // transcrição já corrigida (editável)
   const [changes, setChanges] = useState<Correction[]>([])
   const lastText = useRef('') // último texto ditado/digitado (contexto para classificar exercícios novos)
+  /** Salva o treino com os grupamentos detectados pelos exercícios (músculo principal de cada um). */
+  async function persist(exercises: SessionExercise[]) {
+    const detected = detectMuscleGroups(exercises, await profileLookup())
+    onChange(await save(db.sessions, { ...session, exercises, muscle_groups: detected.length ? detected : session.muscle_groups }))
+  }
   const [manualOpen, setManualOpen] = useState(false)
   const [manual, setManual] = useState({ name: '', sets: '3', reps: '10', kg: '', perSide: false })
   const cache = useLiveQuery(() => db.exerciseCache.toArray(), []) ?? []
@@ -350,7 +358,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
       reps: [...e.reps, { ...lastRep }],
       loads: loads ? [...loads, lastKg] : undefined,
     }
-    onChange(await save(db.sessions, { ...session, exercises: session.exercises.map((x) => (x.id === e.id ? next : x)) }))
+    await persist(session.exercises.map((x) => (x.id === e.id ? next : x)))
   }
 
   async function approve(list: Draft[]) {
@@ -401,7 +409,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           }
         } else exercises.push(ex)
       }
-      onChange(await save(db.sessions, { ...session, exercises }))
+      await persist(exercises)
       setDrafts((d) => d.filter((x) => !ok.includes(x)))
       sp.setFinalText('')
       setBox('')
@@ -413,12 +421,12 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
 
   /** Abre um exercício registrado para edição série a série. */
   async function editExercise(e: SessionExercise) {
-    onChange(await save(db.sessions, { ...session, exercises: session.exercises.filter((x) => x.id !== e.id) }))
+    await persist(session.exercises.filter((x) => x.id !== e.id))
     setDrafts((d) => [...d, exerciseToDraft(e)])
   }
 
   async function removeExercise(id: string) {
-    onChange(await save(db.sessions, { ...session, exercises: session.exercises.filter((e) => e.id !== id) }))
+    await persist(session.exercises.filter((e) => e.id !== id))
   }
 
   async function finish() {
@@ -476,7 +484,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     <div className="tablet single">
       <div className="left grid" style={{ alignContent: 'start' }}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div><h1>{student.full_name.split(' ')[0]} · {session.label}</h1><div className="muted">{session.muscle_groups.join(' + ')} · {totals.valid} válidas · {totals.heavy} pesadas</div></div>
+          <div><h1>{student.full_name.split(' ')[0]} · {session.label}</h1><div className="muted">{session.exercises.length ? `${[splitName(session.muscle_groups), session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(' + ')].filter(Boolean).join(': ')} · ` : ''}{totals.valid} válidas · {totals.heavy} pesadas</div></div>
           <div className="row">
             <button className={`mic-btn ${sp.recording ? 'rec' : ''}`} aria-pressed={sp.recording} onClick={() => {
               if (sp.recording) {
