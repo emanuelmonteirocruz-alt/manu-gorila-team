@@ -213,7 +213,7 @@ export function SendByTraining({ text, phone }: { text: string; phone: string })
   const [sent, setSent] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState('')
   useEffect(() => setSent({}), [msgs.length])
-  if (msgs.length < 2) return null
+  if (!msgs.length) return null
   const digits = phone.replace(/\D/g, '')
   const waOf = (t: string) => `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(t)}`
   const mark = (label: string) => setSent((s) => ({ ...s, [label]: true }))

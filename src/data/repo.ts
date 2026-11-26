@@ -214,6 +214,25 @@ export async function previousBests(studentId: string, session: Session): Promis
   return best
 }
 
+/**
+ * Copia uma semana (texto no padrão do WhatsApp) para outro aluno da consultoria, na semana indicada
+ * (substitui o que estiver colado nela) e agenda a próxima troca pelo plano dele — igual a "Colar semana".
+ */
+export async function copyWeekTo(target: Student, text: string, week: string): Promise<number> {
+  const { parsePlainTrainings, regroupByDate } = await import('../parser/whatsapp')
+  const { nextChangeAfter } = await import('../domain/plan')
+  const trainings = parsePlainTrainings(text, week).map((t) => ({ ...t, date: week, week }))
+  if (!trainings.length) return 0
+  const n = await importWhatsApp(target, regroupByDate(trainings), true)
+  const fresh = await db.students.get(target.id)
+  if (fresh?.plan_period) {
+    const { listWeeks } = await import('./reportData')
+    const latest = (await listWeeks(fresh))[0]?.wk ?? week
+    await save(db.students, { ...fresh, next_change_date: nextChangeAfter(fresh.plan_period, latest) })
+  }
+  return n
+}
+
 /** Última vez que o aluno fez cada exercício (com carga), antes deste treino — para não regredir sem querer. */
 export interface LastLoad {
   date: string

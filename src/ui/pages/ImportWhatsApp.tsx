@@ -12,6 +12,7 @@ import { sharePdf, templateA, templateE } from '../../pdf/templates'
 import type { jsPDF } from 'jspdf'
 import { buildWeek, buildWeeksCompare, challengeBase, listWeeks, suggestWeekFor } from '../../data/reportData'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
+import { SendByTraining } from '../components/NextCycle'
 import { hasWhatsAppHeaders, parsePlainTrainings, parseWhatsAppTrainings, regroupByDate } from '../../parser/whatsapp'
 import { ConfirmButton, StudentSelect } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
@@ -47,7 +48,7 @@ export default function ImportWhatsApp() {
   const [skip, setSkip] = useState<Record<string, boolean>>({}) // blocos desmarcados (não salvar)
   const [guideSaved, setGuideSaved] = useState<string | null>(null) // orientação do último treino salvo
   const [copied, setCopied] = useState(false)
-  const [imported, setImported] = useState<{ n: number; wk: string } | null>(null)
+  const [imported, setImported] = useState<{ n: number; wk: string; text?: string } | null>(null)
   const [graph, setGraph] = useState<{ title: string; name: string; make: () => jsPDF } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function ImportWhatsApp() {
       const w = await buildWeek(fresh, wk)
       setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, o) })
     }
-    setImported({ n, wk })
+    setImported({ n, wk, text: flat.filter((t) => t.week === wk).map((t) => `*${t.label}*\n${t.rawText.trim()}`).join('\n\n') })
     setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas (${weeks.map((w) => fmtBR(w.week).slice(0, 5)).join(', ')})`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, latest))}.` : ''}`)
     setGuideSaved(guide)
     setRaw('')
@@ -231,6 +232,7 @@ export default function ImportWhatsApp() {
           </div>
         )}
         {msg && <div className="alert ok">{msg}</div>}
+        {imported?.text && student && <SendByTraining text={imported.text} phone={student.phone ?? ''} />}
         {graph && (
           <div className="card grid">
             <b>{graph.title}</b>
