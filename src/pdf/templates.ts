@@ -803,7 +803,7 @@ export async function sharePdf(d: jsPDF, filename: string) {
 
 // ---------------- Template L — Progressão de carga (presencial) ----------------
 // PDF separado e enxuto: só a carga. Melhor série de trabalho de cada exercício (aquecimento fora);
-// reps diferentes são comparadas pela força estimada (Epley), mas o PDF mostra só kg × reps.
+// reps diferentes são comparadas pela força estimada (Epley), mas o PDF mostra só reps × kg.
 
 const UP = { ink: '#047857', bg: '#ECFDF5', line: '#A7F3D0' }
 const DOWN = { ink: '#B91C1C', bg: '#FEF2F2', line: '#FECACA' }
@@ -812,7 +812,7 @@ const NEW = { ink: '#64748B', bg: '#FFFFFF', line: '#E2E8F0' }
 const tone = (r: LoadRow) => (r.status === 'up' ? UP : r.status === 'down' ? DOWN : r.status === 'same' ? SAME : NEW)
 
 const kgN = (kg: number) => fmtNum(kg, Number.isInteger(kg) ? 0 : 1)
-const kgTxt = (b: BestSet | null, perSide: boolean) => (b ? `${kgN(b.kg)}${perSide ? ' kg/lado' : ' kg'}${b.reps ? ` × ${b.reps}` : ''}` : '—')
+const kgTxt = (b: BestSet | null, perSide: boolean) => (b ? `${b.reps ? `${b.reps} × ` : ''}${kgN(b.kg)}${perSide ? ' kg/lado' : ' kg'}` : '—')
 function pillText(r: LoadRow): string {
   if (r.status === 'new') return '1ª vez'
   if (r.dKg && Math.abs(r.dKg) >= 0.5) return `${r.dKg > 0 ? '+' : '-'}${kgN(Math.abs(r.dKg))} kg`
