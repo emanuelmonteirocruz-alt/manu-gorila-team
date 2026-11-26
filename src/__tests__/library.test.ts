@@ -76,3 +76,13 @@ describe('consultoria: semanas', () => {
     expect(nextWeekToPaste('semanal', null, '2026-11-29')).toBe('2026-11-30')
   })
 })
+
+describe('ditado: "séries" ouvido errado pelo reconhecimento de voz', () => {
+  it('"4shared 10" / "4 share de 10" = 4 séries de 10', () => {
+    for (const t of ['agachamento livre 4shared 10 com 10 kg', 'agachamento livre 4 share de 10 com 10kg']) {
+      const [e] = dictate(t)
+      expect(e.name).toBe('agachamento livre')
+      expect(e.series.map((x) => [x.kg, x.repsMin])).toEqual([[10, 10], [10, 10], [10, 10], [10, 10]])
+    }
+  })
+})

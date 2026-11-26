@@ -92,7 +92,7 @@ export const SEED_PROFILES: ExerciseProfile[] = (() => {
 })()
 
 /** Versão do banco: quando muda, aparelhos já instalados recebem os exercícios novos. */
-export const SEED_VERSION = 5
+export const SEED_VERSION = 6
 
 /** Heurística offline usada só quando IA indisponível (marcada como 'heuristic' para revisão). */
 export function heuristicProfile(name: string, activeGroups: string[]): ExerciseProfile {

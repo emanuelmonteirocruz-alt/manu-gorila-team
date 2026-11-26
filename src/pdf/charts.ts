@@ -390,7 +390,7 @@ const shortGroup = (g: string) => g.replace('Perna - ', '')
  * em destaque, líder marcado como FOCO. Com `prev`, mostra a barra fantasma do período anterior.
  */
 export function muscleRanking(d: jsPDF, x: number, y: number, w: number, rows: MuscleRow[], rowH = 17): number {
-  const list = rows.filter((r) => r.group !== 'Indefinido' && r.valid > 0).slice(0, 6)
+  const list = rows.filter((r) => r.group !== 'Indefinido' && r.valid > 0)
   if (!list.length) return y
   const total = rows.reduce((a, r) => a + r.valid, 0) || 1
   const max = Math.max(...list.map((r) => Math.max(r.valid, r.prev ?? 0)), 1)

@@ -160,6 +160,16 @@ function fuzzyNames(text: string, ctx: AutocorrectContext, changes: Correction[]
 
 /** Horários que o reconhecimento de voz cria a partir de faixas de repetição: "8:10" → "8 a 10". */
 const TIME_AS_RANGE: Record<string, string> = { '17:12': '10 a 12' } // casos vistos no ditado
+/** "4shared 10", "4 share de 10", "4 cheries": o reconhecimento de voz troca "séries" por palavras parecidas. */
+function fixSeriesWord(text: string, changes: Correction[]): string {
+  return text.replace(/\b(\d{1,2})\s*(shared?s?|shares|cheri(?:es|e)?|xer(?:ies|is)?|ceri(?:es|e)?|series?|seriez|sherry)\b/gi, (m, n: string, w: string) => {
+    if (/^s[eé]ries?$/i.test(w)) return m
+    const to = `${n} séries de`
+    changes.push({ from: m, to: `${n} séries` })
+    return to
+  }).replace(/séries de\s+de\b/g, 'séries de')
+}
+
 function fixTimesAsReps(text: string, changes: Correction[]): string {
   return text.replace(/\b(\d{1,2}):(\d{2})\b/g, (m, a: string, b: string) => {
     const lo = Number(a), hi = Number(b)
@@ -172,7 +182,7 @@ function fixTimesAsReps(text: string, changes: Correction[]): string {
 
 export function autocorrect(text: string, ctx: AutocorrectContext): { text: string; changes: Correction[] } {
   const changes: Correction[] = []
-  let out = applyRules(fixTimesAsReps(text.toLowerCase(), changes), ctx, changes)
+  let out = applyRules(fixTimesAsReps(fixSeriesWord(text.toLowerCase(), changes), changes), ctx, changes)
   out = fuzzyNames(out, ctx, changes)
   return { text: out.replace(/\s+/g, ' ').replace(/\s+([,;.])/g, '$1').trim(), changes }
 }

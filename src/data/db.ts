@@ -103,7 +103,9 @@ export async function ensureExerciseLibrary(): Promise<number> {
     if (fixes.length) await db.exerciseCache.bulkPut(fixes)
     // banco embutido já instalado: recebe os apelidos/ajustes novos (só o que ainda é 'seed')
     const seeds = new Map(SEED_PROFILES.map((p) => [p.key, p]))
-    const refresh = (await db.exerciseCache.toArray()).filter((c) => c.source === 'seed' && !c._dirty && seeds.has(c.key)).map((c) => seeds.get(c.key)!)
+    const refresh = (await db.exerciseCache.toArray()).filter((c) => c.source === 'seed' && !c._dirty && seeds.has(c.key))
+      // se o grupo mudou (ex.: adutora → Adutores), marca para sincronizar e corrigir a nuvem também
+      .map((c) => { const n = seeds.get(c.key)!; return n.muscle_group !== c.muscle_group ? { ...n, updated_at: nowISO(), _dirty: 1 as const } : n })
     if (refresh.length) await db.exerciseCache.bulkPut(refresh)
   }
   await setKV('seed_version', SEED_VERSION)

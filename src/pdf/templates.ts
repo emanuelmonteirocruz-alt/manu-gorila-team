@@ -94,10 +94,14 @@ function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRo
     ? `${Math.round((lead.valid / total) * 100)}% do volume · mais pesadas: ${hardest.group.replace('Perna - ', '')} (${hardest.heavy})`
     : `${Math.round((lead.valid / total) * 100)}% do volume · ${lead.heavy} pesadas`
   text(d, sub, PAGE.m + W - 10, y + 19, { size: 7, bold: true, c: C.heavy, align: 'right' })
-  y += 38
+  y += 36
+  // consultoria sem "antes": uma barra só, a legenda não acrescenta nada (economiza espaço)
   if (prev) legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }] : [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }, { c: C.heavy, l: 'Pesadas' }])
-  else legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries válidas' }] : [{ c: C.volume, l: 'Séries válidas' }, { c: C.heavy, l: 'Pesadas' }])
-  return muscleRanking(d, PAGE.m, y + 8, W, rows, 15)
+  else if (!VOLUME_ONLY) legend(d, PAGE.m, y, [{ c: C.volume, l: 'Séries válidas' }, { c: C.heavy, l: 'Pesadas' }])
+  else y -= 8
+  // muitos músculos: linhas mais baixas para caber acima do quadro de calorias (≈58 pt no rodapé)
+  const rh = Math.max(9.5, Math.min(15, (BOTTOM - 60 - (y + 12)) / Math.max(rows.length, 1)))
+  return muscleRanking(d, PAGE.m, y + 8, W, rows, rh)
 }
 
 /**
@@ -708,7 +712,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
 
   // uma linha por treino (A, B, C, D, A 2ª vez…)
   const seen: Record<string, number> = {}
-  const groupsOf = (a: Aggregate) => Object.entries(a.byGroup).filter(([g]) => g !== 'Indefinido').sort((x, z) => z[1].valid - x[1].valid).slice(0, 2).map(([g]) => g.replace('Perna - ', '')).join('/')
+  const groupsOf = (a: Aggregate) => Object.entries(a.byGroup).filter(([g]) => g !== 'Indefinido').sort((x, z) => z[1].valid - x[1].valid).slice(0, 3).map(([g]) => g.replace('Perna - ', '')).join('/')
   const focusH = o.showEmphasis ? 54 + Math.min(11, Object.keys(cur.byGroup).length) * 15 + 10 : 0
   const rowH = fitRowH(BOTTOM - 58 - y - 14 - focusH - 10, items.length, 32, 18)
   // evolução de cada treino contra a vez anterior do mesmo treino
