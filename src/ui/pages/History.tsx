@@ -1,3 +1,4 @@
+import { topSetText } from '../format'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, FileText } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -141,7 +142,7 @@ export function ExerciseLine({ e }: { e: SessionExercise }) {
         <span className="set-sum">
           {[e.warmup_sets ? `${e.warmup_sets} aquec.` : '', e.valid_sets ? `${e.valid_sets} válidas` : ''].filter(Boolean).join(' + ')}
           {e.heavy_sets ? ` • ${e.heavy_sets} pesadas` : ''}
-          {e.load_kg ? ` • Pico: ${fmtNum(e.load_kg, 1)} ${unit}` : ''}
+          {e.load_kg ? ` • Maior: ${topSetText(Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg), e.reps, !!e.per_side)}` : ''}
           {t ? ` • ${fmtNum(t)} kg total` : ''}
         </span>
       </div>

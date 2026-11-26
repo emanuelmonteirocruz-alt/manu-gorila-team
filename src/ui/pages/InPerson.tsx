@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
-import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type RepRange, type Session, type SessionExercise, type Student } from '../../domain/types'
+import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Session, type SessionExercise, type Student } from '../../domain/types'
 import {
   addDays, aggregateSessions, classifySessionLevel, divergenceAlert, fmtBR, fmtNum, LEVEL_LABEL, toISODate, weekStart,
   type DivergenceAlert, type SessionLevel,
@@ -20,6 +20,7 @@ import type { jsPDF } from 'jspdf'
 import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
+import { topSetText } from '../format'
 import { normalizeKey } from '../../engine/exerciseSeed'
 
 const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F']
@@ -244,21 +245,6 @@ function exerciseToDraft(e: SessionExercise): Draft {
  * Abaixo da última vez fica em alerta (para não regredir sem querer); igual ou acima fica verde.
  */
 const kgFmt = (k: number) => fmtNum(k, Number.isInteger(k) ? 0 : 1)
-/** Série de maior carga (a referência para progredir): "30 kg de cada lado × 8". Empate na carga: a de mais reps. */
-function topSetText(loads: (number | null | undefined)[], reps: (RepRange | undefined)[], perSide: boolean): string {
-  let best = -1
-  let bestReps = -1
-  loads.forEach((kg, i) => {
-    if (kg == null) return
-    const r = reps[i] ?? reps[reps.length - 1]
-    const n = r ? (r.failure ? 99 : r.max || r.min) : 0
-    if (kg > (best < 0 ? -1 : loads[best]!) || (kg === loads[best] && n > bestReps)) { best = i; bestReps = n }
-  })
-  if (best < 0) return '—'
-  const r = reps[best] ?? reps[reps.length - 1]
-  const rt = !r ? '' : r.failure ? 'Máx × ' : `${r.min === r.max ? r.min : `${r.min}-${r.max}`} × `
-  return `${rt}${kgFmt(loads[best]!)} kg${perSide ? ' de cada lado' : ''}`
-}
 function LastLoadHint({ last, peak }: { last?: LastLoad; peak: number | null }) {
   if (!last) return null
   const diff = peak != null ? Math.round((peak - last.peak) * 10) / 10 : null
@@ -553,7 +539,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                       const nW = d.series.filter((x) => x.warmup).length
                       const nV = d.series.length - nW
                       const nH = d.series.filter(heavyOf).length
-                      return [nW ? `${nW} aquec.` : '', nV ? `${nV} ${nV === 1 ? 'série válida' : 'séries válidas'}` : '', nH ? `${nH} pesadas` : '', peak != null ? `Pico: ${fmtNum(peak, 1)} ${unit}` : '']
+                      return [nW ? `${nW} aquec.` : '', nV ? `${nV} ${nV === 1 ? 'série válida' : 'séries válidas'}` : '', nH ? `${nH} pesadas` : '', peak != null ? `Maior: ${topSetText(d.series.map((x) => (x.warmup ? null : x.kg)), d.series.map((x) => (x.warmup ? undefined : x.failure ? { min: 0, max: 0, failure: true } : x.repsMin != null ? { min: x.repsMin, max: x.repsMax ?? x.repsMin } : undefined)), d.perSide)}` : '']
                         .filter(Boolean).join(' • ')
                     })()}</span>
                     <label className="row muted" style={{ gap: 6 }}><input type="checkbox" checked={d.perSide} onChange={(e) => upd(d.key, { perSide: e.target.checked })} /> por lado</label>
@@ -612,7 +598,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
               <div key={e.id} className="done-card">
                 <div className="set-head">
                   <b>{e.display_name}</b>
-                  <span className="set-sum">{[e.warmup_sets ? `${e.warmup_sets} aquec.` : '', e.valid_sets ? `${e.valid_sets} ${e.valid_sets === 1 ? 'série válida' : 'séries válidas'}` : '', e.load_kg ? `Pico: ${fmtNum(e.load_kg, 1)} ${unit}` : ''].filter(Boolean).join(' • ')}</span>
+                  <span className="set-sum">{[e.warmup_sets ? `${e.warmup_sets} aquec.` : '', e.valid_sets ? `${e.valid_sets} ${e.valid_sets === 1 ? 'série válida' : 'séries válidas'}` : '', e.load_kg ? `Maior: ${topSetText(Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg), e.reps, !!e.per_side)}` : ''].filter(Boolean).join(' • ')}</span>
                   {e.heavy_sets ? <span className="tag warn">{e.heavy_sets} pesadas</span> : null}
                   <span style={{ marginLeft: 'auto' }} className="row">
                     {e.valid_sets > 0 && <button className="btn" onClick={() => addSeriesToExercise(e)}>+ Série</button>}
