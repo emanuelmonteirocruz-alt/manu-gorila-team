@@ -6,11 +6,13 @@ import { MicroTag } from './common'
 
 /** Recálculo semanal do aluno (volume, intensidade, tonelagem, kcal, PSE, microciclo). */
 export function WeeklyTable({ student, emph = false, weeks = 8 }: { student: Student; emph?: boolean; weeks?: number }) {
-  const points = useLiveQuery(() => weekPoints(student, lastNWeeks(weeks)), [student.id, student.updated_at, weeks])
+  // só as semanas que têm treino (sem linhas zeradas de antes do histórico)
+  const points = useLiveQuery(async () => (await weekPoints(student, lastNWeeks(weeks))).filter((p) => p.agg.sessions > 0), [student.id, student.updated_at, weeks])
   const online = student.modality === 'online'
   return (
     <div className="card scroll-x">
       <h2>Evolução semanal</h2>
+      {points && !points.length ? <div className="muted">Ainda sem treinos nas últimas {weeks} semanas.</div> : (
       <table className="t">
         <thead><tr><th>Semana</th><th>Sessões</th><th>Válidas</th><th>Pesadas</th><th>% pesadas</th><th>Índice de intensidade</th><th>Multi/Mono</th><th>Livre/Máq</th>{!online && <th>Tonelagem</th>}<th>kcal</th><th>kcal/treino</th><th>Gordura eq.</th><th>PSE</th><th>Microciclo</th>{emph && <th>Ênfase</th>}</tr></thead>
         <tbody>
@@ -27,6 +29,7 @@ export function WeeklyTable({ student, emph = false, weeks = 8 }: { student: Stu
           ))}
         </tbody>
       </table>
+      )}
       {points?.flatMap((p) => p.verdict.justification.map((j) => <div key={p.week + j} className="muted">• {fmtBR(p.week)}: {j}</div>))}
     </div>
   )
