@@ -1,7 +1,7 @@
 -- ============================================================
 -- EM Treino — instalação completa do banco (Supabase)
 -- Cole TUDO no Supabase → SQL Editor → New query → Run. Rodar uma vez só.
--- (junta os arquivos 0001 a 0006 de supabase/migrations)
+-- (junta os arquivos 0001 a 0007 de supabase/migrations)
 -- Pode rodar de novo com segurança: o que já existe é mantido.
 -- ============================================================
 
@@ -336,6 +336,16 @@ end $$;
 
 -- 4) Exercícios do catálogo embutido ---------------------------------------
 alter table session_exercises drop constraint if exists fk_exercise_key;
+
+
+-- >>> 0007_grants.sql
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+grant execute on function public.is_trainer(), public.my_student_id() to authenticated;
+-- tabelas criadas no futuro por este mesmo usuário já nascem com a permissão
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant usage, select on sequences to authenticated;
 
 -- Resultado: confira aqui qual e-mail ficou como Treinador (é com ele que você entra no app).
 select display_name as email, role, active from app_users order by (role = 'trainer') desc, display_name;
