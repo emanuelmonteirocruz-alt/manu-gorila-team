@@ -373,3 +373,9 @@ details > summary::-webkit-details-marker { display: none; }
   .manual-form > label.row { grid-column: 1 / 2; }
   .manual-form > .btn { grid-column: 2 / -1; }
 }
+/* editar treino encerrado */
+.edit-rows { display: grid; gap: 6px; }
+.edit-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; align-items: end; }
+.edit-row .f span { font-size: 11px; }
+.edit-row input { width: 100%; }
+@media (max-width: 760px) { .edit-row { grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr) 44px; } .edit-row .set-n { grid-column: auto; align-self: center; padding-top: 14px; font-size: 13px; } }

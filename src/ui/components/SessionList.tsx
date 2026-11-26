@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronRight, Download, FileText, Send, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FileText, Pencil, Send, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { jsPDF } from 'jspdf'
 import { db } from '../../data/db'
@@ -14,6 +14,7 @@ import type { Session, Student } from '../../domain/types'
 import { fmtBR } from '../../engine/metrics'
 import { SOURCE_LABEL } from '../format'
 import { ExerciseLine } from '../pages/History'
+import { SessionEditor } from './SessionEditor'
 
 const WEEKDAY = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -70,6 +71,7 @@ export function SessionList({ student, limit = 30, initialOpen = null }: { stude
 function SessionDetail({ student, session, pse }: { student: Student; session: Session; pse: number | null }) {
   const [pdf, setPdf] = useState<{ doc: jsPDF; make: () => jsPDF; name: string } | null>(null)
   const [preview, setPreview] = useState(false)
+  const [editing, setEditing] = useState(false)
   const canvas = useRef<HTMLCanvasElement | null>(null)
   // o PDF fica pronto ao abrir o treino: o botão de enviar abre o WhatsApp na hora (sem espera)
   useEffect(() => {
@@ -100,9 +102,12 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       </div>
       {preview && <canvas ref={canvas} className="pdf-preview" aria-label="Gráfico do treino" />}
       {session.muscle_groups.length > 0 && <div className="muted">{session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(', ')}</div>}
-      {session.exercises.map((e) => <ExerciseLine key={e.id} e={e} />)}
-      {!session.exercises.length && <div className="muted">Treino sem exercícios registrados.</div>}
-      <div className="row" style={{ justifyContent: 'flex-end' }}>
+      {editing ? <SessionEditor session={session} pse={pse} onClose={() => setEditing(false)} /> : (<>
+        {session.exercises.map((e) => <ExerciseLine key={e.id} e={e} />)}
+        {!session.exercises.length && <div className="muted">Treino sem exercícios registrados.</div>}
+      </>)}
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        {!editing ? <button className="btn" onClick={() => setEditing(true)}><Pencil size={16} strokeWidth={1.8} /> Editar treino</button> : <span />}
         <ConfirmButton label={<><Trash2 size={16} strokeWidth={1.8} /> Excluir treino</>} confirmLabel="Toque de novo para excluir este treino" onConfirm={() => deleteSession(session.id)} />
       </div>
     </div>
