@@ -132,3 +132,29 @@ export function weekToWhatsApp(week: GeneratedTraining[], withAlerts = false): s
     return lines.join('\n').trim()
   }).join('\n\n')
 }
+
+export interface TrainingMessage {
+  label: string // "Treino A"
+  text: string // mensagem pronta (sem as linhas "(revisar…)"/"(trocar…)", que são só para o treinador)
+}
+
+/**
+ * Separa o texto da semana em UMA MENSAGEM POR TREINO, para mandar no WhatsApp um de cada vez.
+ * Um treino começa na linha do título ("*Treino A*", "Treino B - Pernas"…); o texto editado à mão também vale.
+ */
+export function splitForWhatsApp(text: string): TrainingMessage[] {
+  const TITLE = /^\s*\*?\s*(treino\s+[a-z0-9]+)\b/i
+  const out: { label: string; lines: string[] }[] = []
+  for (const line of text.replace(/\r/g, '').split('\n')) {
+    const m = line.match(TITLE)
+    if (m) out.push({ label: m[1].replace(/\s+/g, ' ').replace(/^treino/i, 'Treino').replace(/\s(\S+)$/, (_, x: string) => ' ' + x.toUpperCase()), lines: [line] })
+    else if (out.length) out[out.length - 1].lines.push(line)
+    else if (line.trim()) out.push({ label: 'Treino', lines: [line] })
+  }
+  return out
+    .map((b) => ({
+      label: b.label,
+      text: b.lines.filter((l) => !/^\s*\((revisar|trocar)\b[^)]*\)?.*$/i.test(l)).join('\n').replace(/\n{3,}/g, '\n\n').trim(),
+    }))
+    .filter((b) => b.text)
+}

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ClipboardCopy, ClipboardPaste, MessageSquare, Save, Send, Sparkles } from 'lucide-react'
+import { Check, ClipboardCopy, ClipboardPaste, MessageSquare, Save, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getKV } from '../../data/db'
@@ -8,7 +8,7 @@ import { listWeeks, weekLabel } from '../../data/reportData'
 import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemplate'
 import { buildTriage } from '../../consultoria/triage'
 import { remindersFor } from '../../consultoria/reminders'
-import { generateWeek, weekToWhatsApp, type Intensity } from '../../consultoria/generator'
+import { generateWeek, splitForWhatsApp, weekToWhatsApp, type Intensity } from '../../consultoria/generator'
 import { MICRO_LABEL, type Microcycle, type Student } from '../../domain/types'
 import { addDays, fmtBR } from '../../engine/metrics'
 import { nextWeekToPaste } from '../../domain/plan'
@@ -216,6 +216,7 @@ function WeekDraft({ student, triage, enfases }: { student: Student; triage: Ret
         )}
         <textarea className="code" style={{ minHeight: 320 }} value={text} onChange={(e) => setText(e.target.value)} />
         <div className="muted">Revise e ajuste à vontade antes de mandar. Apague as linhas "(revisar…)" depois de conferir.</div>
+        <SendByTraining text={text} phone={student.phone ?? ''} />
         <div className="row stack-sm">
           <a className="btn primary" href={wa} target="_blank" rel="noreferrer"><Send size={16} strokeWidth={1.8} /> Enviar no WhatsApp</a>
           <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2500) } catch { /* sem permissão */ } }}><ClipboardCopy size={16} strokeWidth={1.8} /> {copied ? 'Copiado!' : 'Copiar'}</button>
@@ -225,6 +226,48 @@ function WeekDraft({ student, triage, enfases }: { student: Student; triage: Ret
           }}><MessageSquare size={16} strokeWidth={1.8} /> Salvar como semana de {fmtBR(nextWk).slice(0, 5)}</button>
         </div>
       </>)}
+    </div>
+  )
+}
+
+/**
+ * Uma mensagem por treino: cada botão abre o WhatsApp do aluno já com aquele treino escrito
+ * (ou copia só ele). Fica marcado o que já foi enviado, para seguir A → B → C sem se perder.
+ */
+function SendByTraining({ text, phone }: { text: string; phone: string }) {
+  const msgs = useMemo(() => splitForWhatsApp(text), [text])
+  const [sent, setSent] = useState<Record<string, boolean>>({})
+  const [copied, setCopied] = useState('')
+  useEffect(() => setSent({}), [msgs.length])
+  if (msgs.length < 2) return null
+  const digits = phone.replace(/\D/g, '')
+  const waOf = (t: string) => `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(t)}`
+  const mark = (label: string) => setSent((s) => ({ ...s, [label]: true }))
+  const next = msgs.find((m) => !sent[m.label])
+  return (
+    <div className="card grid send-by" style={{ gap: 8 }}>
+      <b>Mandar um treino por mensagem</b>
+      <div className="muted">
+        Toque em <b>Enviar</b>: o WhatsApp abre {digits ? 'na conversa do aluno ' : ''}já com aquele treino escrito, é só mandar e voltar para o próximo.
+        {!digits && ' Sem telefone na ficha, o WhatsApp pede para escolher a conversa.'} As linhas "(revisar…)" não vão para o aluno.
+      </div>
+      {msgs.map((m) => (
+        <div key={m.label} className={`row send-row ${sent[m.label] ? 'done' : ''}`} style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+          <span style={{ fontWeight: 600 }}>
+            {sent[m.label] ? <Check size={16} strokeWidth={2.2} style={{ verticalAlign: -3, color: 'var(--ok, #16a34a)' }} /> : null} {m.label}
+            <span className="muted" style={{ fontWeight: 400 }}> · {m.text.split(/\n\s*\n/).length} exercícios</span>
+          </span>
+          <span className="row" style={{ gap: 6 }}>
+            <a className={`btn ${next?.label === m.label ? 'primary' : ''}`} href={waOf(m.text)} target="_blank" rel="noreferrer" onClick={() => mark(m.label)}>
+              <Send size={16} strokeWidth={1.8} /> Enviar {m.label.replace('Treino ', '')}
+            </a>
+            <button className="btn" onClick={async () => {
+              try { await navigator.clipboard.writeText(m.text); setCopied(m.label); mark(m.label); setTimeout(() => setCopied(''), 2500) } catch { /* sem permissão */ }
+            }}><ClipboardCopy size={16} strokeWidth={1.8} /> {copied === m.label ? 'Copiado!' : 'Copiar'}</button>
+          </span>
+        </div>
+      ))}
+      {!next && <div className="muted">Todos os treinos enviados.</div>}
     </div>
   )
 }

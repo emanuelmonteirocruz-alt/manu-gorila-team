@@ -352,3 +352,6 @@ label.row:has(> input[type=checkbox]) { flex-wrap: nowrap; align-items: center; 
 .rem-warn { color: var(--warn) !important; }
 details > summary { list-style: none; width: fit-content; }
 details > summary::-webkit-details-marker { display: none; }
+/* mandar um treino por mensagem */
+.send-by .send-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.send-by .send-row.done > span:first-child { opacity: .7; }

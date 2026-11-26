@@ -127,3 +127,19 @@ describe('rascunho: pirâmide mantém o formato', () => {
     expect(weekToWhatsApp(week).split('\n')[2]).toBe('12/12/10/8')
   })
 })
+
+describe('uma mensagem por treino', () => {
+  it('separa a semana em Treino A, B, C e tira as linhas (revisar…) do aluno', async () => {
+    const { splitForWhatsApp } = await import('../consultoria/generator')
+    const txt = '*Treino A*\nLeg press\n4x10\n(revisar (joelho))\n\nCadeira extensora\n3x12\n\n*Treino B*\nRemada baixa\n4x10\n(trocar: aluno não pode fazer)\n\n\n*Treino C*\nSupino\n3x8'
+    const m = splitForWhatsApp(txt)
+    expect(m.map((x) => x.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
+    expect(m[0].text).toBe('*Treino A*\nLeg press\n4x10\n\nCadeira extensora\n3x12')
+    expect(m[1].text).toBe('*Treino B*\nRemada baixa\n4x10')
+    expect(m.every((x) => !/revisar|trocar/.test(x.text))).toBe(true)
+  })
+  it('aceita título digitado à mão ("Treino b - Pernas")', async () => {
+    const { splitForWhatsApp } = await import('../consultoria/generator')
+    expect(splitForWhatsApp('Treino a - Superiores\nSupino\n3x10\n\nTreino b - Pernas\nAgachamento\n4x8').map((x) => x.label)).toEqual(['Treino A', 'Treino B'])
+  })
+})
