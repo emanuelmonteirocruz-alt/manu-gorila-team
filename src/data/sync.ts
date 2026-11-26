@@ -26,7 +26,13 @@ export async function getSupabase(): Promise<SupabaseClient | null> {
 
 /** URL e chave em uso (Config. deste aparelho > variáveis da Vercel), sem espaços/aspas coladas por engano. */
 export async function cloudConfig(): Promise<{ url: string; key: string }> {
-  const clean = (v: unknown) => String(v ?? '').trim().replace(/^["']|["']$/g, '').trim()
+  const clean = (v: unknown) => {
+    let t = String(v ?? '').trim().replace(/^["'<]|["'>]$/g, '').trim()
+    // colado como link de chat: [https://x.supabase.co](https://x.supabase.co)
+    const md = t.match(/^\[[^\]]*\]\(([^)]+)\)$/)
+    if (md) t = md[1].trim()
+    return t
+  }
   const url = clean((await getKV<string>('supabase_url', '')) || import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
   const key = clean((await getKV<string>('supabase_key', '')) || import.meta.env.VITE_SUPABASE_ANON_KEY)
   return { url, key }
@@ -36,7 +42,7 @@ export async function cloudConfig(): Promise<{ url: string; key: string }> {
 export function configProblem(url: string, key: string): string | null {
   if (/^(sb_|eyJ)/.test(url)) return 'A URL e a chave do Supabase estão trocadas na Vercel: VITE_SUPABASE_URL deve ser https://xxxx.supabase.co.'
   if (!/^https:\/\/[^\s/]+$/.test(url)) return `VITE_SUPABASE_URL inválida ("${url.slice(0, 40)}"). Use só https://xxxx.supabase.co, sem /rest/v1 nem espaços.`
-  if (/^https?:/.test(key)) return 'A chave do Supabase está com uma URL: VITE_SUPABASE_ANON_KEY deve ser a chave anon (eyJ…) ou publishable (sb_publishable_…).'
+  if (/^\[?https?:/.test(key)) return 'A chave do Supabase está com uma URL: VITE_SUPABASE_ANON_KEY deve ser a chave anon (eyJ…) ou publishable (sb_publishable_…).'
   if (/^sb_secret_/.test(key)) return 'Você usou a chave SECRETA do Supabase. Troque na Vercel pela chave publishable (sb_publishable_…) ou anon — a secreta nunca pode ir no app.'
   if (!/^(eyJ|sb_publishable_)/.test(key) || /\s/.test(key)) return 'VITE_SUPABASE_ANON_KEY não parece uma chave do Supabase (deve começar com eyJ ou sb_publishable_).'
   return null

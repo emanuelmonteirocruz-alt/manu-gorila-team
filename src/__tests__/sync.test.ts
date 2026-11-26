@@ -207,4 +207,11 @@ describe('validação da URL/chave do Supabase', () => {
     expect(configProblem('https://abcd.supabase.co', 'sb_secret_x')).toMatch(/SECRETA/)
     expect(configProblem('https://abcd.supabase.co', 'https://abcd.supabase.co')).toMatch(/URL/)
   })
+
+  it('aceita a URL colada como link de chat [url](url)', async () => {
+    const { cloudConfig } = await import('../data/sync')
+    await setKV('supabase_url', '[https://abcd.supabase.co](https://abcd.supabase.co)')
+    expect((await cloudConfig()).url).toBe('https://abcd.supabase.co')
+    await setKV('supabase_url', '')
+  })
 })
