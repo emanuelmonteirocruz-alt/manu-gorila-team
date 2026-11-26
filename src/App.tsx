@@ -104,7 +104,10 @@ export default function App() {
       <main>
         {storeWarn && <div className="cloud-banner">{storeWarn}</div>}
         {(sync?.state === 'login' || sync?.state === 'error') && (
-          <NavLink to="/config" className="cloud-banner"><CloudOff size={16} strokeWidth={1.8} /> {sync.state === 'login' ? 'Nuvem desconectada neste aparelho: toque para entrar como treinador (só uma vez).' : `Nuvem com erro: ${sync.error}`}</NavLink>
+          loc.pathname.startsWith('/presencial')
+            // no meio do treino o aviso não leva para outra tela (nada se perde; o treino fica salvo no aparelho)
+            ? <div className="cloud-banner"><CloudOff size={16} strokeWidth={1.8} /> {sync.state === 'login' ? 'Nuvem desconectada — o treino fica salvo no aparelho.' : 'Nuvem com erro — o treino continua salvo no aparelho e sobe depois.'}</div>
+            : <NavLink to="/config" className="cloud-banner"><CloudOff size={16} strokeWidth={1.8} /> {sync.state === 'login' ? 'Nuvem desconectada neste aparelho: toque para entrar como treinador (só uma vez).' : `Nuvem com erro: ${sync.error}`}</NavLink>
         )}
         <Suspense fallback={<div className="muted">Carregando…</div>}>
         <Routes>

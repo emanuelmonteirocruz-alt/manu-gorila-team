@@ -31,6 +31,29 @@ export default function InPerson() {
   const [session, setSession] = useState<Session | null>(null)
   const step = !student ? 1 : !label ? 2 : !session ? 3 : 4
 
+  // treinos presenciais abertos (sem PSE) dos últimos 3 dias: dá para continuar de onde parou
+  const open = useLiveQuery(async () => {
+    const since = toISODate(new Date(Date.now() - 3 * 86400000))
+    const rated = new Set((await db.ratings.toArray()).filter((r) => !r._deleted).map((r) => r.session_id))
+    const list = (await db.sessions.where('date').aboveOrEqual(since).toArray())
+      .filter((x) => !x._deleted && x.source === 'presencial' && !rated.has(x.id))
+    return list.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  }, []) ?? []
+  async function resume(x: Session) {
+    const st = await db.students.get(x.student_id)
+    if (!st || st._deleted) return
+    setStudent(st); setLabel(x.label); setGroups(x.muscle_groups); setSession(x)
+    setActive(x.id)
+  }
+  // voltou para a tela (ou reabriu o app) no meio de um treino: continua direto nele
+  const resumed = useRef(false)
+  useEffect(() => {
+    if (resumed.current || session) return
+    const id = getActive()
+    const x = id ? open.find((o) => o.id === id) : undefined
+    if (x) { resumed.current = true; void resume(x) }
+  }, [open, session])
+
   const lastByLabel = useLiveQuery(async () => {
     if (!student) return {} as Record<string, Session>
     const all = await studentSessions(student)
@@ -51,9 +74,11 @@ export default function InPerson() {
       planned_microcycle: ctx?.planned_microcycle ?? 'ordinaria', exercises: [], created_at: nowISO(), updated_at: nowISO(),
     }
     setSession(await save(db.sessions, s))
+    setActive(s.id)
   }
 
   function reset() {
+    setActive(null)
     setStudent(null); setLabel(null); setGroups([]); setSession(null)
   }
 
@@ -66,6 +91,17 @@ export default function InPerson() {
         <span className={step === 4 ? 'on' : ''}>Sessão</span>
       </div>
 
+      {step === 1 && open.length > 0 && (
+        <div className="card grid" style={{ marginBottom: 12, borderColor: 'var(--accent)' }}>
+          <b>Treino em andamento</b>
+          {open.map((x) => (
+            <div key={x.id} className="row" style={{ justifyContent: 'space-between' }}>
+              <span>{titleCaseName(students.find((st) => st.id === x.student_id)?.full_name)} · {x.label} · {fmtBR(x.date)} <span className="muted">({x.exercises.length} exercícios{loadDrafts(x.id).length ? ` + ${loadDrafts(x.id).length} no rascunho` : ''})</span></span>
+              <button className="btn primary" onClick={() => resume(x)}>Continuar</button>
+            </div>
+          ))}
+        </div>
+      )}
       {step === 1 && (
         <div className="big-tiles">
           {students.map((s) => (
@@ -119,6 +155,23 @@ export default function InPerson() {
 
 interface Draft extends SpokenEntry { key: string }
 
+// ---- treino em andamento: guardado no aparelho para continuar depois ----
+const ACTIVE_KEY = 'mgt_inperson_active'
+const DRAFT_KEY = (id: string) => `mgt_inperson_drafts_${id}`
+function loadDrafts(id: string): Draft[] {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY(id)) ?? '[]') as Draft[] } catch { return [] }
+}
+function saveDrafts(id: string, d: Draft[]) {
+  try { if (d.length) localStorage.setItem(DRAFT_KEY(id), JSON.stringify(d)); else localStorage.removeItem(DRAFT_KEY(id)) } catch { /* sem armazenamento */ }
+}
+function setActive(id: string | null) {
+  try { if (id) localStorage.setItem(ACTIVE_KEY, id); else localStorage.removeItem(ACTIVE_KEY) } catch { /* sem armazenamento */ }
+}
+function getActive(): string | null {
+  try { return localStorage.getItem(ACTIVE_KEY) } catch { return null }
+}
+
+const titleCaseName = (n?: string) => n ?? 'Aluno'
 const normName = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 const repsLabel = (x: { repsMin: number | null; repsMax: number | null; failure: boolean }) =>
   x.failure ? 'Máx' : x.repsMin == null ? '' : x.repsMax != null && x.repsMax !== x.repsMin ? `${x.repsMin}-${x.repsMax}` : String(x.repsMin)
@@ -180,7 +233,9 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   student: Student; session: Session; previous?: Session; onChange: (s: Session) => void; onDone: () => void
 }) {
   const sp = useSpeech()
-  const [drafts, setDrafts] = useState<Draft[]>([])
+  // rascunho do ditado guardado no aparelho: sair da tela, tocar num aviso ou fechar o app não perde nada
+  const [drafts, setDrafts] = useState<Draft[]>(() => loadDrafts(session.id))
+  useEffect(() => { saveDrafts(session.id, drafts) }, [session.id, drafts])
   const [box, setBox] = useState('') // transcrição já corrigida (editável)
   const [changes, setChanges] = useState<Correction[]>([])
   const [typed, setTyped] = useState('') // digitação rápida (mesmo motor da voz)

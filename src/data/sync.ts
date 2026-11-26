@@ -161,7 +161,7 @@ async function doSync(): Promise<SyncResult> {
     for (const t of ['ratings', 'checkins'] as Simple[]) pushed += await pushSimple(sb, t)
     const dirtyLinks = await db.links.where('_dirty').equals(1).toArray()
     if (dirtyLinks.length) {
-      const { error } = await sb.from('exercise_links').upsert(dirtyLinks.map(({ id, _dirty, ...r }) => (void id, void _dirty, r)))
+      const { error } = await sb.from('exercise_links').upsert(dirtyLinks.map(({ id, _dirty, ...r }) => (void id, void _dirty, r)), { defaultToNull: false })
       if (error) throw error
       await db.links.bulkPut(dirtyLinks.map((r) => ({ ...r, _dirty: 0 as const })))
     }
@@ -179,10 +179,15 @@ async function doSync(): Promise<SyncResult> {
  * aparecem nos treinos a enviar (sem isso o outro aparelho recebe treinos sem classificação).
  */
 async function pushExerciseCache(sb: SupabaseClient): Promise<number> {
-  const strip = ({ _dirty, updated_at, ...r }: ExerciseProfile) => (void _dirty, void updated_at, r)
+  const strip = ({ _dirty, updated_at, ...r }: ExerciseProfile) => {
+    void _dirty; void updated_at
+    const out = { ...r } as Record<string, unknown>
+    if (out.created_at == null) delete out.created_at
+    return out
+  }
   const dirty = await db.exerciseCache.where('_dirty').equals(1).toArray()
   if (dirty.length) {
-    const { error } = await sb.from('exercise_cache').upsert(dirty.map(strip))
+    const { error } = await sb.from('exercise_cache').upsert(dirty.map(strip), { defaultToNull: false })
     if (error) throw error
     await db.exerciseCache.bulkPut(dirty.map((r) => ({ ...r, _dirty: 0 as const })))
   }
@@ -191,7 +196,7 @@ async function pushExerciseCache(sb: SupabaseClient): Promise<number> {
   const seeds = (await db.exerciseCache.bulkGet([...keys])).filter((p): p is ExerciseProfile => !!p && !p._dirty)
   if (seeds.length) {
     // ignoreDuplicates: nunca sobrescreve uma classificação que você corrigiu em outro aparelho
-    const { error } = await sb.from('exercise_cache').upsert(seeds.map(strip), { onConflict: 'key', ignoreDuplicates: true })
+    const { error } = await sb.from('exercise_cache').upsert(seeds.map(strip), { onConflict: 'key', ignoreDuplicates: true, defaultToNull: false })
     if (error) throw error
   }
   return dirty.length
@@ -201,7 +206,7 @@ async function pushSimple(sb: SupabaseClient, t: Simple): Promise<number> {
   const table = db[t]
   const rows = (await table.where('_dirty').equals(1).toArray()) as Array<{ id: string; _deleted?: 0 | 1 }>
   if (!rows.length) return 0
-  const { error } = await sb.from(REMOTE[t]).upsert(rows.map(toRemote), CONFLICT[t] ? { onConflict: CONFLICT[t] } : undefined)
+  const { error } = await sb.from(REMOTE[t]).upsert(rows.map(toRemote), { onConflict: CONFLICT[t], defaultToNull: false })
   if (error) throw error
   const gone = rows.filter((r) => r._deleted).map((r) => r.id)
   if (gone.length) await table.bulkDelete(gone)
@@ -214,7 +219,7 @@ async function pushSessions(sb: SupabaseClient): Promise<number> {
   for (const s of rows) {
     const { exercises, ...rest } = s
     const head = toRemote(rest)
-    let { error } = await sb.from('sessions').upsert(head)
+    let { error } = await sb.from('sessions').upsert(head, { defaultToNull: false })
     if (error) throw error
     ;({ error } = await sb.from('session_exercises').delete().eq('session_id', s.id))
     if (error) throw error
@@ -223,7 +228,7 @@ async function pushSessions(sb: SupabaseClient): Promise<number> {
       continue
     }
     if (exercises.length) {
-      ;({ error } = await sb.from('session_exercises').insert(exercises.map((e) => ({ ...e, session_id: s.id }))))
+      ;({ error } = await sb.from('session_exercises').insert(exercises.map((e) => ({ ...e, session_id: s.id })), { defaultToNull: false }))
       if (error) throw error
     }
     await db.sessions.update(s.id, { _dirty: 0 })
