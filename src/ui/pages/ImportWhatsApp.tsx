@@ -39,6 +39,7 @@ export default function ImportWhatsApp() {
   const headers = useMemo(() => hasWhatsAppHeaders(readText || raw), [readText, raw])
   // cada bloco colado (uma mensagem = A, B, C, D) vai para UMA semana. Padrão: mandado no domingo = semana seguinte.
   const [blockWeek, setBlockWeek] = useState<Record<string, string>>({})
+  const [skip, setSkip] = useState<Record<string, boolean>>({}) // blocos desmarcados (não salvar)
   const [imported, setImported] = useState<{ n: number; wk: string } | null>(null)
   const [graph, setGraph] = useState<{ title: string; name: string; make: () => jsPDF } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -54,12 +55,22 @@ export default function ImportWhatsApp() {
     const m = new Map<string, typeof parsed>()
     for (const t of parsed) m.set(t.date, [...(m.get(t.date) ?? []), t])
     const entries = [...m.entries()]
-    // veio do atalho "Colar semana de dd/mm": um bloco colado vai para essa semana
+    // veio do atalho "Colar semana de dd/mm": vale só para texto SEM data; com data do WhatsApp, manda a data da mensagem
     const preset = params.get('semana')
-    return entries.map(([msgDate, trainings]) => ({ msgDate, trainings, week: blockWeek[msgDate] ?? (preset && entries.length === 1 ? weekStart(preset) : suggestWeekFor(msgDate)) }))
-  }, [parsed, blockWeek, params])
-  // todos os treinos do bloco ficam na segunda-feira da semana escolhida, na ordem A, B, C, D
-  const flat = useMemo(() => blocks.flatMap((b) => b.trainings.map((t) => ({ ...t, date: b.week, week: b.week }))), [blocks])
+    return entries
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([msgDate, trainings]) => ({ msgDate, trainings, week: blockWeek[msgDate] ?? (preset && !headers ? weekStart(preset) : suggestWeekFor(msgDate)), on: !skip[msgDate] }))
+  }, [parsed, blockWeek, params, headers, skip])
+  // todos os treinos do bloco ficam na segunda-feira da semana escolhida, na ordem A, B, C, D;
+  // mensagens de dias diferentes na mesma semana continuam a sequência (A, B na seg + C, D na qua)
+  const flat = useMemo(() => {
+    const used: Record<string, number> = {}
+    return blocks.filter((b) => b.on).flatMap((b) => b.trainings.map((t) => {
+      const n = used[b.week] ?? 0
+      used[b.week] = n + 1
+      return { ...t, date: b.week, week: b.week, label: `Treino ${'ABCDEFGHIJ'[n] ?? n + 1}` }
+    }))
+  }, [blocks])
   const weeks = useMemo(() => regroupByDate(flat), [flat])
   const total = flat.length
   const weekKey = weeks.map((w) => w.week).join(',')
@@ -73,9 +84,11 @@ export default function ImportWhatsApp() {
     if (!fresh) return setMsg('Selecione o aluno.')
     const n = await importWhatsApp(fresh, weeks, true)
     const wk = weeks[weeks.length - 1].week
-    // treino colado = treino enviado: agenda a próxima troca pelo plano (domingo antes do próximo bloco)
+    // treino colado = treino enviado: agenda a próxima troca pelo plano, a partir da semana MAIS RECENTE do aluno
+    // (colar semanas antigas não joga a troca para o passado)
+    const latest = (await listWeeks(fresh))[0]?.wk ?? wk
     if (fresh.plan_period) {
-      const nextChange = nextChangeAfter(fresh.plan_period, wk)
+      const nextChange = nextChangeAfter(fresh.plan_period, latest)
       await saveStudent({ ...(await db.students.get(fresh.id))!, next_change_date: nextChange })
     }
     // na hora: semana nova × semana anterior salva (ou só a semana, se for a primeira)
@@ -90,10 +103,11 @@ export default function ImportWhatsApp() {
       setGraph({ title: `Semana de ${fmtBR(wk)}`, name: `semana-${fresh.full_name.split(' ')[0].toLowerCase()}-${wk}.pdf`, make: () => templateE(w.wk, w.items, w.cur, w.prev, o) })
     }
     setImported({ n, wk })
-    setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, wk))}.` : ''}`)
+    setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas (${weeks.map((w) => fmtBR(w.week).slice(0, 5)).join(', ')})`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, latest))}.` : ''}`)
     setRaw('')
     setReadText('')
     setBlockWeek({})
+    setSkip({})
   }
 
   return (
@@ -121,26 +135,47 @@ export default function ImportWhatsApp() {
         <div className="step-head"><span className="step-n">2</span>Colar a mensagem do WhatsApp</div>
         <textarea className="code" style={{ minHeight: 300 }} placeholder={PLACEHOLDER} value={raw} onChange={(e) => setRaw(e.target.value)} />
         <div className="row">
-          <button className="btn primary big" disabled={!raw.trim()} onClick={() => { setReadText(raw); setBlockWeek({}); setMsg(null) }}><BookOpen size={16} strokeWidth={1.8} /> Ler Treinos</button>
+          <button className="btn primary big" disabled={!raw.trim()} onClick={() => { setReadText(raw); setBlockWeek({}); setSkip({}); setMsg(null) }}><BookOpen size={16} strokeWidth={1.8} /> Ler Treinos</button>
           {readText && raw !== readText && <span className="muted">O texto mudou — toque em Ler Treinos de novo.</span>}
         </div>
-        {readText && !total && <div className="alert warn">Nenhum treino reconhecido no texto colado. Confira se há séries (ex.: 4x10, 3x8 a 12, 15/12/10).</div>}
+        <div className="muted">Retroativo: no WhatsApp, toque e segure a 1ª mensagem do treino, toque nas outras (pode pegar várias semanas) e em <b>Copiar</b>. Assim vem a data de cada mensagem e o app separa as semanas sozinho. Mensagem copiada sozinha vem sem data: aí você escolhe a semana no passo 3.</div>
+        {readText && !total && !blocks.length && <div className="alert warn">Nenhum treino reconhecido no texto colado. Confira se há séries (ex.: 4x10, 3x8 a 12, 15/12/10).</div>}
       </section>
 
       <section className="step card grid">
         <div className="step-head"><span className="step-n">3</span>Conferir e salvar</div>
         {!total && !graph && <div className="muted">Os treinos lidos aparecem aqui, organizados por bloco (data).</div>}
         <div className="grid">
+          {blocks.length > 1 && (
+            <div className="alert ok">
+              Identifiquei <b>{new Set(blocks.map((b) => b.week)).size} semanas</b> pelas datas do WhatsApp: {[...new Set(blocks.map((b) => b.week))].map((w) => fmtBR(w).slice(0, 5)).join(', ')}. Confira cada uma abaixo e desmarque o que não quiser salvar.
+            </div>
+          )}
           {blocks.map((b, bi) => (
-            <div key={b.msgDate} className="card grid" style={{ background: 'var(--panel-2)' }}>
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
-                <h2 style={{ margin: 0 }}>{blocks.length > 1 ? `Bloco ${bi + 1} · ` : ''}{b.trainings.map((t) => t.label.replace('Treino ', '')).join(', ')} <span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>({b.trainings.length} treinos{headers ? ` · mensagem de ${fmtBR(b.msgDate)}` : ''})</span></h2>
-                <label className="f" style={{ minWidth: 200 }}>Semana do treino
-                  <input type="date" className="wa-week" value={b.week} onChange={(e) => e.target.value && setBlockWeek((o) => ({ ...o, [b.msgDate]: weekStart(e.target.value) }))} />
-                  <span className="muted">Semana de {fmtBR(b.week)} a {fmtBR(addDays(b.week, 6))}</span>
-                </label>
-              </div>
-              <div className="wa-cards">
+            <div key={b.msgDate} className={`card grid wa-block ${b.on ? '' : 'off'}`} style={{ background: 'var(--panel-2)' }}>
+              <label className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="row" style={{ gap: 10 }}>
+                  <input type="checkbox" checked={b.on} onChange={(e) => setSkip((o) => ({ ...o, [b.msgDate]: !e.target.checked }))} />
+                  <b style={{ fontSize: 16 }}>{blocks.length > 1 ? `Bloco ${bi + 1}: ` : ''}Semana de {fmtBR(b.week).slice(0, 5)}</b>
+                </span>
+                <span className="muted">{b.trainings.length} treinos{headers ? ` · mensagem de ${fmtBR(b.msgDate).slice(0, 5)}` : ' · texto sem data'}</span>
+              </label>
+              {b.on && (
+                <div className="grid" style={{ gap: 8 }}>
+                  <div className="chips">
+                    {(headers ? [suggestWeekFor(b.msgDate)] : []).concat([0, 1, 2, 3, 4, 5].map((k) => addDays(weekStart(today), -7 * k))).filter((w, i, a) => a.indexOf(w) === i).slice(0, 6).map((w) => (
+                      <button key={w} type="button" className={`chip sm ${b.week === w ? 'on' : ''}`} onClick={() => setBlockWeek((o) => ({ ...o, [b.msgDate]: w }))}>
+                        {headers && w === suggestWeekFor(b.msgDate) ? `${fmtBR(w).slice(0, 5)} (pela data)` : w === weekStart(today) ? `${fmtBR(w).slice(0, 5)} (atual)` : fmtBR(w).slice(0, 5)}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="f">Outra semana (qualquer dia dela)
+                    <input type="date" className="wa-week" value={b.week} onChange={(e) => e.target.value && setBlockWeek((o) => ({ ...o, [b.msgDate]: weekStart(e.target.value) }))} />
+                    <span className="muted">Semana de {fmtBR(b.week)} a {fmtBR(addDays(b.week, 6))}</span>
+                  </label>
+                </div>
+              )}
+              {b.on && <div className="wa-cards">
                 {b.trainings.map((t, ti) => {
                   const valid = t.exercises.reduce((a, e) => a + e.validSets * e.names.length, 0)
                   const warm = t.exercises.reduce((a, e) => a + e.warmupSets * e.names.length, 0)
@@ -160,14 +195,14 @@ export default function ImportWhatsApp() {
                     </div>
                   )
                 })}
-              </div>
+              </div>}
             </div>
           ))}
         </div>
-        {total > 0 && existing > 0 && <div className="alert warn">Já existem {existing} treinos colados nessa semana para este aluno. Ao salvar, eles serão substituídos por estes.</div>}
+        {total > 0 && existing > 0 && <div className="alert warn">Já existem {existing} treinos colados {weeks.length > 1 ? 'nessas semanas' : 'nessa semana'} para este aluno. Ao salvar, eles serão substituídos por estes.</div>}
         {total > 0 && (
           <div className="row">
-            <button className="btn primary big" disabled={!studentId} onClick={doImport}><Save size={16} strokeWidth={1.8} /> {existing ? 'Substituir e salvar' : 'Salvar no histórico'} ({total} treinos)</button>
+            <button className="btn primary big" disabled={!studentId} onClick={doImport}><Save size={16} strokeWidth={1.8} /> {existing ? 'Substituir e salvar' : 'Salvar no histórico'} ({total} treinos{weeks.length > 1 ? ` · ${weeks.length} semanas` : ''})</button>
             {!studentId && <span className="muted">Selecione o aluno no passo 1.</span>}
           </div>
         )}
