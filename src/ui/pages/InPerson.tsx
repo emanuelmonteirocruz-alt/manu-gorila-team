@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ChevronLeft, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
-import { deleteSession, getCheckin, getWeekContext, previousBests, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
+import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
 import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Session, type SessionExercise, type Student } from '../../domain/types'
 import {
@@ -20,6 +20,7 @@ import type { jsPDF } from 'jspdf'
 import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
+import { normalizeKey } from '../../engine/exerciseSeed'
 
 const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F']
 
@@ -61,6 +62,12 @@ export default function InPerson() {
     for (const s of all) m[s.label] = s
     return m
   }, [student?.id]) ?? {}
+  // treino anterior do mesmo rótulo, sem contar a sessão em andamento (ela vira a "última" assim que é criada)
+  const previousOf = useLiveQuery(async () => {
+    if (!student || !session) return undefined
+    const all = await studentSessions(student)
+    return all.filter((s) => s.label === session.label && s.id !== session.id && s.exercises.length && (s.date < session.date || (s.date === session.date && s.created_at < session.created_at))).pop()
+  }, [student?.id, session?.id, session?.label])
 
   const todaySleep = useLiveQuery(async () => (student ? (await getCheckin(student.id, toISODate(new Date())))?.sleep ?? null : null), [student?.id])
 
@@ -149,7 +156,7 @@ export default function InPerson() {
       )}
 
       {step === 4 && session && student && (
-        <LiveSession student={student} session={session} previous={lastByLabel[session.label]?.id !== session.id ? lastByLabel[session.label] : undefined}
+        <LiveSession student={student} session={session} previous={previousOf}
           onChange={setSession} onDone={reset} />
       )}
     </>
@@ -232,6 +239,25 @@ function exerciseToDraft(e: SessionExercise): Draft {
   }
 }
 
+/**
+ * Carga da última vez daquele exercício, ao lado do que está sendo registrado agora.
+ * Abaixo da última vez fica em alerta (para não regredir sem querer); igual ou acima fica verde.
+ */
+const kgFmt = (k: number) => fmtNum(k, Number.isInteger(k) ? 0 : 1)
+function LastLoadHint({ last, peak }: { last?: LastLoad; peak: number | null }) {
+  if (!last) return null
+  const unit = last.perSide ? 'kg/lado' : 'kg'
+  const diff = peak != null ? Math.round((peak - last.peak) * 10) / 10 : null
+  const tone = diff == null ? '' : diff < 0 ? 'down' : diff > 0 ? 'up' : 'same'
+  const sets = last.sets.map((x) => `${x.kg != null ? kgFmt(x.kg) : '—'}${x.reps ? `×${x.reps}` : ''}`).join(' · ')
+  return (
+    <div className={`last-load ${tone}`}>
+      <span><b>Última vez</b> ({fmtBR(last.date).slice(0, 5)}): {sets} {unit}</span>
+      {diff != null && <b className="ll-diff">{diff < 0 ? `▼ ${kgFmt(-diff)} kg abaixo` : diff > 0 ? `▲ +${kgFmt(diff)} kg` : '= mesma carga'}</b>}
+    </div>
+  )
+}
+
 function LiveSession({ student, session, previous, onChange, onDone }: {
   student: Student; session: Session; previous?: Session; onChange: (s: Session) => void; onDone: () => void
 }) {
@@ -245,6 +271,14 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   const [manualOpen, setManualOpen] = useState(false)
   const [manual, setManual] = useState({ name: '', sets: '3', reps: '10', kg: '', perSide: false })
   const cache = useLiveQuery(() => db.exerciseCache.toArray(), []) ?? []
+  // carga da última vez de cada exercício (qualquer treino anterior do aluno)
+  const lastMap = useLiveQuery(() => lastLoads(student.id, session), [student.id, session.id]) ?? {}
+  const lastFor = (name: string, key?: string): LastLoad | undefined => {
+    if (key && lastMap[key]) return lastMap[key]
+    const k = normalizeKey(name)
+    const prof = cache.find((p) => p.key === k || p.aliases.some((a) => normalizeKey(a) === k))
+    return (prof && lastMap[prof.key]) || lastMap[k] || Object.values(lastMap).find((l) => normalizeKey(l.display_name) === k)
+  }
   const [busy, setBusy] = useState(false)
   const [ending, setEnding] = useState(false)
   const [pse, setPse] = useState<number | null>(null)
@@ -400,9 +434,10 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     const c = { sleep: sleep ?? undefined, diet: ctx?.diet, menstrual: student.sex === 'F' && !!ctx?.menstrual }
     setResult({ level: classifySessionLevel(pse, agg, c), alert: divergenceAlert(session.planned_microcycle, pse, c), kcal: agg.kcal, fatGrams: agg.fatGrams })
     // PDF do treino já pronto ao encerrar: o aluno está na sua frente
-    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const }
+    const ex = await treinoDoDiaExtras(student, session)
+    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, phase: ex.phase, challenge: ex.challenge }
     const bests = await previousBests(student.id, session)
-    const make = () => templateD(session, lookup, pse, o, bests)
+    const make = () => templateD(session, lookup, pse, o, bests, ex.last)
     setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
   }
 
@@ -510,6 +545,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     <label className="row muted" style={{ gap: 6 }}><input type="checkbox" checked={d.perSide} onChange={(e) => upd(d.key, { perSide: e.target.checked })} /> por lado</label>
                     <button className="btn danger icon" aria-label="Remover exercício" onClick={() => setDrafts((x) => x.filter((y) => y.key !== d.key))}><X size={16} /></button>
                   </div>
+                  <LastLoadHint last={lastFor(d.name)} peak={peak} />
                   {joins && <div className="muted">Será adicionado ao card “{last.display_name}” (continua a partir da Série {last.valid_sets + 1})</div>}
                   <div className="set-rows">
                     {d.series.map((x, i) => {
@@ -570,6 +606,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     <button className="btn icon" aria-label="Remover" onClick={() => removeExercise(e.id)}><X size={16} /></button>
                   </span>
                 </div>
+                <LastLoadHint last={lastFor(e.display_name, e.exercise_key)} peak={e.load_kg ?? null} />
                 <div className="chips">
                   {(e.warmup_detail ?? []).map((w, i) => (
                     <span key={`w${i}`} className="tag">Aq{i + 1}{w.kg != null ? ` · ${fmtNum(w.kg, 1)} ${unit}` : ''} × {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}</span>
@@ -588,9 +625,26 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         </div>
 
         {previous && (
-          <div className="card">
-            <h2>Última vez ({fmtBR(previous.date)})</h2>
-            <div className="muted">{previous.exercises.map((e) => `${e.display_name} ${e.valid_sets}x${e.reps[0]?.max ?? ''}${e.load_kg ? ` ${e.load_kg}kg` : ''}`).join(' · ')}</div>
+          <div className="card grid">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <h2 style={{ margin: 0 }}>Cargas do {previous.label} anterior ({fmtBR(previous.date).slice(0, 5)})</h2>
+              <span className="muted">toque em Repetir para criar o card com as mesmas cargas e ajustar</span>
+            </div>
+            {previous.exercises.filter((e) => e.valid_sets > 0).map((e) => {
+              const done = session.exercises.some((x) => x.exercise_key === e.exercise_key)
+              const unit = e.per_side ? 'kg/lado' : 'kg'
+              const sets = Array.from({ length: e.valid_sets }, (_, i) => {
+                const kg = e.loads?.[i] ?? e.load_kg
+                const r = e.reps[i] ?? e.reps[e.reps.length - 1]
+                return `${kg != null ? kgFmt(kg) : '—'}${r ? `×${r.failure ? 'Máx' : r.min === r.max ? r.min : `${r.min}-${r.max}`}` : ''}`
+              }).join(' · ')
+              return (
+                <div key={e.id} className={`prev-row ${done ? 'done' : ''}`}>
+                  <div><b>{done ? '✓ ' : ''}{e.display_name}</b><div className="muted">{sets} {unit}</div></div>
+                  {!done && <button className="btn sm" onClick={() => setDrafts((d) => [...d, exerciseToDraft(e)])}>Repetir</button>}
+                </div>
+              )
+            })}
           </div>
         )}
 

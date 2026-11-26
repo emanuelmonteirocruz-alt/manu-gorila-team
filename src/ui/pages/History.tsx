@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { db, softDelete } from '../../data/db'
 import { getBrand } from '../../data/brand'
-import { previousBests, profileLookup } from '../../data/repo'
+import { previousBests, treinoDoDiaExtras, profileLookup } from '../../data/repo'
 import type { Session, SessionExercise } from '../../domain/types'
 import { addDays, aggregateSessions, fmtBR, fmtNum, tonnage, toISODate } from '../../engine/metrics'
 import { isHeavy } from '../../engine/prescription'
@@ -118,7 +118,8 @@ function HistoryRow({ s, agg, pse, showStudent, student, open, onToggle, hideKg,
               <button className="btn" onClick={async () => {
                 const st = await db.students.get(s.student_id)
                 const lookup = await profileLookup()
-                const d = templateD(s, lookup, pse, { studentName: st?.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: st?.modality }, await previousBests(s.student_id, s))
+                const ex = st ? await treinoDoDiaExtras(st, s) : { phase: null, challenge: undefined, last: {} }
+                const d = templateD(s, lookup, pse, { studentName: st?.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: st?.modality, phase: ex.phase, challenge: ex.challenge }, await previousBests(s.student_id, s), ex.last)
                 await sharePdf(d, `treino-${(st?.full_name ?? 'aluno').split(' ')[0].toLowerCase()}-${s.date}.pdf`)
               }}><FileText size={16} strokeWidth={1.8} /> PDF do treino</button>
               <ConfirmButton label="Excluir treino" confirmLabel="Confirmar exclusão do treino" onConfirm={() => softDelete(db.sessions, s.id)} />

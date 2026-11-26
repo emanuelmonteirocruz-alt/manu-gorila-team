@@ -355,3 +355,11 @@ details > summary::-webkit-details-marker { display: none; }
 /* mandar um treino por mensagem */
 .send-by .send-row { padding: 8px 0; border-top: 1px solid var(--line); }
 .send-by .send-row.done > span:first-child { opacity: .7; }
+/* presencial: carga da última vez ao lado do registro */
+.last-load { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2, #f1f5f9); color: var(--sub, #475569); }
+.last-load.down { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.last-load.up { background: #ecfdf5; color: #065f46; }
+.last-load.same { background: #f0f9ff; color: #075985; }
+.last-load .ll-diff { white-space: nowrap; }
+.prev-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.prev-row.done { opacity: .55; }

@@ -214,6 +214,44 @@ export async function previousBests(studentId: string, session: Session): Promis
   return best
 }
 
+/** Última vez que o aluno fez cada exercício (com carga), antes deste treino — para não regredir sem querer. */
+export interface LastLoad {
+  date: string
+  label: string
+  display_name: string
+  peak: number // maior carga de trabalho
+  perSide: boolean
+  sets: { kg: number | null; reps: string }[]
+  exercise: SessionExercise
+}
+export async function lastLoads(studentId: string, session: Pick<Session, 'id' | 'date' | 'created_at'>): Promise<Record<string, LastLoad>> {
+  const all = (await db.sessions.where('student_id').equals(studentId).toArray())
+    .filter((s) => !s._deleted && s.id !== session.id && (s.date < session.date || (s.date === session.date && s.created_at < session.created_at)))
+    .sort((a, b) => (a.date === b.date ? a.created_at.localeCompare(b.created_at) : a.date.localeCompare(b.date)))
+  const out: Record<string, LastLoad> = {}
+  for (const s of all) for (const e of s.exercises) {
+    const loads = Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg ?? null)
+    const peak = Math.max(0, ...loads.map((k) => k ?? 0))
+    if (!peak) continue
+    const rep = (i: number) => { const r = e.reps[i] ?? e.reps[e.reps.length - 1]; return !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}-${r.max}` }
+    out[e.exercise_key] = { date: s.date, label: s.label, display_name: e.display_name, peak, perSide: !!e.per_side, sets: loads.map((kg, i) => ({ kg, reps: rep(i) })), exercise: e }
+  }
+  return out
+}
+
+/** Extras do PDF "Treino do Dia" presencial: fase da semana, nível de estímulo e carga da última vez por exercício. */
+export async function treinoDoDiaExtras(student: Student, session: Session): Promise<{ phase: Session['planned_microcycle']; challenge?: { baseSession: number; baseWeek: string; byLabel: Record<string, number> }; last: Record<string, number> }> {
+  if (student.modality === 'online') return { phase: null, last: {} }
+  const ctx = await getWeekContext(student.id, weekStart(session.date))
+  const { challengeBase } = await import('./reportData')
+  const ll = await lastLoads(student.id, session)
+  return {
+    phase: ctx?.final_microcycle ?? session.planned_microcycle ?? ctx?.planned_microcycle ?? null,
+    challenge: await challengeBase(student),
+    last: Object.fromEntries(Object.entries(ll).map(([k, v]) => [k, v.peak])),
+  }
+}
+
 // ---------------- Anamnese da consultoria (acréscimo) ----------------
 /** Modelo da anamnese em uso: o editado em Config. (neste aparelho) ou o padrão do app. */
 export async function anamneseTemplateText(): Promise<string> {

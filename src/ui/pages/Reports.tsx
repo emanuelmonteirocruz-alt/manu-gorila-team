@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { jsPDF } from 'jspdf'
 import { db } from '../../data/db'
 import { getBrand } from '../../data/brand'
-import { previousBests, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
+import { previousBests, treinoDoDiaExtras, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { sharePdf, templateA, templateC, templateD, templateE, templateL } from '../../pdf/templates'
 import { buildBeforeAfter, buildLoadProgress, challengeBase, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
@@ -81,7 +81,9 @@ export default function Reports() {
       const pse = (rs.find((r) => r.reported_by === 'student') ?? rs[0])?.pse ?? null
       const lookup = await profileLookup()
       const bests = await previousBests(s.id, sess)
-      make = () => templateD(sess, lookup, pse, o, bests)
+      const ex = await treinoDoDiaExtras(s, sess)
+      const oD = s.modality === 'online' ? o : { ...o, phase: ex.phase, challenge: ex.challenge }
+      make = () => templateD(sess, lookup, pse, oD, bests, ex.last)
       name = `treino-${first}-${sess.date}.pdf`
     } else {
       // Mês de referência; para presencial com vencimento, o ciclo vai do vencimento anterior até o atual

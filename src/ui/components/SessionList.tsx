@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { jsPDF } from 'jspdf'
 import { db } from '../../data/db'
 import { getBrand } from '../../data/brand'
-import { deleteSession, previousBests, profileLookup, studentSessions } from '../../data/repo'
+import { deleteSession, previousBests, treinoDoDiaExtras, profileLookup, studentSessions } from '../../data/repo'
 import { ConfirmButton } from './common'
 import { saveFile } from '../../artifact/claude'
 import { challengeBase } from '../../data/reportData'
@@ -78,7 +78,9 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       const lookup = await profileLookup()
       const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: student.modality, challenge: student.modality === 'online' ? await challengeBase(student) : undefined }
       const bests = await previousBests(student.id, session)
-      const make = () => templateD(session, lookup, pse, o, bests)
+      const ex = await treinoDoDiaExtras(student, session)
+      const o2 = student.modality === 'online' ? o : { ...o, phase: ex.phase, challenge: ex.challenge }
+      const make = () => templateD(session, lookup, pse, o2, bests, ex.last)
       if (alive) setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
     })()
     return () => { alive = false }
