@@ -101,6 +101,8 @@ export interface Aggregate {
   intensityPrescribed: number // 0–100, só pelo que foi prescrito (consultoria)
   intensityReal: number // 0–100, prescrito + PSE do dia (presencial; sem PSE = prescrito)
   byGroup: Record<string, { valid: number; heavy: number }>
+  /** Séries pelo músculo PRINCIPAL de cada exercício (sem frações): "o que o aluno treinou" (supino = Peito, remada = Costas) */
+  primaryGroups?: Record<string, number>
   /** Nível do desafio (consultoria): pontos do que foi prescrito — faixa de reps + técnicas avançadas */
   challengePoints: number
   lowRepSets: number // séries válidas em até 10 reps
@@ -110,7 +112,7 @@ export interface Aggregate {
 export function emptyAggregate(): Aggregate {
   return {
     validSets: 0, heavySets: 0, heavyPct: 0, multiSets: 0, monoSets: 0, freeSets: 0, machineSets: 0,
-    tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, avgPse: null, byGroup: {},
+    tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, avgPse: null, byGroup: {}, primaryGroups: {},
     failureSets: 0, markedSets: 0, techniqueSets: 0, intensityPrescribed: 0, intensityReal: 0,
     challengePoints: 0, lowRepSets: 0, advancedSets: 0,
   }
@@ -142,6 +144,8 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
       a.challengePoints += ch.points
       a.lowRepSets += ch.lowRep
       a.advancedSets += ch.advanced
+      const pg = p?.muscle_group ?? 'Indefinido'
+      a.primaryGroups![pg] = (a.primaryGroups![pg] ?? 0) + ex.valid_sets
       // séries fracionadas: o músculo principal conta inteiro, os auxiliares contam uma fração
       for (const { group: g, share } of muscleShares(`${ex.display_name} ${p?.name ?? ''}`, p?.muscle_group ?? 'Indefinido')) {
         a.byGroup[g] ??= { valid: 0, heavy: 0 }

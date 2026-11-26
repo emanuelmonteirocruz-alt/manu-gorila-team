@@ -58,7 +58,11 @@ function start(o: ReportOptions): jsPDF {
   return newDoc()
 }
 // grupos realmente trabalhados (músculo auxiliar com pouca fração não conta como "grupo do treino")
-const groupsCount = (a: Aggregate) => Object.entries(a.byGroup).filter(([g, v]) => g !== 'Indefinido' && v.valid >= 3).length
+/** Músculos que o aluno TREINOU: pelo músculo principal de cada exercício (remada = Costas, não "Costas e Bíceps"). */
+const trainedGroups = (a: Aggregate): [string, number][] =>
+  a.primaryGroups ? Object.entries(a.primaryGroups).filter(([g, v]) => g !== 'Indefinido' && v > 0).sort((x, z) => z[1] - x[1])
+    : Object.entries(a.byGroup).filter(([g, v]) => g !== 'Indefinido' && v.valid >= 3).sort((x, z) => z[1].valid - x[1].valid).map(([g, v]) => [g, v.valid])
+const groupsCount = (a: Aggregate) => trainedGroups(a).length
 const perSession = (a: Aggregate) => (a.sessions ? Math.round(a.validSets / a.sessions) : a.validSets)
 let CH_BASE: number | undefined // pontos por treino da 1ª semana (definido no start)
 let CH_LABEL: Record<string, number> = {} // 1ª vez de cada treino (A, B…)
@@ -544,13 +548,15 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
   const monthAgg = weeks.reduce<Aggregate>((acc, w) => {
     const g = { ...acc.byGroup }
     for (const [k, v] of Object.entries(w.agg.byGroup)) g[k] = { valid: (g[k]?.valid ?? 0) + v.valid, heavy: (g[k]?.heavy ?? 0) + v.heavy }
+    const pg = { ...(acc.primaryGroups ?? {}) }
+    for (const [k, v] of Object.entries(w.agg.primaryGroups ?? {})) pg[k] = (pg[k] ?? 0) + v
     return {
       ...acc,
       validSets: acc.validSets + w.agg.validSets, heavySets: acc.heavySets + w.agg.heavySets, tonnageKg: acc.tonnageKg + w.agg.tonnageKg,
-      kcal: acc.kcal + w.agg.kcal, fatGrams: acc.fatGrams + w.agg.fatGrams, sessions: acc.sessions + w.agg.sessions, byGroup: g,
+      kcal: acc.kcal + w.agg.kcal, fatGrams: acc.fatGrams + w.agg.fatGrams, sessions: acc.sessions + w.agg.sessions, byGroup: g, primaryGroups: pg,
       challengePoints: acc.challengePoints + w.agg.challengePoints, lowRepSets: acc.lowRepSets + w.agg.lowRepSets, advancedSets: acc.advancedSets + w.agg.advancedSets,
     }
-  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {}, challengePoints: 0, lowRepSets: 0, advancedSets: 0 })
+  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {}, primaryGroups: {}, challengePoints: 0, lowRepSets: 0, advancedSets: 0 })
   monthAgg.heavyPct = monthAgg.validSets ? (monthAgg.heavySets / monthAgg.validSets) * 100 : 0
   monthAgg.intensityPrescribed = Math.round(weeks.reduce((s, w) => s + w.agg.intensityPrescribed, 0) / weeks.length)
   monthAgg.intensityReal = Math.round(weeks.reduce((s, w) => s + w.agg.intensityReal, 0) / weeks.length)
@@ -749,7 +755,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
 
   // uma linha por treino (A, B, C, D, A 2ª vez…)
   const seen: Record<string, number> = {}
-  const groupsOf = (a: Aggregate) => Object.entries(a.byGroup).filter(([g]) => g !== 'Indefinido').sort((x, z) => z[1].valid - x[1].valid).slice(0, 3).map(([g]) => g.replace('Perna - ', '')).join('/')
+  const groupsOf = (a: Aggregate) => trainedGroups(a).slice(0, 3).map(([g]) => g.replace('Perna - ', '')).join('/')
   const focusH = o.showEmphasis ? 54 + Math.min(5, Object.keys(cur.byGroup).length) * 17 + 10 : 0
   const rowH = fitRowH(BOTTOM - 58 - y - 14 - focusH - 10, items.length, 32, 18)
   // evolução de cada treino contra a vez anterior do mesmo treino

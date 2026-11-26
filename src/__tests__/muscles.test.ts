@@ -56,3 +56,18 @@ describe('grupamentos do presencial detectados pelos exercícios', () => {
     expect(splitName(detectMuscleGroups([ex('Agachamento livre', 3), ex('Stiff', 3), ex('Supino reto', 3), ex('Remada baixa', 3)], lookup))).toBe('Full body')
   })
 })
+
+describe('o que o aluno treinou (resumo da semana) = músculo principal', () => {
+  it('treino só de costas não aparece como "Costas/Bíceps"; supino não aparece como tríceps', async () => {
+    const { aggregateSessions } = await import('../engine/metrics')
+    const { SEED_PROFILES, normalizeKey } = await import('../engine/exerciseSeed')
+    const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+    const ex = (name: string, sets: number) => ({ id: name, position: 0, exercise_key: normalizeKey(name), display_name: name, valid_sets: sets, warmup_sets: 0, heavy_sets: 0, reps: [], drop_set: false })
+    const sess = (exs: ReturnType<typeof ex>[]) => ({ id: 's', student_id: 'x', date: '2026-11-23', label: 'A', source: 'presencial' as const, muscle_groups: [], created_at: '', updated_at: '', exercises: exs })
+    const costas = aggregateSessions([sess([ex('Puxada aberta', 4), ex('Remada baixa', 4), ex('Remada curvada', 4), ex('Remada unilateral', 3)])], lookup)
+    expect(Object.keys(costas.primaryGroups!)).toEqual(['Costas'])
+    expect(costas.byGroup['Bíceps'].valid).toBeGreaterThan(3) // a fração continua no gráfico de foco
+    const peito = aggregateSessions([sess([ex('Supino reto', 4), ex('Supino inclinado com halteres', 4), ex('Voador', 3)])], lookup)
+    expect(Object.keys(peito.primaryGroups!)).toEqual(['Peito'])
+  })
+})
