@@ -31,6 +31,8 @@ export interface ReportOptions {
   modality?: 'online' | 'presencial'
   /** consultoria: pontos por treino da 1ª semana do aluno (= 100 no Nível do desafio) */
   challenge?: { baseSession: number; baseWeek: string; byLabel?: Record<string, number> }
+  /** ênfase do plano definida pelo treinador (vence o músculo de maior volume no "Foco muscular") */
+  emphasis?: string[]
 }
 
 const W = PAGE.w - PAGE.m * 2
@@ -46,12 +48,15 @@ function start(o: ReportOptions): jsPDF {
   VOLUME_ONLY = o.modality === 'online'
   CH_BASE = o.challenge?.baseSession
   CH_LABEL = o.challenge?.byLabel ?? {}
+  PLAN_EMPH = o.emphasis ?? []
   return newDoc()
 }
-const groupsCount = (a: Aggregate) => Object.entries(a.byGroup).filter(([g, v]) => g !== 'Indefinido' && v.valid > 0).length
+// grupos realmente trabalhados (músculo auxiliar com pouca fração não conta como "grupo do treino")
+const groupsCount = (a: Aggregate) => Object.entries(a.byGroup).filter(([g, v]) => g !== 'Indefinido' && v.valid >= 3).length
 const perSession = (a: Aggregate) => (a.sessions ? Math.round(a.validSets / a.sessions) : a.validSets)
 let CH_BASE: number | undefined // pontos por treino da 1ª semana (definido no start)
 let CH_LABEL: Record<string, number> = {} // 1ª vez de cada treino (A, B…)
+let PLAN_EMPH: string[] = [] // ênfase do plano (ficha do aluno)
 /** Nível de UM treino: comparado com a 1ª vez desse mesmo treino (A × primeiro A). */
 const levelOfTraining = (label: string, a: Aggregate) => (CH_LABEL[label] ? Math.round((a.challengePoints / CH_LABEL[label]) * 100) : levelOf(a))
 /** Nível do desafio do período (1ª semana do aluno = 100). */
@@ -70,7 +75,7 @@ const BOTTOM = PAGE.h - 14
 /** Grupamentos ordenados por volume + intensidade (base do "Foco muscular"). */
 function musclesOf(a: Aggregate, prev?: Aggregate): MuscleRow[] {
   return Object.entries(a.byGroup)
-    .map(([group, v]) => ({ group, valid: v.valid, heavy: v.heavy, prev: prev?.byGroup[group]?.valid ?? (prev ? 0 : undefined) }))
+    .map(([group, v]) => ({ group, valid: Math.round(v.valid), heavy: Math.round(v.heavy), prev: prev ? Math.round(prev.byGroup[group]?.valid ?? 0) : undefined }))
     .sort((x, y) => y.valid - x.valid || y.heavy - x.heavy) // líder = mais volume; desempate por pesadas
 }
 
@@ -79,15 +84,21 @@ function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRo
   const rows = musclesOf(a, prev).filter((r) => r.group !== 'Indefinido' && r.valid > 0).slice(0, maxRows).map((r) => (VOLUME_ONLY ? { ...r, heavy: 0 } : r))
   if (!rows.length) return y
   const total = Object.values(a.byGroup).reduce((s, v) => s + v.valid, 0) || 1
-  const lead = rows[0]
+  // a ênfase que o treinador definiu vence o músculo de maior volume
+  const planned = rows.filter((r) => PLAN_EMPH.includes(r.group))
+  const lead = planned[0] ?? rows[0]
   sectionTitle(d, 'Foco muscular', y + 6)
   chartSeal(d, PAGE.m + W, y + 6)
   y += 14
   // manchete visual do foco
   const hardest = [...rows].sort((x, z) => z.heavy - x.heavy)[0]
   card(d, PAGE.m, y, W, 30, C.zone.choque)
-  text(d, `Ênfase em ${lead.group.replace('Perna - ', '')}`, PAGE.m + 10, y + 19, { size: 12, bold: true, c: C.heavy })
-  const sub = VOLUME_ONLY
+  const emphName = planned.length ? planned.map((r) => r.group.replace('Perna - ', '')).join(' + ') : lead.group.replace('Perna - ', '')
+  text(d, `Ênfase em ${emphName}`, PAGE.m + 10, y + 19, { size: 12, bold: true, c: C.heavy })
+  const plannedValid = planned.reduce((s2, r) => s2 + r.valid, 0)
+  const sub = planned.length
+    ? `${Math.round((plannedValid / total) * 100)}% do volume · ${plannedValid} séries`
+    : VOLUME_ONLY
     ? `${Math.round((lead.valid / total) * 100)}% do volume · ${lead.valid} séries`
     : hardest.group !== lead.group && hardest.heavy > lead.heavy
     ? `${Math.round((lead.valid / total) * 100)}% do volume · mais pesadas: ${hardest.group.replace('Perna - ', '')} (${hardest.heavy})`
@@ -96,7 +107,7 @@ function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRo
   y += 38
   if (prev) legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }] : [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }, { c: C.heavy, l: 'Pesadas' }])
   else legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries válidas' }] : [{ c: C.volume, l: 'Séries válidas' }, { c: C.heavy, l: 'Pesadas' }])
-  return muscleRanking(d, PAGE.m, y + 8, W, rows, 15)
+  return muscleRanking(d, PAGE.m, y + 8, W, planned.length ? rows.map((r) => ({ ...r, focus: PLAN_EMPH.includes(r.group) })) : rows, 15)
 }
 
 /**

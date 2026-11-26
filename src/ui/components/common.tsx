@@ -6,7 +6,7 @@ import { clearCheckin, deleteStudent, getCheckin, getWeekContext, saveCheckin, s
 import { changeStatus } from '../../domain/plan'
 import { titleCase } from '../format'
 import {
-  DIET_LABEL, MICRO_LABEL, SLEEP_LABEL, type SleepQuality, type DietPhase, type Microcycle, type Modality, type Student, type WeekContext,
+  DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, SLEEP_LABEL, type SleepQuality, type DietPhase, type Microcycle, type Modality, type Student, type WeekContext,
 } from '../../domain/types'
 import { addDays, computeHourlyRate, fmtBR, toISODate } from '../../engine/metrics'
 import { PERIOD_LABEL, suggestNextChange, type PlanPeriod } from '../../domain/plan'
@@ -123,6 +123,16 @@ export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student;
             <option value="em_dia">Em dia</option><option value="pendente">Pendente</option><option value="atrasado">Atrasado</option>
           </select>
         </label>
+      </div>
+      <div className="grid" style={{ gap: 6 }}>
+        <span className="muted" style={{ fontWeight: 600 }}>Ênfase do plano (opcional) — o foco que você quer para este aluno</span>
+        <div className="chips">
+          {MUSCLE_GROUPS.map((g) => {
+            const on = (s.emphasis ?? []).includes(g)
+            return <button key={g} type="button" className={`chip sm ${on ? 'on' : ''}`} onClick={() => setS((x) => ({ ...x, emphasis: on ? (x.emphasis ?? []).filter((y) => y !== g) : [...(x.emphasis ?? []), g] }))}>{g.replace('Perna - ', '')}</button>
+          })}
+        </div>
+        <span className="muted">Aparece no "Foco muscular" dos relatórios e vai orientar a montagem automática de treinos.</span>
       </div>
       <div className="row">
         <button className="btn primary big" type="submit">Salvar aluno</button>

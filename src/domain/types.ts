@@ -40,6 +40,7 @@ export interface Student extends SyncMeta {
   due_date?: string | null // data de vencimento do pagamento
   plan_period?: 'mensal' | 'quinzenal' | 'semanal' | null // consultoria: periodicidade do plano
   next_change_date?: string | null // consultoria: data da próxima troca de treino
+  emphasis?: string[] | null // ênfase do plano definida pelo treinador (relatórios e montagem automática)
   plan_value?: number
   hourly_rate?: number | null
   hourly_rate_manual: boolean

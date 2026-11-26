@@ -378,7 +378,10 @@ export function badgeRow(d: jsPDF, x: number, y: number, w: number, labels: stri
   return labels.length ? cy + 22 : y
 }
 
-export interface MuscleRow { group: string; valid: number; heavy: number; prev?: number }
+export interface MuscleRow {
+  group: string; valid: number; heavy: number; prev?: number
+  focus?: boolean // destaque FOCO (ênfase do plano); sem nenhum marcado, destaca o 1º
+}
 
 const shortGroup = (g: string) => g.replace('Perna - ', '')
 
@@ -393,7 +396,7 @@ export function muscleRanking(d: jsPDF, x: number, y: number, w: number, rows: M
   const max = Math.max(...list.map((r) => Math.max(r.valid, r.prev ?? 0)), 1)
   const labelW = 98, rightW = 70, barW = w - labelW - rightW - 6
   list.forEach((r, i) => {
-    const lead = i === 0
+    const lead = rows.some((x) => x.focus) ? !!r.focus : i === 0
     if (lead) {
       fill(d, mix(C.heavy, '#ffffff', 0.9))
       d.roundedRect(x - 4, y - 1, w + 8, rowH, 5, 5, 'F')

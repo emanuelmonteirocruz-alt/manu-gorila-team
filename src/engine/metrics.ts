@@ -5,6 +5,7 @@
 import type {
   DailyCheckin, DietPhase, ExerciseProfile, Microcycle, RepRange, Session, SessionExercise, SessionRating, WeekContext,
 } from '../domain/types'
+import { muscleShares } from './exerciseSeed'
 
 export const KCAL_PER_KG_FAT = 7700
 
@@ -141,10 +142,12 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
       a.challengePoints += ch.points
       a.lowRepSets += ch.lowRep
       a.advancedSets += ch.advanced
-      const g = p?.muscle_group ?? 'Indefinido'
-      a.byGroup[g] ??= { valid: 0, heavy: 0 }
-      a.byGroup[g].valid += ex.valid_sets
-      a.byGroup[g].heavy += ex.heavy_sets
+      // séries fracionadas: o músculo principal conta inteiro, os auxiliares contam uma fração
+      for (const { group: g, share } of muscleShares(`${ex.display_name} ${p?.name ?? ''}`, p?.muscle_group ?? 'Indefinido')) {
+        a.byGroup[g] ??= { valid: 0, heavy: 0 }
+        a.byGroup[g].valid += ex.valid_sets * share
+        a.byGroup[g].heavy += ex.heavy_sets * share
+      }
     }
     // PSE do aluno (Fase 2) tem precedência sobre a do treinador quando existir
     const rs = ratings.filter((r) => r.session_id === s.id && !r._deleted)

@@ -6,7 +6,7 @@ import Dexie, { type Table } from 'dexie'
 import type {
   DailyCheckin, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
 } from '../domain/types'
-import { SEED_PROFILES, SEED_VERSION } from '../engine/exerciseSeed'
+import { SEED_PROFILES, SEED_VERSION, heuristicProfile } from '../engine/exerciseSeed'
 
 export interface KV {
   key: string
@@ -83,10 +83,29 @@ export const LOCAL_TRAINER_ID = '00000000-0000-0000-0000-000000000001'
  * (correções do treinador, IA e o que veio da nuvem nunca são sobrescritos).
  */
 export async function ensureExerciseLibrary(): Promise<number> {
-  if ((await getKV<number>('seed_version', 1)) >= SEED_VERSION) return 0
+  const from = await getKV<number>('seed_version', 1)
+  if (from >= SEED_VERSION) return 0
   const have = new Set((await db.exerciseCache.toCollection().primaryKeys()) as string[])
   const missing = SEED_PROFILES.filter((p) => !have.has(p.key))
   if (missing.length) await db.exerciseCache.bulkAdd(missing)
+  // v3: reclassifica o que foi adivinhado automaticamente (ex.: "rosca direta cross" ia para Peito).
+  // Correções do treinador ('trainer') e classificações da IA nunca são tocadas.
+  if (from < 3) {
+    const byAlias = new Map<string, (typeof SEED_PROFILES)[number]>()
+    for (const p of SEED_PROFILES) for (const a of [p.key, ...p.aliases]) byAlias.set(a, p)
+    const fixes = []
+    for (const c of await db.exerciseCache.toArray()) {
+      if (c.source !== 'heuristic') continue
+      const seed = byAlias.get(c.key)
+      const next = seed ? { muscle_group: seed.muscle_group, sub_region: seed.sub_region, mechanic: seed.mechanic, implement: seed.implement } : (({ muscle_group, mechanic, implement }) => ({ muscle_group, sub_region: c.sub_region, mechanic, implement }))(heuristicProfile(c.name, []))
+      if (next.muscle_group !== c.muscle_group || next.mechanic !== c.mechanic || next.implement !== c.implement) fixes.push({ ...c, ...next, updated_at: nowISO(), _dirty: 1 as const })
+    }
+    if (fixes.length) await db.exerciseCache.bulkPut(fixes)
+    // banco embutido já instalado: recebe os apelidos/ajustes novos (só o que ainda é 'seed')
+    const seeds = new Map(SEED_PROFILES.map((p) => [p.key, p]))
+    const refresh = (await db.exerciseCache.toArray()).filter((c) => c.source === 'seed' && !c._dirty && seeds.has(c.key)).map((c) => seeds.get(c.key)!)
+    if (refresh.length) await db.exerciseCache.bulkPut(refresh)
+  }
   await setKV('seed_version', SEED_VERSION)
   return missing.length
 }

@@ -22,11 +22,11 @@ const SEED: Seed[] = [
   ['Leg45', 'Perna - Quadríceps', 'quadríceps', 'multi', 'maq', ['leg 45', 'leg press 45', 'leg press', 'legpress']],
   ['Hack', 'Perna - Quadríceps', 'quadríceps', 'multi', 'maq', ['hack squat', 'hack machine']],
   ['Agachamento livre', 'Perna - Quadríceps', 'quadríceps', 'multi', 'livre', ['agachamento', 'agachamento barra', 'back squat']],
-  ['Agachamento búlgaro', 'Perna - Quadríceps', 'quadríceps', 'multi', 'livre', ['bulgaro', 'búlgaro']],
+  ['Agachamento búlgaro', 'Perna - Quadríceps', 'quadríceps', 'multi', 'livre', ['bulgaro', 'búlgaro', 'bulgaro com carga', 'búlgaro com carga', 'bulgaro halteres']],
   ['Smith agachamento', 'Perna - Quadríceps', 'quadríceps', 'multi', 'maq', ['agachamento smith', 'smith']],
   ['Afundo', 'Perna - Quadríceps', 'quadríceps', 'multi', 'livre', ['passada', 'avanço', 'lunge']],
-  ['Extensora', 'Perna - Quadríceps', 'quadríceps', 'mono', 'maq', ['cadeira extensora']],
-  ['Flexora deitada', 'Perna - Posterior', 'posterior', 'mono', 'maq', ['mesa flexora', 'flexora']],
+  ['Extensora', 'Perna - Quadríceps', 'quadríceps', 'mono', 'maq', ['cadeira extensora', 'banco extensor', 'cadeira extensor']],
+  ['Flexora deitada', 'Perna - Posterior', 'posterior', 'mono', 'maq', ['mesa flexora', 'flexora', 'mesa flexor', 'flexor deitado']],
   ['Flexora sentada', 'Perna - Posterior', 'posterior', 'mono', 'maq', ['cadeira flexora']],
   ['Stiff', 'Perna - Posterior', 'posterior', 'multi', 'livre', ['stiff barra', 'stiff halteres', 'rdl', 'terra romeno']],
   ['Levantamento terra', 'Perna - Posterior', 'posterior', 'multi', 'livre', ['terra', 'deadlift']],
@@ -50,7 +50,7 @@ const SEED: Seed[] = [
   ['Desenvolvimento máquina', 'Ombro', 'deltoide anterior', 'multi', 'maq', []],
   ['Elevação lateral', 'Ombro', 'deltoide lateral', 'mono', 'livre', ['elevacao lateral', 'lateral halteres']],
   ['Elevação lateral cabo', 'Ombro', 'deltoide lateral', 'mono', 'maq', ['lateral polia', 'lateral cabo']],
-  ['Crucifixo inverso', 'Ombro', 'deltoide posterior', 'mono', 'maq', ['peck deck inverso', 'voador inverso']],
+  ['Crucifixo inverso', 'Ombro', 'deltoide posterior', 'mono', 'maq', ['peck deck inverso', 'voador inverso', 'voador invertido', 'peck deck invertido']],
   ['Rosca direta', 'Bíceps', 'bíceps', 'mono', 'livre', ['rosca barra', 'rosca']],
   ['Rosca alternada', 'Bíceps', 'bíceps', 'mono', 'livre', []],
   ['Rosca martelo', 'Bíceps', 'braquial', 'mono', 'livre', ['martelo']],
@@ -92,28 +92,30 @@ export const SEED_PROFILES: ExerciseProfile[] = (() => {
 })()
 
 /** Versão do banco: quando muda, aparelhos já instalados recebem os exercícios novos. */
-export const SEED_VERSION = 2
+export const SEED_VERSION = 3
 
 /** Heurística offline usada só quando IA indisponível (marcada como 'heuristic' para revisão). */
 export function heuristicProfile(name: string, activeGroups: string[]): ExerciseProfile {
   const k = normalizeKey(name)
   const machine = /maquina|polia|cabo|cross|pulley|smith|cadeira|mesa|leg|hack|peck|voador|articulad|graviton|pendul|aparelho/.test(k)
   const multi = /supino|agach|leg|hack|remada|puxada|pulley|desenvolv|terra|stiff|afundo|passada|barra fixa|paralela|mergulho|flexao bra|elevacao pelvica|hip|thrust|step|subida|burpee|thruster|clean|snatch|swing|press\b|push|pull up|chin/.test(k)
+  // o MOVIMENTO decide o músculo (primeiro que bater); "cross/polia/cabo" só indica o equipamento
   const guess: [RegExp, string][] = [
-    [/supino|crucifixo|peck|cross|peito|peitoral|fly|flexao bra|push up|apoio/, 'Peito'],
-    [/remada|puxada|pulley|pulldown|dorsal|costas|barra fixa|pull up|chin|lombar|hiperext|superman/, 'Costas'],
-    [/desenvolv|\blateral|ombro|deltoide|frontal|militar|arnold|encolh|trapezio|face pull|rotacao/, 'Ombro'],
+    [/(voador|peck|crucifixo|fly|cross)\w* (invertid|invers)|face pull|posterior de ombro/, 'Ombro'],
     [/rosca|biceps|martelo|antebraco|punho/, 'Bíceps'],
-    [/triceps|frances|testa|corda|coice tri|mergulho|paralela|kickback/, 'Tríceps'],
-    [/flexora|stiff|terra|posterior|nordic|good morning|isquio/, 'Perna - Posterior'],
+    [/triceps|frances|testa|corda|coice tri|kickback/, 'Tríceps'],
+    [/remada|puxada|pulley|pulldown|dorsal|costas|barra fixa|pull up|chin|lombar|hiperext|superman|serrote/, 'Costas'],
+    [/desenvolv|\blateral|frontal|ombro|deltoide|militar|arnold|encolh|trapezio|rotacao/, 'Ombro'],
+    [/flexora|flexor|stiff|terra|posterior|nordic|good morning|isquio/, 'Perna - Posterior'],
     [/gluteo|pelvica|thrust|abdut|adut|coice|ponte|quatro apoios|swing/, 'Glúteo'],
     [/panturr|gemeo|soleo|tibial/, 'Panturrilha'],
-    [/agach|squat|leg|hack|extensora|afundo|passada|avanco|lunge|quadri|step|subida|sissy|pistol|salto/, 'Perna - Quadríceps'],
+    [/agach|squat|leg|hack|extensora|extensor|afundo|passada|avanco|lunge|bulgaro|quadri|step|subida|sissy|pistol|salto/, 'Perna - Quadríceps'],
+    [/supino|crucifixo|peck|voador|peito|peitoral|fly|flexao bra|push up|apoio|cross/, 'Peito'],
+    [/paralela|mergulho/, 'Tríceps'],
     [/abdom|prancha|crunch|infra|obliq|core|canivete|remador|russian|twist|escalador/, 'Abdômen'],
   ]
-  // Regra 1 do prompt: priorizar grupamentos ativos para desambiguar
-  const candidates = guess.filter(([re]) => re.test(k)).map(([, g]) => g)
-  const group = candidates.find((g) => activeGroups.includes(g)) ?? candidates[0] ?? activeGroups[0] ?? 'Indefinido'
+  const hit = guess.find(([re]) => re.test(k))
+  const group = hit?.[1] ?? activeGroups[0] ?? 'Indefinido'
   return {
     key: k,
     name: name.trim().replace(/^\p{L}/u, (c) => c.toUpperCase()),
@@ -125,4 +127,35 @@ export function heuristicProfile(name: string, activeGroups: string[]): Exercise
     disputed: /cross/.test(k),
     source: 'heuristic',
   }
+}
+
+/**
+ * Músculos que AJUDAM no exercício (séries fracionadas): o principal conta a série inteira,
+ * os auxiliares contam uma fração. Assim leg press, agachamento, búlgaro e afundo também
+ * somam glúteo; supino soma tríceps; remada soma bíceps.
+ */
+const Q = 'Perna - Quadríceps', P = 'Perna - Posterior', G = 'Glúteo'
+// [nome, músculos principais em que vale, auxiliares]
+const SECONDARY: [RegExp, string[], { group: string; share: number }[]][] = [
+  // pés afastados / sumô: glúteo e adutores quase tanto quanto quadríceps
+  [/(sumo|afastad|pes abertos)/, [Q, P], [{ group: G, share: 0.75 }]],
+  [/(leg|hack|agach|squat|afundo|passada|avanco|lunge|bulgaro|step|subida|pistol|belt|pendul)/, [Q], [{ group: G, share: 0.5 }]],
+  [/(stiff|terra|good morning|rdl|romeno)/, [P], [{ group: G, share: 0.5 }]],
+  [/(elevacao pelvica|hip thrust|ponte|glute bridge)/, [G], [{ group: P, share: 0.25 }]],
+  [/(supino|flexao bra|push up|\bapoio\b)/, ['Peito'], [{ group: 'Tríceps', share: 0.5 }, { group: 'Ombro', share: 0.25 }]],
+  [/(paralela|mergulho)/, ['Tríceps'], [{ group: 'Peito', share: 0.5 }]],
+  [/(desenvolv|militar|arnold|landmine)/, ['Ombro'], [{ group: 'Tríceps', share: 0.5 }]],
+  [/(remada|puxada|pulley|barra fixa|pull up|chin|serrote)/, ['Costas'], [{ group: 'Bíceps', share: 0.5 }]],
+]
+
+/** Distribuição de uma série entre músculos: principal = 1, auxiliares = fração (sem repetir o principal). */
+export function muscleShares(name: string, primary: string): { group: string; share: number }[] {
+  const k = normalizeKey(name)
+  const out: { group: string; share: number }[] = [{ group: primary, share: 1 }]
+  for (const [re, primaries, list] of SECONDARY) {
+    if (!primaries.includes(primary) || !re.test(k)) continue
+    // cada músculo entra uma vez: no sumô o glúteo já entrou com 0,75 (não soma os 0,5 do leg/agachamento)
+    for (const x of list) if (x.group !== primary && !out.some((o) => o.group === x.group)) out.push(x)
+  }
+  return out
 }
