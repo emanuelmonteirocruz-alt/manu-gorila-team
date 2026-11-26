@@ -1,7 +1,8 @@
 -- ============================================================
 -- EM Treino — instalação completa do banco (Supabase)
 -- Cole TUDO no Supabase → SQL Editor → New query → Run. Rodar uma vez só.
--- (junta os arquivos 0001 a 0005 de supabase/migrations)
+-- (junta os arquivos 0001 a 0006 de supabase/migrations)
+-- Pode rodar de novo com segurança: o que já existe é mantido.
 -- ============================================================
 
 -- >>> 0001_init.sql
@@ -15,9 +16,9 @@
 create extension if not exists "pgcrypto";
 
 -- ---------- Perfis / autenticação ----------
-create type user_role as enum ('trainer', 'student');
+do $$ begin create type user_role as enum ('trainer', 'student'); exception when duplicate_object then null; end $$;
 
-create table app_users (
+create table if not exists app_users (
   id          uuid primary key references auth.users(id) on delete cascade,
   role        user_role not null default 'trainer',
   active      boolean   not null default true,   -- alunos nascem false na Fase 1
@@ -29,19 +30,12 @@ create or replace function is_trainer() returns boolean language sql stable as $
   select exists(select 1 from app_users where id = auth.uid() and role = 'trainer' and active)
 $$;
 
-create or replace function my_student_id() returns uuid language sql stable as $$
-  select s.id from students s
-  join app_users u on u.id = s.user_id
-  where u.id = auth.uid() and u.role = 'student' and u.active
-  limit 1
-$$;
-
 -- ---------- Alunos (cadastro nominal + financeiro) ----------
-create type modality   as enum ('online', 'presencial');
-create type bio_sex    as enum ('F', 'M');
-create type pay_status as enum ('em_dia', 'pendente', 'atrasado');
+do $$ begin create type modality as enum ('online', 'presencial'); exception when duplicate_object then null; end $$;
+do $$ begin create type bio_sex as enum ('F', 'M'); exception when duplicate_object then null; end $$;
+do $$ begin create type pay_status as enum ('em_dia', 'pendente', 'atrasado'); exception when duplicate_object then null; end $$;
 
-create table students (
+create table if not exists students (
   id              uuid primary key default gen_random_uuid(),
   trainer_id      uuid not null references app_users(id),
   user_id         uuid references app_users(id),          -- Fase 2 (login do aluno)
@@ -62,8 +56,17 @@ create table students (
   created_at      timestamptz not null default now()
 );
 
+-- (depois da tabela students: o Postgres valida o corpo da função na criação)
+create or replace function my_student_id() returns uuid language sql stable as $$
+  select s.id from students s
+  join app_users u on u.id = s.user_id
+  where u.id = auth.uid() and u.role = 'student' and u.active
+  limit 1
+$$;
+
+
 -- histórico de modalidade (aluno que migra mantém base unificada)
-create table modality_history (
+create table if not exists modality_history (
   id          uuid primary key default gen_random_uuid(),
   student_id  uuid not null references students(id) on delete cascade,
   modality    modality not null,
@@ -72,10 +75,10 @@ create table modality_history (
 );
 
 -- ---------- Contexto fisiológico semanal ----------
-create type diet_phase as enum ('bulking', 'manutencao', 'cutting');
-create type microcycle as enum ('ordinaria', 'choque', 'regenerativa');
+do $$ begin create type diet_phase as enum ('bulking', 'manutencao', 'cutting'); exception when duplicate_object then null; end $$;
+do $$ begin create type microcycle as enum ('ordinaria', 'choque', 'regenerativa'); exception when duplicate_object then null; end $$;
 
-create table week_context (
+create table if not exists week_context (
   id            uuid primary key default gen_random_uuid(),
   student_id    uuid not null references students(id) on delete cascade,
   week_start    date not null,                  -- segunda-feira
@@ -90,11 +93,11 @@ create table week_context (
 );
 
 -- ---------- Sessões / exercícios / séries ----------
-create type session_source as enum ('whatsapp', 'presencial', 'copiloto');
-create type reporter       as enum ('trainer', 'student');
-create type sleep_quality  as enum ('bem', 'mal', 'irregular');
+do $$ begin create type session_source as enum ('whatsapp', 'presencial', 'copiloto'); exception when duplicate_object then null; end $$;
+do $$ begin create type reporter as enum ('trainer', 'student'); exception when duplicate_object then null; end $$;
+do $$ begin create type sleep_quality as enum ('bem', 'mal', 'irregular'); exception when duplicate_object then null; end $$;
 
-create table sessions (
+create table if not exists sessions (
   id           uuid primary key default gen_random_uuid(),
   student_id   uuid not null references students(id) on delete cascade,
   date         date not null,
@@ -107,7 +110,7 @@ create table sessions (
   created_at   timestamptz not null default now()
 );
 
-create table session_exercises (
+create table if not exists session_exercises (
   id            uuid primary key default gen_random_uuid(),
   session_id    uuid not null references sessions(id) on delete cascade,
   position      int not null,
@@ -124,7 +127,7 @@ create table session_exercises (
 );
 
 -- Avaliações (PSE + sono): separadas da sessão para o aluno lançar na Fase 2
-create table session_ratings (
+create table if not exists session_ratings (
   id          uuid primary key default gen_random_uuid(),
   session_id  uuid not null references sessions(id) on delete cascade,
   pse         int check (pse between 0 and 10),
@@ -133,7 +136,7 @@ create table session_ratings (
   updated_at  timestamptz not null default now()
 );
 
-create table daily_checkins (
+create table if not exists daily_checkins (
   id          uuid primary key default gen_random_uuid(),
   student_id  uuid not null references students(id) on delete cascade,
   date        date not null,
@@ -144,7 +147,7 @@ create table daily_checkins (
 );
 
 -- ---------- Caches (IA e links) ----------
-create table exercise_cache (
+create table if not exists exercise_cache (
   key          text primary key,               -- nome normalizado
   name         text not null,                  -- nome padronizado
   aliases      text[] not null default '{}',
@@ -157,7 +160,7 @@ create table exercise_cache (
   created_at   timestamptz not null default now()
 );
 
-create table exercise_links (
+create table if not exists exercise_links (
   exercise_key text not null references exercise_cache(key) on delete cascade,
   provider     text not null,                  -- musclewiki | exrx | jefit | trainer
   url          text not null,
@@ -165,8 +168,7 @@ create table exercise_links (
   primary key (exercise_key, provider)
 );
 
-alter table session_exercises add constraint fk_exercise_key
-  foreign key (exercise_key) references exercise_cache(key);
+-- (sem FK na chave do exercício: o catálogo embutido no app não está no banco — ver 0006)
 
 -- ---------- RLS ----------
 alter table app_users        enable row level security;
@@ -180,35 +182,51 @@ alter table daily_checkins   enable row level security;
 alter table exercise_cache   enable row level security;
 alter table exercise_links   enable row level security;
 
+drop policy if exists me on app_users;
 create policy me on app_users for select using (id = auth.uid());
 
 -- Treinador: acesso total aos próprios alunos
+drop policy if exists trainer_students on students;
 create policy trainer_students on students for all
   using (is_trainer() and trainer_id = auth.uid())
   with check (is_trainer() and trainer_id = auth.uid());
 
+drop policy if exists trainer_modality on modality_history;
 create policy trainer_modality on modality_history for all using (
   is_trainer() and student_id in (select id from students where trainer_id = auth.uid()));
+drop policy if exists trainer_week on week_context;
 create policy trainer_week on week_context for all using (
   is_trainer() and student_id in (select id from students where trainer_id = auth.uid()));
+drop policy if exists trainer_sessions on sessions;
 create policy trainer_sessions on sessions for all using (
   is_trainer() and student_id in (select id from students where trainer_id = auth.uid()));
+drop policy if exists trainer_exercises on session_exercises;
 create policy trainer_exercises on session_exercises for all using (
   is_trainer() and session_id in (select s.id from sessions s join students st on st.id = s.student_id where st.trainer_id = auth.uid()));
+drop policy if exists trainer_ratings on session_ratings;
 create policy trainer_ratings on session_ratings for all using (
   is_trainer() and session_id in (select s.id from sessions s join students st on st.id = s.student_id where st.trainer_id = auth.uid()));
+drop policy if exists trainer_checkins on daily_checkins;
 create policy trainer_checkins on daily_checkins for all using (
   is_trainer() and student_id in (select id from students where trainer_id = auth.uid()));
-create policy cache_read  on exercise_cache for select using (auth.uid() is not null);
+drop policy if exists cache_read on exercise_cache;
+create policy cache_read on exercise_cache for select using (auth.uid() is not null);
+drop policy if exists cache_write on exercise_cache;
 create policy cache_write on exercise_cache for all using (is_trainer()) with check (is_trainer());
-create policy links_read  on exercise_links for select using (auth.uid() is not null);
+drop policy if exists links_read on exercise_links;
+create policy links_read on exercise_links for select using (auth.uid() is not null);
+drop policy if exists links_write on exercise_links;
 create policy links_write on exercise_links for all using (is_trainer()) with check (is_trainer());
 
 -- Fase 2 (inertes enquanto nenhum app_users.role='student' estiver active):
+drop policy if exists student_own_profile on students;
 create policy student_own_profile on students for select using (id = my_student_id());
+drop policy if exists student_own_sessions on sessions;
 create policy student_own_sessions on sessions for select using (student_id = my_student_id());
+drop policy if exists student_rate on session_ratings;
 create policy student_rate on session_ratings for insert with check (
   reported_by = 'student' and session_id in (select id from sessions where student_id = my_student_id()));
+drop policy if exists student_checkin on daily_checkins;
 create policy student_checkin on daily_checkins for insert with check (
   reported_by = 'student' and student_id = my_student_id());
 
@@ -248,3 +266,76 @@ alter table students add column if not exists next_change_date date;
 -- >>> 0005_warmup_detail.sql
 -- Séries de aquecimento detalhadas (carga e reps) dentro do mesmo exercício.
 alter table session_exercises add column if not exists warmup_detail jsonb;
+
+-- >>> 0006_sync_fase1.sql
+-- =====================================================================
+-- 0006 — Sincronização entre aparelhos (Fase 1)
+--
+-- 0) Corrige a recursão infinita do RLS em students (bloqueava toda a sincronização).
+-- 1) Garante o perfil Treinador: se o seu usuário foi criado no Auth ANTES
+--    de rodar o SQL de instalação, ele ficou sem linha em app_users e o RLS
+--    bloqueava tudo. O usuário mais antigo vira o Treinador ativo.
+-- 2) synced_at: horário do SERVIDOR em cada gravação. O app baixa por ele
+--    (e não pelo relógio do celular), assim um treino salvo offline e enviado
+--    depois nunca é perdido pelos outros aparelhos.
+-- 3) deleted: exclusões viram "lápide" para os outros aparelhos também apagarem.
+-- 4) A chave de exercício deixa de ser FK obrigatória (o catálogo embutido no
+--    app não existe no banco até ser enviado).
+--
+-- Pode rodar mais de uma vez sem problema.
+-- =====================================================================
+
+-- 0) Funções de permissão sem recursão --------------------------------------
+-- A política "student_own_profile" de students chama my_student_id(), que lia
+-- students de novo -> recursão infinita ("stack depth limit exceeded") em
+-- QUALQUER leitura/gravação de alunos. security definer lê sem reaplicar o RLS.
+create or replace function is_trainer() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists(select 1 from app_users where id = auth.uid() and role = 'trainer' and active)
+$$;
+
+create or replace function my_student_id() returns uuid
+language sql stable security definer set search_path = public as $$
+  select s.id from students s
+  join app_users u on u.id = s.user_id
+  where u.id = auth.uid() and u.role = 'student' and u.active
+  limit 1
+$$;
+
+-- 1) Perfil do Treinador -------------------------------------------------
+insert into app_users (id, role, active, display_name)
+select u.id, 'student', false, coalesce(u.raw_user_meta_data->>'name', u.email)
+from auth.users u
+where not exists (select 1 from app_users a where a.id = u.id);
+
+-- o usuário mais antigo do Auth é sempre o Treinador (regra da Fase 1)
+update app_users set role = 'trainer', active = true
+where id = (select u.id from auth.users u order by u.created_at limit 1);
+
+-- 2 e 3) synced_at (servidor) + deleted (lápide) ---------------------------
+create or replace function touch_synced_at() returns trigger
+language plpgsql as $$
+begin
+  new.synced_at := clock_timestamp();
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['students', 'week_context', 'sessions', 'session_ratings', 'daily_checkins', 'exercise_cache'] loop
+    execute format('alter table %I add column if not exists synced_at timestamptz not null default clock_timestamp()', t);
+    execute format('create index if not exists %I on %I (synced_at)', t || '_synced_at_idx', t);
+    execute format('drop trigger if exists %I on %I', t || '_touch_synced', t);
+    execute format('create trigger %I before insert or update on %I for each row execute function touch_synced_at()', t || '_touch_synced', t);
+    if t <> 'exercise_cache' then
+      execute format('alter table %I add column if not exists deleted boolean not null default false', t);
+    end if;
+  end loop;
+end $$;
+
+-- 4) Exercícios do catálogo embutido ---------------------------------------
+alter table session_exercises drop constraint if exists fk_exercise_key;
+
+-- Resultado: confira aqui qual e-mail ficou como Treinador (é com ele que você entra no app).
+select display_name as email, role, active from app_users order by (role = 'trainer') desc, display_name;

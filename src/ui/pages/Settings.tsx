@@ -1,13 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ClipboardCopy, Link2 as LinkIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db, getKV, setKV } from '../../data/db'
 import { saveFile } from '../../artifact/claude'
 import { InstallApp } from '../components/InstallApp'
 import { Emblem } from '../components/Emblem'
 import SETUP_SQL from '../../../supabase/setup_completo.sql?raw'
 import { DEFAULT_BRAND, getBrand, imageToLogo, isOfficialLogo, saveBrand } from '../../data/brand'
-import { getSupabase, resetSupabaseClient, syncNow } from '../../data/sync'
+import { currentTrainer, envConfigured, getSupabase, resetSupabaseClient, requestSync, signOut, syncNow } from '../../data/sync'
 import { saveTrainerProfile } from '../../engine/classifier'
 import { MUSCLE_GROUPS, type ExerciseProfile } from '../../domain/types'
 import { setTrainerLink } from '../../links/linkResolver'
@@ -22,16 +22,21 @@ export default function Settings() {
   const cache = useLiveQuery(() => db.exerciseCache.toArray(), []) ?? []
   const links = useLiveQuery(() => db.links.toArray(), []) ?? []
 
+  const [who, setWho] = useState<string | null>(null)
+  useEffect(() => { currentTrainer().then(setWho) }, [])
+
   async function login() {
     resetSupabaseClient()
     const sb = await getSupabase()
-    if (!sb) return setMsg('Informe URL e anon key.')
-    const { error } = await sb.auth.signInWithPassword({ email, password: pwd })
-    setMsg(error ? error.message : 'Treinador autenticado. Sincronizando…')
-    if (!error) {
-      const r = await syncNow()
-      setMsg(r.error ?? `Sincronizado: ${r.pushed} enviados, ${r.pulled} recebidos.`)
-    }
+    if (!sb) return setMsg('Informe a URL e a chave do Supabase.')
+    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd })
+    if (error) return setMsg(/invalid/i.test(error.message) ? 'E-mail ou senha incorretos. Confira o usuário em Authentication → Users no Supabase.' : error.message)
+    setWho(email.trim())
+    setPwd('')
+    setMsg('Treinador conectado neste aparelho. Sincronizando…')
+    const r = await syncNow()
+    requestSync()
+    setMsg(r.error ?? `Sincronizado: ${r.pushed} enviados, ${r.pulled} recebidos. Este aparelho não vai pedir login de novo.`)
   }
 
   async function backup() {
@@ -49,29 +54,40 @@ export default function Settings() {
       <div className="grid cols-2" style={{ marginTop: 14 }}>
         <div className="card grid">
           <h2>Supabase (sincronização)</h2>
-          <div className="muted">Opcional: só é preciso para usar o mesmo banco no tablet, no celular e no computador. Sem isso o app funciona normal neste aparelho.</div>
-          <ol className="muted" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Crie um projeto grátis em supabase.com (região São Paulo).</li>
-            <li>Toque em <b>Copiar SQL de instalação</b> e cole no Supabase em <b>SQL Editor → New query → Run</b>.</li>
-            <li>Em Authentication → Users, crie seu e-mail e senha (o 1º usuário vira Treinador).</li>
-            <li>Em Project Settings → API, copie a URL e a anon key para os campos abaixo e entre.</li>
-          </ol>
+          {who ? (
+            <div className="alert ok">Conectado como <b>{who}</b>. Tudo que você salva aqui vai para a nuvem e aparece no celular, tablet e PC conectados com o mesmo e-mail.</div>
+          ) : (
+            <div className="muted">Para sincronizar, entre com o e-mail e a senha do treinador <b>uma vez em cada aparelho</b> (celular, tablet, PC). Depois disso o app abre direto no painel, sem pedir login.</div>
+          )}
+          {!envConfigured && (
+            <>
+              <ol className="muted" style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Crie um projeto grátis em supabase.com (região São Paulo).</li>
+                <li>Toque em <b>Copiar SQL de instalação</b> e cole no Supabase em <b>SQL Editor → New query → Run</b>.</li>
+                <li>Em Authentication → Users, crie seu e-mail e senha (o 1º usuário vira Treinador).</li>
+                <li>Em Project Settings → API, copie a URL e a chave para os campos abaixo e entre.</li>
+              </ol>
+              <label className="f">Project URL<input defaultValue={url} onBlur={(e) => { setKV('supabase_url', e.target.value.trim()); resetSupabaseClient() }} placeholder="https://xxxx.supabase.co" /></label>
+              <label className="f">Chave (anon ou publishable)<input defaultValue={key} onBlur={(e) => { setKV('supabase_key', e.target.value.trim()); resetSupabaseClient() }} /></label>
+            </>
+          )}
+          {!who && (
+            <div className="grid cols-2">
+              <label className="f">E-mail do treinador<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label className="f">Senha<input type="password" autoComplete="current-password" value={pwd} onChange={(e) => setPwd(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()} /></label>
+            </div>
+          )}
+          <div className="row">
+            {!who && <button className="btn primary" disabled={!email || !pwd} onClick={login}>Entrar como Treinador</button>}
+            {who && <button className="btn primary" onClick={async () => { setMsg('Sincronizando…'); const r = await syncNow(); requestSync(); setMsg(r.error ?? `${r.pushed} enviados · ${r.pulled} recebidos`) }}>Sincronizar agora</button>}
+            <button className="btn" onClick={backup}>Backup JSON</button>
+            {who && <button className="btn" onClick={async () => { await signOut(); setWho(null); requestSync(); setMsg('Desconectado deste aparelho. Os dados continuam salvos aqui.') }}>Sair deste aparelho</button>}
+          </div>
           <div className="row">
             <button className="btn" onClick={async () => {
               try { await navigator.clipboard.writeText(SETUP_SQL); setMsg('SQL copiado. Cole no SQL Editor do Supabase e toque em Run.') }
               catch { await saveFile('em-treino-setup-sql.txt', new Blob([SETUP_SQL], { type: 'text/plain' })) ; setMsg('Cópia bloqueada aqui — o arquivo SQL foi oferecido para salvar.') }
             }}><ClipboardCopy size={16} strokeWidth={1.8} /> Copiar SQL de instalação</button>
-          </div>
-          <label className="f">Project URL<input defaultValue={url} onBlur={(e) => { setKV('supabase_url', e.target.value.trim()); resetSupabaseClient() }} placeholder="https://xxxx.supabase.co" /></label>
-          <label className="f">Anon key<input defaultValue={key} onBlur={(e) => { setKV('supabase_key', e.target.value.trim()); resetSupabaseClient() }} /></label>
-          <div className="grid cols-2">
-            <label className="f">E-mail do treinador<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-            <label className="f">Senha<input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} /></label>
-          </div>
-          <div className="row">
-            <button className="btn primary" onClick={login}>Entrar como Treinador</button>
-            <button className="btn" onClick={async () => { const r = await syncNow(); setMsg(r.error ?? `${r.pushed} enviados · ${r.pulled}↓`) }}>Sincronizar agora</button>
-            <button className="btn" onClick={backup}>Backup JSON</button>
           </div>
           {msg && <div className="alert ok">{msg}</div>}
           <div className="muted">Perfil Aluno: modelado no banco e <b>desativado</b> (Fase 2). Sem Supabase o app funciona 100% offline neste dispositivo.</div>

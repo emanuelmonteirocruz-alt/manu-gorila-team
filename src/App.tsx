@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Dumbbell, FileText, History as HistoryIcon, LayoutDashboard, MessageSquare, Settings as SettingsIcon, Smartphone, Users, Wifi, WifiOff } from 'lucide-react'
+import { Dumbbell, FileText, History as HistoryIcon, LayoutDashboard, MessageSquare, Settings as SettingsIcon, Smartphone, Users, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { installAutoSync, type SyncResult } from './data/sync'
@@ -27,6 +27,15 @@ const NAV = [
   { to: '/relatorios', label: 'Relatórios PDF', icon: FileText },
   { to: '/config', label: 'Config.', icon: SettingsIcon },
 ]
+
+/** Estado REAL da nuvem (o "Online" antigo só dizia que havia internet). */
+function CloudStatus({ sync }: { sync: SyncResult | null }) {
+  if (!sync) return <span>Nuvem: verificando…</span>
+  if (sync.state === 'ok') return <span className="row" style={{ gap: 6 }}><Cloud size={13} /> Nuvem sincronizada {new Date(sync.at!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+  if (sync.state === 'local') return <span className="row" style={{ gap: 6 }}><CloudOff size={13} /> Só neste aparelho</span>
+  if (sync.state === 'offline') return <span className="row" style={{ gap: 6 }}><CloudOff size={13} /> Nuvem: aguardando internet</span>
+  return <NavLink to="/config" className="cloud-alert"><CloudOff size={13} /> {sync.state === 'login' ? 'Nuvem desconectada: entrar' : sync.error}</NavLink>
+}
 
 export default function App() {
   const [sync, setSync] = useState<SyncResult | null>(null)
@@ -69,12 +78,15 @@ export default function App() {
           </NavLink>
         ))}
         <div className="sync">
-          <span className="row" style={{ gap: 6 }}>{online ? <Wifi size={13} /> : <WifiOff size={13} />}{online ? 'Online' : 'Offline (salvando local)'}</span>
+          <span className="row" style={{ gap: 6 }}>{online ? <Wifi size={13} /> : <WifiOff size={13} />}{online ? 'Internet ok' : 'Offline (salvando local)'}</span>
           <br />
-          {sync?.error ?? (sync ? `Sincronizado · ${sync.pushed} enviados · ${sync.pulled} recebidos` : '')}
+          <CloudStatus sync={sync} />
         </div>
       </nav>
       <main>
+        {(sync?.state === 'login' || sync?.state === 'error') && (
+          <NavLink to="/config" className="cloud-banner"><CloudOff size={16} strokeWidth={1.8} /> {sync.state === 'login' ? 'Nuvem desconectada neste aparelho: toque para entrar como treinador (só uma vez).' : `Nuvem com erro: ${sync.error}`}</NavLink>
+        )}
         <Suspense fallback={<div className="muted">Carregando…</div>}>
         <Routes>
           <Route path="/" element={<Dashboard />} />

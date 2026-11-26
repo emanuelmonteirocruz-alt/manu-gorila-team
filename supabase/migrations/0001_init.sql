@@ -22,13 +22,6 @@ create or replace function is_trainer() returns boolean language sql stable as $
   select exists(select 1 from app_users where id = auth.uid() and role = 'trainer' and active)
 $$;
 
-create or replace function my_student_id() returns uuid language sql stable as $$
-  select s.id from students s
-  join app_users u on u.id = s.user_id
-  where u.id = auth.uid() and u.role = 'student' and u.active
-  limit 1
-$$;
-
 -- ---------- Alunos (cadastro nominal + financeiro) ----------
 create type modality   as enum ('online', 'presencial');
 create type bio_sex    as enum ('F', 'M');
@@ -54,6 +47,15 @@ create table students (
   updated_at      timestamptz not null default now(),
   created_at      timestamptz not null default now()
 );
+
+-- (depois da tabela students: o Postgres valida o corpo da função na criação)
+create or replace function my_student_id() returns uuid language sql stable as $$
+  select s.id from students s
+  join app_users u on u.id = s.user_id
+  where u.id = auth.uid() and u.role = 'student' and u.active
+  limit 1
+$$;
+
 
 -- histórico de modalidade (aluno que migra mantém base unificada)
 create table modality_history (

@@ -46,15 +46,25 @@ export const db = new TreinoDB()
 export const uid = () => crypto.randomUUID()
 export const nowISO = () => new Date().toISOString()
 
+// depois de gravar, pede uma sincronização (agrupa várias gravações seguidas numa só)
+let syncTimer: ReturnType<typeof setTimeout> | undefined
+function scheduleSync() {
+  if (typeof window === 'undefined') return
+  clearTimeout(syncTimer)
+  syncTimer = setTimeout(() => window.dispatchEvent(new Event('sync-now')), 1500)
+}
+
 /** Upsert marcando para sincronização. */
 export async function save<T extends { id: string }>(table: Table<T, string>, row: T): Promise<T> {
   const r = { ...row, updated_at: nowISO(), _dirty: 1 as const }
   await table.put(r)
+  scheduleSync()
   return r
 }
 
 export async function softDelete<T extends { id: string }>(table: Table<T, string>, id: string) {
   await table.update(id, { _deleted: 1, _dirty: 1, updated_at: nowISO() } as never)
+  scheduleSync()
 }
 
 export async function getKV<T>(key: string, fallback: T): Promise<T> {
