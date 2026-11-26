@@ -66,6 +66,7 @@ export default function Settings() {
     <>
       <div className="page-head"><div><h1>Configurações</h1><div className="muted">Nuvem (Supabase), perfil do treinador e caches</div></div></div>
       <div className="grid cols-2"><BrandSection /><InstallApp /></div>
+      <WritingGuide />
       <div className="grid cols-2" style={{ marginTop: 14 }}>
         <div className="card grid">
           <h2>Supabase (sincronização)</h2>
@@ -244,6 +245,45 @@ function FixUrl({ current, onSaved }: { current: string; onSaved: (host: string)
         }}>Salvar endereço</button>
         <button className="btn" onClick={() => setOpen(false)}>Cancelar</button>
       </div>
+    </div>
+  )
+}
+
+/** Padrão de escrita dos treinos (consultoria): como escrever para o app entender o esforço prescrito. */
+function WritingGuide() {
+  const [open, setOpen] = useState(false)
+  const rows: [string, string, string][] = [
+    ['Séries e repetições', '4x10 · 3x8-12 · 3x8 a 10 · 15/12/10/8', 'séries e faixa de reps de cada série'],
+    ['Até a falha', '3xMáx · 3x máximo · 3x falha', 'séries "Máx" (contam como esforço alto)'],
+    ['Bi-set / tri-set', 'Supino + Crucifixo (ou escreva bi-set)', 'exercícios ligados por + = técnica avançada'],
+    ['Drop-set', 'drop · drop set · drop na última', 'técnica avançada'],
+    ['Rest-pause', 'rest pause · rest-pause', 'técnica avançada'],
+    ['Cluster', 'cluster · cluster na última', 'técnica avançada'],
+    ['Pirâmide', 'pirâmide 12/10/8/6 (em linha própria)', 'técnica + reps de cada série'],
+    ['FST-7 / excêntrica / isometria', 'FST-7 · excêntrica · negativa · isometria', 'técnica avançada'],
+    ['Cadência', 'cadência 3-1-1', 'observação (entra na orientação ao aluno)'],
+    ['Aquecimento', '2x15 aquecimento + 3x10 · Aquecimento sem carga', 'fica fora das séries válidas'],
+    ['Carga', 'carga alta · 8 reps para cargas pesadas', 'intenção registrada'],
+  ]
+  return (
+    <div className="card grid" style={{ marginTop: 14 }}>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2 style={{ margin: 0 }}>Padrão de escrita dos treinos</h2>
+        <button className="btn sm" onClick={() => setOpen((v) => !v)}>{open ? 'Esconder' : 'Ver padrão'}</button>
+      </div>
+      <div className="muted">Escrevendo assim, o app reconhece o esforço que você prescreveu (Nível do desafio) e monta a orientação de esforço para o aluno. Um exercício por bloco, com uma linha em branco entre exercícios.</div>
+      {open && (
+        <div className="wguide">
+          {rows.map(([what, how, means]) => (
+            <div key={what} className="m-item">
+              <div className="m-top"><span>{what}</span></div>
+              <div><code>{how}</code></div>
+              <div className="m-sub">{means}</div>
+            </div>
+          ))}
+          <div className="muted">Faixas de reps no Nível do desafio: até 6 = 3 pontos · 7–10 = 2 · 11–15 = 1 · acima de 15 = 0,5 por série; cada série com técnica avançada soma +1.</div>
+        </div>
+      )}
     </div>
   )
 }

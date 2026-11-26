@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { BookOpen, Download, History as HistoryIcon, Save } from 'lucide-react'
+import { BookOpen, ClipboardCopy, Download, History as HistoryIcon, Save, Send } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { db, getKV, setKV } from '../../data/db'
 import { importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
 import { nextChangeAfter } from '../../domain/plan'
+import { effortMessage, itemPoints, techniquesOf, TECHNIQUES, ZONE_LABEL, zoneOf } from '../../engine/effortGuide'
 import { getBrand, type Brand } from '../../data/brand'
 import { drawPreview } from '../../pdf/charts'
 import { sharePdf, templateA, templateE } from '../../pdf/templates'
@@ -40,6 +41,8 @@ export default function ImportWhatsApp() {
   // cada bloco colado (uma mensagem = A, B, C, D) vai para UMA semana. Padrão: mandado no domingo = semana seguinte.
   const [blockWeek, setBlockWeek] = useState<Record<string, string>>({})
   const [skip, setSkip] = useState<Record<string, boolean>>({}) // blocos desmarcados (não salvar)
+  const [guideSaved, setGuideSaved] = useState<string | null>(null) // orientação do último treino salvo
+  const [copied, setCopied] = useState(false)
   const [imported, setImported] = useState<{ n: number; wk: string } | null>(null)
   const [graph, setGraph] = useState<{ title: string; name: string; make: () => jsPDF } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -72,6 +75,13 @@ export default function ImportWhatsApp() {
     }))
   }, [blocks])
   const weeks = useMemo(() => regroupByDate(flat), [flat])
+  // orientação de esforço só do que aparece nos treinos marcados (última semana colada)
+  const guide = useMemo(() => {
+    if (!flat.length) return null
+    const lastWk = flat.map((t) => t.week).sort().pop()
+    const items = flat.filter((t) => t.week === lastWk).flatMap((t) => t.exercises.map((e) => ({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })))
+    return effortMessage(items, student?.full_name.split(' ')[0])
+  }, [flat, student])
   const total = flat.length
   const weekKey = weeks.map((w) => w.week).join(',')
   const existing = useLiveQuery(async () => {
@@ -104,6 +114,7 @@ export default function ImportWhatsApp() {
     }
     setImported({ n, wk })
     setMsg(`${n} treinos salvos${weeks.length === 1 ? ` na semana de ${fmtBR(wk)}` : ` em ${weeks.length} semanas (${weeks.map((w) => fmtBR(w.week).slice(0, 5)).join(', ')})`}.${fresh.plan_period ? ` Próxima troca: ${fmtBR(nextChangeAfter(fresh.plan_period, latest))}.` : ''}`)
+    setGuideSaved(guide)
     setRaw('')
     setReadText('')
     setBlockWeek({})
@@ -181,13 +192,21 @@ export default function ImportWhatsApp() {
                   const warm = t.exercises.reduce((a, e) => a + e.warmupSets * e.names.length, 0)
                   return (
                     <div key={ti} className="wa-card">
-                      <b>{t.label}</b>
+                      <div className="row" style={{ justifyContent: 'space-between' }}><b>{t.label}</b><span className="tag">desafio {Math.round(t.exercises.reduce((a, e) => a + itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }), 0))} pts</span></div>
                       <div className="set-sum">{valid} séries válidas{warm ? ` • ${warm} aquec. fora da conta` : ''}</div>
                       <table className="t"><tbody>
                         {t.exercises.map((e, i) => (
                           <tr key={i}>
-                            <td>{e.names.join(' + ')}{e.names.length > 1 && <span className="tag" style={{ marginLeft: 6 }}>bi-set</span>}{e.notes ? <div className="muted">{e.notes}</div> : null}</td>
-                            <td style={{ whiteSpace: 'nowrap' }}>{e.validSets * e.names.length} válidas{e.warmupSets ? <span className="muted"> · {e.warmupSets * e.names.length} aquec.</span> : ''}{e.dropSet ? <span className="muted"> · drop</span> : ''}</td>
+                            <td>
+                              {e.names.join(' + ')}
+                              {e.notes ? <div className="muted">{e.notes}</div> : null}
+                              {/* conferência: o que o app entendeu */}
+                              <div className="wa-read">
+                                {repsText(e.reps) && <span className="tag">{repsText(e.reps)}</span>}
+                                {techniquesOf({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }).map((k) => <span key={k} className={`tag ${k === 'cadencia' ? '' : 'warn'}`}>{TECHNIQUES.find((t) => t.key === k)?.label}</span>)}
+                              </div>
+                            </td>
+                            <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{e.validSets * e.names.length} válidas{e.warmupSets ? <span className="muted"> · {e.warmupSets * e.names.length} aquec.</span> : ''}<div className="muted">{itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })} pts</div></td>
                           </tr>
                         ))}
                       </tbody></table>
@@ -199,6 +218,7 @@ export default function ImportWhatsApp() {
             </div>
           ))}
         </div>
+        {(guide || guideSaved) && <EffortGuideBox text={(total ? guide : guideSaved) ?? ''} phone={student?.phone} copied={copied} onCopied={() => { setCopied(true); setTimeout(() => setCopied(false), 2500) }} />}
         {total > 0 && existing > 0 && <div className="alert warn">Já existem {existing} treinos colados {weeks.length > 1 ? 'nessas semanas' : 'nessa semana'} para este aluno. Ao salvar, eles serão substituídos por estes.</div>}
         {total > 0 && (
           <div className="row">
@@ -222,5 +242,33 @@ export default function ImportWhatsApp() {
         )}
       </section>
     </>
+  )
+}
+
+/** "6–8 reps · força alta" a partir das séries lidas. */
+function repsText(reps: { min: number; max: number; failure?: boolean }[]): string {
+  if (!reps.length) return ''
+  const fmt = (r: { min: number; max: number; failure?: boolean }) => (r.failure && !r.min ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`)
+  const uniq = [...new Set(reps.map(fmt))]
+  const z0 = zoneOf(reps[0])
+  const z = zoneOf(reps[reps.length - 1])
+  const zl = z0 && z && z0 !== z ? `${ZONE_LABEL[z0]} → ${ZONE_LABEL[z]}` : z ? ZONE_LABEL[z] : ''
+  return `${uniq.length > 1 ? uniq.join('/') : uniq[0]}${uniq[0] === 'Máx' ? '' : ' reps'}${zl ? ` · ${zl}` : ''}`
+}
+
+/** Mensagem pronta para o aluno: que esforço cada faixa e cada técnica do treino pedem. */
+function EffortGuideBox({ text, phone, copied, onCopied }: { text: string; phone?: string; copied: boolean; onCopied: () => void }) {
+  const digits = (phone ?? '').replace(/\D/g, '')
+  const wa = `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(text)}`
+  return (
+    <div className="card grid">
+      <b>Orientação de esforço para o aluno</b>
+      <div className="muted">Só o que aparece neste treino. Mande junto com o treino para ele saber que esforço sentir em cada série.</div>
+      <pre className="guide-text">{text}</pre>
+      <div className="row stack-sm">
+        <a className="btn primary" href={wa} target="_blank" rel="noreferrer"><Send size={16} strokeWidth={1.8} /> Enviar no WhatsApp</a>
+        <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(text); onCopied() } catch { /* sem permissão */ } }}><ClipboardCopy size={16} strokeWidth={1.8} /> {copied ? 'Copiado!' : 'Copiar texto'}</button>
+      </div>
+    </div>
   )
 }

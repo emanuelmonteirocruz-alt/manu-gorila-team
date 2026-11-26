@@ -42,7 +42,7 @@ function parseRange(txt: string): RepRange | null {
 }
 
 // N x R  (ex.: 4x15, 3 x 8 a 10, 3x8-10, 4x falha)
-const SET_SCHEME_RE = /(\d{1,2})\s*[xX×]\s*(\d{1,2}(?:\s*(?:a|-|–|até)\s*\d{1,2})?(?:\s*\/\s*\d{1,2})?|falha)/g
+const SET_SCHEME_RE = /(\d{1,2})\s*[xX×]\s*(\d{1,2}(?:\s*(?:a|-|–|até)\s*\d{1,2})?(?:\s*\/\s*\d{1,2})?|falha|m[aá]x(?:imo)?)/gi
 // Pirâmide: 15/15/12/10
 const PYRAMID_RE = /\b(\d{1,2}(?:\s*\/\s*\d{1,2}){1,7})\b/
 
@@ -62,7 +62,7 @@ export function parsePrescriptionLine(raw: string): ParsedExerciseLine | null {
     for (let i = 0; i < schemes.length; i++) {
       const s = schemes[i]
       const n = Number(s[1])
-      const range = s[2].toLowerCase() === 'falha' ? { min: 12, max: 15 } : parseRange(s[2])!
+      const range = /^(falha|m[aá]x)/i.test(s[2]) ? { min: 0, max: 0, failure: true } : parseRange(s[2])!
       const segEnd = i + 1 < schemes.length ? schemes[i + 1].index! : line.length
       const tail = line.slice(s.index! + s[0].length, segEnd)
       // aquecimento é a palavra que acompanha o segmento (antes de "+" / ","), não a linha toda
@@ -129,8 +129,10 @@ export function parsePrescriptionLine(raw: string): ParsedExerciseLine | null {
 }
 
 // linha só de esquema: "15/15/12/10", "4x8", "3 x 8 a 10", "2x15 aquecimento", "4x10/10"
-const SCHEME_ONLY = /^\s*(\d{1,2}\s*[xX×]\s*(\d{1,2}|falha)|\d{1,2}(\s*\/\s*\d{1,2}){1,7}\b)/
+const SCHEME_ONLY = /^\s*(\d{1,2}\s*[xX×]\s*(\d{1,2}|falha|m[aá]x)|\d{1,2}(\s*\/\s*\d{1,2}){1,7}\b)/i
 const isSchemeOnly = (l: string) => SCHEME_ONLY.test(l)
+const METHOD_PREFIX = /^\s*(pir[aâ]mide(?:\s+(?:crescente|decrescente|invertida))?|drop[ -]?set|drop|cluster|rest[ -]?pause|fst[ -]?7|bi[ -]?set|tri[ -]?set|super ?s[eé]rie|gvt|exc[eê]ntrica|negativa|isometria)\s*[:\-–]?\s+(?=\d)/i
+const DROP_RE = /\bdrop/i
 
 /**
  * Faz o parse de um treino inteiro. Aceita os dois jeitos de escrever:
@@ -152,6 +154,7 @@ export function parsePrescriptionBlock(text: string): { exercises: ParsedExercis
     if (!e) return
     if (e.full) {
       if (e.notes.length) e.full.notes = [e.full.notes, ...e.notes].filter(Boolean).join(' · ')
+      if (e.notes.some((n) => DROP_RE.test(n))) e.full.dropSet = true
       exercises.push(e.full)
       return
     }
@@ -175,7 +178,7 @@ export function parsePrescriptionBlock(text: string): { exercises: ParsedExercis
       warmupSets: parts.reduce((a, x) => a + x.warmupSets, 0),
       reps,
       heavySets: reps.filter(isHeavy).length,
-      dropSet: parts.some((x) => x.dropSet),
+      dropSet: parts.some((x) => x.dropSet) || [...e.qualifiers, ...e.notes].some((n) => DROP_RE.test(n)),
       loadKg: parts.map((x) => x.loadKg).find((k) => k != null) ?? null,
       notes: [...e.qualifiers.filter((q) => !WARMUP_RE.test(q)), ...parts.map((x) => x.notes), ...e.notes].filter(Boolean).join(' · '),
     })
@@ -184,8 +187,15 @@ export function parsePrescriptionBlock(text: string): { exercises: ParsedExercis
   // próxima linha não vazia antes de uma linha em branco
   const nextLine = (i: number) => (lines[i + 1] ? lines[i + 1] : '')
 
-  lines.forEach((l, i) => {
-    if (!l) return flush() // linha em branco separa exercícios
+  lines.forEach((l0, i) => {
+    if (!l0) return flush() // linha em branco separa exercícios
+    // "pirâmide 12/10/8/6" → séries + observação "pirâmide" (o método não vira nome de exercício)
+    let l = l0
+    const mp = l0.match(METHOD_PREFIX)
+    if (mp && isSchemeOnly(l0.slice(mp[0].length)) && cur) {
+      l = l0.slice(mp[0].length)
+      ;(cur as Entry).notes.push(mp[1])
+    }
     if (isSchemeOnly(l)) {
       if (cur && !cur.full) cur.schemes.push(l)
       else ignored.push(l)
