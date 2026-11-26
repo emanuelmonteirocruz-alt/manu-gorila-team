@@ -12,6 +12,7 @@ let clock = 0
 const serverNow = () => new Date(Date.UTC(2030, 0, 1) + ++clock * 1000).toISOString()
 const KEYS: Record<string, string> = { exercise_cache: 'key', exercise_links: 'exercise_key,provider' }
 let signedIn = true
+let netDown = false
 const USER = { id: '11111111-1111-1111-1111-111111111111', email: 'manu@x.com' }
 
 function table(name: string) {
@@ -41,6 +42,7 @@ function table(name: string) {
     range(a: number, b: number) { range = [a, b]; return q },
     delete() { op = 'delete'; return q },
     upsert(input: Row[] | Row, opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+      if (netDown) return Promise.reject(new TypeError('Failed to fetch'))
       const k = opts?.onConflict ?? KEYS[name] ?? 'id'
       for (const r of Array.isArray(input) ? input : [input]) {
         const i = rows.findIndex((x) => keyOf(x, k) === keyOf(r, k))
@@ -109,6 +111,21 @@ describe('sincronização entre aparelhos', () => {
     devices.celular = devices.pc = null
     current = ''
     signedIn = true
+    netDown = false
+  })
+
+  it('queda de rede momentânea não vira erro vermelho e a próxima tentativa envia tudo', async () => {
+    await use('celular')
+    await save(db.students, student())
+    netDown = true
+    const r = await syncNow()
+    expect(r.state).toBe('offline')
+    expect(r.error).toMatch(/tentando de novo/)
+    expect(await db.students.where('_dirty').equals(1).count()).toBe(1) // continua guardado no aparelho
+    netDown = false
+    const r2 = await syncNow()
+    expect(r2.state).toBe('ok')
+    expect(server.students).toHaveLength(1)
   })
 
   it('sem login no aparelho: não envia nada e avisa para entrar', async () => {

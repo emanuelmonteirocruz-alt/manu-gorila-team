@@ -134,10 +134,28 @@ export function syncNow(): Promise<SyncResult> {
   running ??= withTimeout(doSync(), 40_000, 'sync')
     .catch((e): SyncResult => {
       console.error('[sync]', e)
-      return { pushed: 0, pulled: 0, state: 'error', error: explain(e) }
+      return transientOr({ pushed: 0, pulled: 0, state: 'error', error: explain(e) }, e)
+    })
+    .then((r) => {
+      if (r.state === 'ok') failures = 0
+      return r
     })
     .finally(() => { running = null })
   return running
+}
+
+/** Falha de rede (sinal fraco, app em segundo plano, troca de Wi-Fi/4G): passageira, tenta de novo sozinho. */
+const isNetworkError = (e: unknown) => /failed to fetch|networkerror|load failed|network request failed|err_network|err_internet|aborted|timeout:sync/i.test(String((e as { message?: string })?.message ?? e))
+let failures = 0
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+function transientOr(r: SyncResult, e: unknown): SyncResult {
+  if (!isNetworkError(e)) return r
+  failures++
+  clearTimeout(retryTimer)
+  // nova tentativa em 10 s, 20 s, 40 s… (máx. 2 min); só vira aviso vermelho se falhar várias vezes seguidas
+  retryTimer = setTimeout(() => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('sync-now')) }, Math.min(120_000, 10_000 * 2 ** (failures - 1)))
+  if (failures < 4) return { ...r, state: 'offline', error: 'Sem conexão com a nuvem agora — tentando de novo; tudo fica salvo no aparelho.' }
+  return r
 }
 
 async function doSync(): Promise<SyncResult> {
@@ -167,7 +185,7 @@ async function doSync(): Promise<SyncResult> {
     }
     pulled += await pullAll(sb)
   } catch (e) {
-    return { pushed, pulled, state: 'error', error: explain(e) }
+    return transientOr({ pushed, pulled, state: 'error', error: explain(e) }, e)
   }
   const at = nowISO()
   await setKV('last_sync_ok', at)
