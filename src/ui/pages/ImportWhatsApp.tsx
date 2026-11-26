@@ -9,7 +9,7 @@ import { getBrand, type Brand } from '../../data/brand'
 import { drawPreview } from '../../pdf/charts'
 import { sharePdf, templateA, templateE } from '../../pdf/templates'
 import type { jsPDF } from 'jspdf'
-import { buildWeek, buildWeeksCompare, listWeeks, suggestWeekFor } from '../../data/reportData'
+import { buildWeek, buildWeeksCompare, challengeBase, listWeeks, suggestWeekFor } from '../../data/reportData'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { hasWhatsAppHeaders, parsePlainTrainings, parseWhatsAppTrainings, regroupByDate } from '../../parser/whatsapp'
 import { ConfirmButton, StudentSelect } from '../components/common'
@@ -93,7 +93,7 @@ export default function ImportWhatsApp() {
     }
     // na hora: semana nova × semana anterior salva (ou só a semana, se for a primeira)
     const brand: Brand = await getBrand()
-    const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality }
+    const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality, challenge: fresh.modality === 'online' ? await challengeBase(fresh) : undefined }
     const prevWk = (await listWeeks(fresh)).find((w) => w.wk < wk)?.wk
     if (prevWk) {
       const c = await buildWeeksCompare(fresh, prevWk, wk)

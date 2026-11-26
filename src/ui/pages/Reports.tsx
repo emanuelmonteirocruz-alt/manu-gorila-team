@@ -6,7 +6,7 @@ import { getBrand } from '../../data/brand'
 import { previousBests, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { sharePdf, templateA, templateC, templateD, templateE, templateL } from '../../pdf/templates'
-import { buildBeforeAfter, buildLoadProgress, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
+import { buildBeforeAfter, buildLoadProgress, challengeBase, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
 import { drawPreview } from '../../pdf/charts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { StudentSelect } from '../components/common'
@@ -50,7 +50,7 @@ export default function Reports() {
   async function buildReport() {
     const s = await db.students.get(studentId)
     if (!s) return
-    const o = { studentName: s.full_name, showName, showEmphasis, brand: await getBrand(), modality: s.modality }
+    const o = { studentName: s.full_name, showName, showEmphasis, brand: await getBrand(), modality: s.modality, challenge: s.modality === 'online' ? await challengeBase(s) : undefined }
     let make: () => jsPDF
     let name: string
     const first = s.full_name.split(' ')[0].toLowerCase()

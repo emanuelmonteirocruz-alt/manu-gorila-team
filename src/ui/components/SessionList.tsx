@@ -7,6 +7,7 @@ import { getBrand } from '../../data/brand'
 import { deleteSession, previousBests, profileLookup, studentSessions } from '../../data/repo'
 import { ConfirmButton } from './common'
 import { saveFile } from '../../artifact/claude'
+import { challengeBase } from '../../data/reportData'
 import { drawPreview } from '../../pdf/charts'
 import { sharePdf, templateD } from '../../pdf/templates'
 import type { Session, Student } from '../../domain/types'
@@ -75,7 +76,7 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
     let alive = true
     ;(async () => {
       const lookup = await profileLookup()
-      const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: student.modality }
+      const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: student.modality, challenge: student.modality === 'online' ? await challengeBase(student) : undefined }
       const bests = await previousBests(student.id, session)
       const make = () => templateD(session, lookup, pse, o, bests)
       if (alive) setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })

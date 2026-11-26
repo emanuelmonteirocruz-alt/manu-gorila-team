@@ -3,7 +3,7 @@
  * equivalência em gordura, microciclos e PSE (Módulos 2 e 4).
  */
 import type {
-  DailyCheckin, DietPhase, ExerciseProfile, Microcycle, Session, SessionExercise, SessionRating, WeekContext,
+  DailyCheckin, DietPhase, ExerciseProfile, Microcycle, RepRange, Session, SessionExercise, SessionRating, WeekContext,
 } from '../domain/types'
 
 export const KCAL_PER_KG_FAT = 7700
@@ -100,6 +100,10 @@ export interface Aggregate {
   intensityPrescribed: number // 0–100, só pelo que foi prescrito (consultoria)
   intensityReal: number // 0–100, prescrito + PSE do dia (presencial; sem PSE = prescrito)
   byGroup: Record<string, { valid: number; heavy: number }>
+  /** Nível do desafio (consultoria): pontos do que foi prescrito — faixa de reps + técnicas avançadas */
+  challengePoints: number
+  lowRepSets: number // séries válidas em até 10 reps
+  advancedSets: number // séries com técnica avançada (drop, rest-pause, bi-set…)
 }
 
 export function emptyAggregate(): Aggregate {
@@ -107,6 +111,7 @@ export function emptyAggregate(): Aggregate {
     validSets: 0, heavySets: 0, heavyPct: 0, multiSets: 0, monoSets: 0, freeSets: 0, machineSets: 0,
     tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, avgPse: null, byGroup: {},
     failureSets: 0, markedSets: 0, techniqueSets: 0, intensityPrescribed: 0, intensityReal: 0,
+    challengePoints: 0, lowRepSets: 0, advancedSets: 0,
   }
 }
 
@@ -132,6 +137,10 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
       else a.markedSets += fails
       if (ex.superset_group != null || ex.drop_set) a.techniqueSets += ex.valid_sets
       a.kcal += exerciseKcal(ex, p)
+      const ch = exerciseChallenge(ex)
+      a.challengePoints += ch.points
+      a.lowRepSets += ch.lowRep
+      a.advancedSets += ch.advanced
       const g = p?.muscle_group ?? 'Indefinido'
       a.byGroup[g] ??= { valid: 0, heavy: 0 }
       a.byGroup[g].valid += ex.valid_sets
@@ -152,6 +161,40 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
 }
 
 const MARKER_RE = /carga alta|pesad|m[aá]x|falha|carga m[aá]xima/i
+
+// ---------- Nível do desafio (consultoria) ----------
+/** Técnicas avançadas — todas com o mesmo peso (+1 por série). */
+export const ADVANCED_RE = /drop|rest[ -]?pause|bi[ -]?set|tri[ -]?set|super ?s[eé]rie|s[eé]rie gigante|giant|cluster|fst|exc[eê]ntric|negativ|pir[aâ]mide|isometri|m[eé]todo 21|gvt|parciais|pr[eé][ -]?exaust|p[oó]s[ -]?exaust/i
+
+/** Peso da série pela faixa de repetições: ≤6 = 3 · 7–10 = 2 · 11–15 = 1 · >15 = 0,5 (faixa 8–12 usa o meio). */
+export function repWeight(r: RepRange | undefined): number {
+  if (!r) return 1
+  if (r.failure && !r.min) return 2 // "Máx" sem reps anotadas
+  const mid = (r.min + (r.max || r.min)) / 2
+  if (mid <= 6) return 3
+  if (mid <= 10) return 2
+  if (mid <= 15) return 1
+  return 0.5
+}
+
+/** Pontos de desafio de um exercício prescrito (volume entra porque cada série soma). */
+export function exerciseChallenge(ex: SessionExercise): { points: number; lowRep: number; advanced: number } {
+  let points = 0, lowRep = 0
+  for (let i = 0; i < ex.valid_sets; i++) {
+    const r = ex.reps[i] ?? ex.reps[ex.reps.length - 1]
+    const w = repWeight(r)
+    points += w
+    if (w >= 2) lowRep++
+  }
+  const advanced = ex.superset_group != null || ex.drop_set || ADVANCED_RE.test(ex.notes ?? '') || ADVANCED_RE.test(ex.display_name) ? ex.valid_sets : 0
+  return { points: points + advanced, lowRep, advanced }
+}
+
+/** Nível do desafio por treino, com a 1ª semana do aluno = 100. */
+export function challengeLevel(a: Pick<Aggregate, 'challengePoints' | 'sessions'>, baseSession: number | undefined): number | null {
+  if (!baseSession || !a.sessions) return null
+  return Math.round((a.challengePoints / a.sessions / baseSession) * 100)
+}
 
 /**
  * Índice de Intensidade (0–100) — não depende só de séries de 6–8 reps:

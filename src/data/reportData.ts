@@ -232,3 +232,23 @@ export async function buildLoadProgress(student: Student, mode: 'semana' | 'mes'
   }
   return { weeks: list, rows: sortRows([...map.values()]) }
 }
+
+// ---------------- Nível do desafio (consultoria) ----------------
+/** Pontos por treino da 1ª semana do aluno (respeita "Zerar base"): é o 100 do Nível do desafio. */
+export async function challengeBase(student: Student): Promise<{ baseSession: number; baseWeek: string; byLabel: Record<string, number> } | undefined> {
+  const all = await studentSessions(student)
+  if (!all.length) return undefined
+  const lookup = await profileLookup()
+  const first = weekStart(all.map((s) => s.date).sort()[0])
+  const list = all.filter((s) => s.date >= first && s.date <= addDays(first, 6))
+  const a = aggregateSessions(list, lookup)
+  if (!a.sessions || !a.challengePoints) return undefined
+  // cada treino (A, B, C…) comparado com a 1ª vez em que ele apareceu
+  const byLabel: Record<string, number> = {}
+  for (const s of [...all].sort((x, z) => (x.date + x.created_at).localeCompare(z.date + z.created_at))) {
+    if (byLabel[s.label] != null) continue
+    const p = aggregateSessions([s], lookup).challengePoints
+    if (p > 0) byLabel[s.label] = p
+  }
+  return { baseSession: a.challengePoints / a.sessions, baseWeek: first, byLabel }
+}

@@ -7,7 +7,7 @@ import type { jsPDF } from 'jspdf'
 import type { BestSet, LoadRow } from '../data/reportData'
 import { saveFile } from '../artifact/claude'
 import { DIET_LABEL, MICRO_LABEL, type Session, type WeekContext } from '../domain/types'
-import { aggregateSessions, tonnage, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
+import { aggregateSessions, challengeLevel, tonnage, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
 import {
   C, PAGE, applyBrand, badgeRow, card, chartSeal, deltaPill, fill, header, iconDrop, iconFlame, iconTrend, legend, lineSeries,
   muscleRanking, newDoc, ring, seal, sectionTitle, stacked100, text, type MuscleRow, type PdfBrand,
@@ -29,6 +29,8 @@ export interface ReportOptions {
   brand?: PdfBrand
   /** layout por modalidade: consultoria SEM nada de carga em kg; presencial COM tonelagem */
   modality?: 'online' | 'presencial'
+  /** consultoria: pontos por treino da 1ª semana do aluno (= 100 no Nível do desafio) */
+  challenge?: { baseSession: number; baseWeek: string; byLabel?: Record<string, number> }
 }
 
 const W = PAGE.w - PAGE.m * 2
@@ -42,18 +44,27 @@ let VOLUME_ONLY = false
 function start(o: ReportOptions): jsPDF {
   applyBrand(o.brand)
   VOLUME_ONLY = o.modality === 'online'
+  CH_BASE = o.challenge?.baseSession
+  CH_LABEL = o.challenge?.byLabel ?? {}
   return newDoc()
 }
 const groupsCount = (a: Aggregate) => Object.entries(a.byGroup).filter(([g, v]) => g !== 'Indefinido' && v.valid > 0).length
 const perSession = (a: Aggregate) => (a.sessions ? Math.round(a.validSets / a.sessions) : a.validSets)
+let CH_BASE: number | undefined // pontos por treino da 1ª semana (definido no start)
+let CH_LABEL: Record<string, number> = {} // 1ª vez de cada treino (A, B…)
+/** Nível de UM treino: comparado com a 1ª vez desse mesmo treino (A × primeiro A). */
+const levelOfTraining = (label: string, a: Aggregate) => (CH_LABEL[label] ? Math.round((a.challengePoints / CH_LABEL[label]) * 100) : levelOf(a))
+/** Nível do desafio do período (1ª semana do aluno = 100). */
+const levelOf = (a: Aggregate) => challengeLevel(a, CH_BASE)
+const levelSub = (lv: number) => (lv > 100 ? `+${lv - 100}% desde o início` : lv === 100 ? 'ponto de partida' : 'fase mais leve')
 
 const pct = (cur: number, prev: number | undefined | null) => (prev ? ((cur - prev) / prev) * 100 : null)
 const isOnline = (o: ReportOptions) => o.modality === 'online'
 const intensityOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? a.intensityPrescribed : a.intensityReal)
 const kgShort = (t: number) => (t > 0 ? `${fmtNum(t)} kg` : '—')
 // coluna da direita das barras: tonelagem no presencial; índice de intensidade na consultoria (sem kg)
-const rightOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? `${a.sessions} ${a.sessions === 1 ? 'treino' : 'treinos'}` : kgShort(a.tonnageKg))
-const rightLabelOf = (o: ReportOptions) => (isOnline(o) ? 'Treinos' : 'Tonelagem')
+const rightOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? (o.challenge ? `desafio ${challengeLevel(a, o.challenge.baseSession) ?? '—'}` : `${a.sessions} ${a.sessions === 1 ? 'treino' : 'treinos'}`) : kgShort(a.tonnageKg))
+const rightLabelOf = (o: ReportOptions) => (isOnline(o) ? (o.challenge ? 'Nível do desafio' : 'Treinos') : 'Tonelagem')
 const BOTTOM = PAGE.h - 14
 
 /** Grupamentos ordenados por volume + intensidade (base do "Foco muscular"). */
@@ -126,7 +137,7 @@ function effortRing(d: jsPDF, cx: number, cy: number, r: number, a: Aggregate, p
   text(d, `ESFORÇO · ${pseWord(p).toUpperCase()}`, cx, cy + r + 11, { size: 6, bold: true, c: C.sub, align: 'center' })
 }
 
-function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Aggregate | undefined, title: string, pse: number | null = a.avgPse ?? null): number {
+function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Aggregate | undefined, title: string, pse: number | null = a.avgPse ?? null, level?: number | null): number {
   card(d, PAGE.m, y, W, 84, '#FFFFFF')
   fill(d, C.heavy)
   d.roundedRect(PAGE.m, y, 4, 84, 2, 2, 'F')
@@ -139,9 +150,16 @@ function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Agg
     // volume: séries por treino (vários treinos) ou grupos trabalhados (um treino)
     const cx = PAGE.m + 178
     const multi = a.sessions > 1
-    text(d, multi ? 'SÉRIES POR TREINO' : 'GRUPOS MUSCULARES', cx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'center' })
-    text(d, String(multi ? perSession(a) : groupsCount(a)), cx, y + 48, { size: 28, bold: true, c: C.heavy, align: 'center' })
-    text(d, multi ? 'média' : 'trabalhados', cx, y + 60, { size: 7, c: C.sub, align: 'center' })
+    const lv = level !== undefined ? level : levelOf(a)
+    if (lv != null) {
+      text(d, 'NÍVEL DO DESAFIO', cx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'center' })
+      text(d, String(lv), cx, y + 48, { size: 28, bold: true, c: C.heavy, align: 'center' })
+      text(d, levelSub(lv), cx, y + 60, { size: 7, c: lv > 100 ? C.heavy : C.sub, bold: lv > 100, align: 'center' })
+    } else {
+      text(d, multi ? 'SÉRIES POR TREINO' : 'GRUPOS MUSCULARES', cx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'center' })
+      text(d, String(multi ? perSession(a) : groupsCount(a)), cx, y + 48, { size: 28, bold: true, c: C.heavy, align: 'center' })
+      text(d, multi ? 'média' : 'trabalhados', cx, y + 60, { size: 7, c: C.sub, align: 'center' })
+    }
     text(d, multi ? 'TREINOS' : 'SÉRIES POR GRUPO', rx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'right' })
     text(d, String(multi ? a.sessions : groupsCount(a) ? Math.round(a.validSets / groupsCount(a)) : 0), rx, y + 46, { size: 24, bold: true, c: C.ink, align: 'right' })
     text(d, multi ? `${groupsCount(a)} grupos musculares` : 'em média', rx, y + 58, { size: 7, c: C.sub, align: 'right' })
@@ -163,7 +181,8 @@ function achievementsOf(weeks: WeekPoint[], o: ReportOptions): string[] {
   const prev = weeks[weeks.length - 2]
   if (!last) return out
   if (weeks.length > 1 && last.agg.validSets >= Math.max(...weeks.map((w) => w.agg.validSets))) out.push('Maior volume do período')
-  if (prev && isOnline(o) && perSession(last.agg) > perSession(prev.agg)) out.push('Mais séries por treino')
+  if (prev && isOnline(o) && (levelOf(last.agg) ?? 0) > (levelOf(prev.agg) ?? 0)) out.push('Desafio em alta')
+  else if (prev && isOnline(o) && perSession(last.agg) > perSession(prev.agg)) out.push('Mais séries por treino')
   if (!isOnline(o) && weeks.length > 1 && last.agg.tonnageKg > 0 && last.agg.tonnageKg >= Math.max(...weeks.map((w) => w.agg.tonnageKg))) out.push('Recorde de tonelagem')
   let streak = 0
   for (let i = weeks.length - 1; i >= 0 && weeks[i].agg.sessions > 0; i--) streak++
@@ -355,6 +374,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     cands.push(['mais volume de treino', pct(a.validSets, b.validSets)!])
     if (!isOnline(o) && b.heavySets) cands.push(['mais séries pesadas', pct(a.heavySets, b.heavySets)!])
     if (isOnline(o) && perSession(b)) cands.push(['mais séries por treino', pct(perSession(a), perSession(b))!])
+    if (isOnline(o) && levelOf(b)) cands.push(['mais desafio no treino', pct(levelOf(a)!, levelOf(b)!)!])
     if (isOnline(o) && intensityOf(b, o)) cands.push(['mais intensidade', pct(intensityOf(a, o), intensityOf(b, o))!])
   }
   const best = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
@@ -376,11 +396,28 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   scoreTile(d, PAGE.m, y, tw, th, 'Séries válidas', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
-  if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Grupos musculares', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, true)
+  if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Nível do desafio', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first)
+  else if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Grupos musculares', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, true)
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Treinos realizados', b.sessions, a.sessions, (n) => fmtNum(n), hasBefore, first)
   else scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Tonelagem', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
   y += th * 2 + 22
+
+  // consultoria: o que ficou mais desafiador (só o que subiu)
+  if (isOnline(o) && hasBefore) {
+    const per = (n: number, x: Aggregate) => (x.sessions ? n / x.sessions : n)
+    const what: string[] = []
+    const dl = Math.round(per(a.lowRepSets, a) - per(b.lowRepSets, b))
+    const dt = Math.round(per(a.advancedSets, a) - per(b.advancedSets, b))
+    const ds = perSession(a) - perSession(b)
+    if (ds > 0) what.push(`+${ds} ${ds === 1 ? 'série' : 'séries'} por treino`)
+    if (dl > 0) what.push(`+${dl} ${dl === 1 ? 'série' : 'séries'} em até 10 reps por treino`)
+    if (dt > 0) what.push(`+${dt} ${dt === 1 ? 'série' : 'séries'} com técnica avançada por treino`)
+    if (what.length) {
+      text(d, 'O QUE FICOU MAIS DESAFIADOR', PAGE.m, y - 6, { size: 6.3, bold: true, c: C.sub })
+      y = badgeRow(d, PAGE.m, y, W, what) + 2
+    }
+  }
 
   // 3) onde melhorou
   if (weeks) {
@@ -487,8 +524,9 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
       ...acc,
       validSets: acc.validSets + w.agg.validSets, heavySets: acc.heavySets + w.agg.heavySets, tonnageKg: acc.tonnageKg + w.agg.tonnageKg,
       kcal: acc.kcal + w.agg.kcal, fatGrams: acc.fatGrams + w.agg.fatGrams, sessions: acc.sessions + w.agg.sessions, byGroup: g,
+      challengePoints: acc.challengePoints + w.agg.challengePoints, lowRepSets: acc.lowRepSets + w.agg.lowRepSets, advancedSets: acc.advancedSets + w.agg.advancedSets,
     }
-  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {} })
+  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {}, challengePoints: 0, lowRepSets: 0, advancedSets: 0 })
   monthAgg.heavyPct = monthAgg.validSets ? (monthAgg.heavySets / monthAgg.validSets) * 100 : 0
   monthAgg.intensityPrescribed = Math.round(weeks.reduce((s, w) => s + w.agg.intensityPrescribed, 0) / weeks.length)
   monthAgg.intensityReal = Math.round(weeks.reduce((s, w) => s + w.agg.intensityReal, 0) / weeks.length)
@@ -561,7 +599,7 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   header(d, 'Treino do Dia', `${session.label} · ${fmtBR(session.date)}`, nm(o))
   const a = aggregateSessions([session], lookup)
   if (pse != null && !isOnline(o)) a.intensityReal = Math.round(0.45 * pse * 10 + 0.55 * a.intensityPrescribed)
-  let y = heroCard(d, 92, o, a, undefined, `${session.exercises.length} exercícios`, pse)
+  let y = heroCard(d, 92, o, a, undefined, `${session.exercises.length} exercícios`, pse, isOnline(o) ? levelOfTraining(session.label, a) : undefined)
 
   // recordes pessoais (só presencial, com carga)
   const peakOf = (e: Session['exercises'][number]) => Math.max(e.load_kg ?? 0, ...(e.loads ?? []).map((k) => k ?? 0))
@@ -638,7 +676,8 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   if (distinct >= 3 && distinct === items.length) ach.push('Divisão completa')
   if (items.length > distinct) ach.push('Treino extra na semana')
   if (prev?.validSets && cur.validSets > prev.validSets) ach.push('Mais volume que a semana anterior')
-  if (prev && isOnline(o) && perSession(cur) > perSession(prev)) ach.push('Mais séries por treino')
+  if (prev && isOnline(o) && (levelOf(cur) ?? 0) > (levelOf(prev) ?? 0)) ach.push('Desafio em alta')
+  else if (prev && isOnline(o) && perSession(cur) > perSession(prev)) ach.push('Mais séries por treino')
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))
 
   // uma linha por treino (A, B, C, D, A 2ª vez…)
@@ -668,10 +707,10 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
       bg: n > 1 ? C.zone.choque : C.card,
       valid: agg.validSets,
       heavy: agg.heavySets,
-      right: isOnline(o) ? `${s.exercises.length} exercícios` : kgShort(agg.tonnageKg),
+      right: isOnline(o) ? (levelOfTraining(s.label, agg) != null ? `desafio ${levelOfTraining(s.label, agg)}` : `${s.exercises.length} exercícios`) : kgShort(agg.tonnageKg),
       mark: evo(agg, prevSame),
     }
-  }), rowH, isOnline(o) ? 'Exercícios' : rightLabelOf(o))
+  }), rowH, isOnline(o) ? (CH_BASE ? 'Nível do desafio' : 'Exercícios') : rightLabelOf(o))
 
   if (o.showEmphasis) y = focusSection(d, y + 2, cur, prev?.validSets ? prev : undefined)
   finish(d, y, cur, items.length, !o.showEmphasis)
