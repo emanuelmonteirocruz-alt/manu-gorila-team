@@ -103,7 +103,7 @@ export default function ImportWhatsApp() {
     }
     // na hora: semana nova × semana anterior salva (ou só a semana, se for a primeira)
     const brand: Brand = await getBrand()
-    const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality, challenge: fresh.modality === 'online' ? await challengeBase(fresh) : undefined, emphasis: fresh.emphasis ?? undefined }
+    const o = { studentName: fresh.full_name, showName: true, showEmphasis: false, brand, modality: fresh.modality, challenge: fresh.modality === 'online' ? await challengeBase(fresh) : undefined }
     const prevWk = (await listWeeks(fresh)).find((w) => w.wk < wk)?.wk
     if (prevWk) {
       const c = await buildWeeksCompare(fresh, prevWk, wk)

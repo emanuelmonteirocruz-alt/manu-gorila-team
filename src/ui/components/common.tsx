@@ -125,14 +125,14 @@ export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student;
         </label>
       </div>
       <div className="grid" style={{ gap: 6 }}>
-        <span className="muted" style={{ fontWeight: 600 }}>Ênfase do plano (opcional) — o foco que você quer para este aluno</span>
+        <span className="muted" style={{ fontWeight: 600 }}>Ênfase desejada (opcional): o foco que você quer para este aluno</span>
         <div className="chips">
           {MUSCLE_GROUPS.map((g) => {
             const on = (s.emphasis ?? []).includes(g)
             return <button key={g} type="button" className={`chip sm ${on ? 'on' : ''}`} onClick={() => setS((x) => ({ ...x, emphasis: on ? (x.emphasis ?? []).filter((y) => y !== g) : [...(x.emphasis ?? []), g] }))}>{g.replace('Perna - ', '')}</button>
           })}
         </div>
-        <span className="muted">Aparece no "Foco muscular" dos relatórios e vai orientar a montagem automática de treinos.</span>
+        <span className="muted">Só para você: a ficha compara com o foco medido no que você prescreveu. Na montagem automática de treinos, é esta ênfase que será seguida. Os relatórios do aluno mostram sempre o foco medido.</span>
       </div>
       <div className="row">
         <button className="btn primary big" type="submit">Salvar aluno</button>

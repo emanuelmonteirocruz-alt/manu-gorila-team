@@ -326,3 +326,8 @@ label.row:has(> input[type=checkbox]) { flex-wrap: nowrap; align-items: center; 
 .wguide .m-sub { color: var(--sub); font-size: 13px; }
 .wguide code { font-size: 13px; background: var(--panel-2); padding: 2px 6px; border-radius: 6px; }
 .wguide > .muted { grid-column: 1 / -1; }
+.focus-bars { display: grid; gap: 6px; }
+.focus-bars .fb { display: grid; grid-template-columns: 96px 1fr auto; gap: 10px; align-items: center; font-size: 13px; font-weight: 600; }
+.focus-bars .fb i { height: 10px; border-radius: 6px; background: #CBD5E1; display: block; }
+.focus-bars .fb.want i { background: var(--accent); }
+.focus-bars .fb small { color: var(--sub); font-variant-numeric: tabular-nums; }

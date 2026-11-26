@@ -400,7 +400,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     const c = { sleep: sleep ?? undefined, diet: ctx?.diet, menstrual: student.sex === 'F' && !!ctx?.menstrual }
     setResult({ level: classifySessionLevel(pse, agg, c), alert: divergenceAlert(session.planned_microcycle, pse, c), kcal: agg.kcal, fatGrams: agg.fatGrams })
     // PDF do treino já pronto ao encerrar: o aluno está na sua frente
-    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, emphasis: student.emphasis ?? undefined }
+    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const }
     const bests = await previousBests(student.id, session)
     const make = () => templateD(session, lookup, pse, o, bests)
     setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })

@@ -50,7 +50,7 @@ export default function Reports() {
   async function buildReport() {
     const s = await db.students.get(studentId)
     if (!s) return
-    const o = { studentName: s.full_name, showName, showEmphasis, brand: await getBrand(), modality: s.modality, challenge: s.modality === 'online' ? await challengeBase(s) : undefined, emphasis: s.emphasis ?? undefined }
+    const o = { studentName: s.full_name, showName, showEmphasis, brand: await getBrand(), modality: s.modality, challenge: s.modality === 'online' ? await challengeBase(s) : undefined }
     let make: () => jsPDF
     let name: string
     const first = s.full_name.split(' ')[0].toLowerCase()

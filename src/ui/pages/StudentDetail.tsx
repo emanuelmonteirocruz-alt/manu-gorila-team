@@ -10,6 +10,7 @@ import { ChangeBadge, ConfirmButton, SleepCheckin, StudentForm, WeekContextEdito
 import { ConsultancyBar } from '../components/ConsultancyBar'
 import { WeeklyTable } from '../components/WeeklyTable'
 import { SessionList } from '../components/SessionList'
+import { FocusCheck } from '../components/FocusCheck'
 
 type Tab = 'historico' | 'copiloto' | 'ficha'
 
@@ -41,6 +42,7 @@ export default function StudentDetail() {
             <button className={`chip sm ${tab !== 'ficha' ? 'on' : ''}`} onClick={() => setTab('historico')}>Treinos</button>
             <button className={`chip sm ${tab === 'ficha' ? 'on' : ''}`} onClick={() => setTab('ficha')}>Ficha / financeiro</button>
           </div>
+          {tab !== 'ficha' && <FocusCheck student={student} />}
           {tab !== 'ficha' && <SessionList student={student} initialOpen={params.get('treino')} />}
           {tab === 'ficha' && <div className="card"><StudentForm key={student.id + student.modality} initial={student} onDeleted={() => nav('/alunos')} /></div>}
           {tab === 'ficha' && (
@@ -79,6 +81,7 @@ export default function StudentDetail() {
             </div>
           )}
           <label className="row muted"><input type="checkbox" checked={emph} onChange={(e) => setEmph(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
+          <FocusCheck student={student} />
           <WeeklyTable student={student} emph={emph} />
           <SessionList student={student} initialOpen={params.get('treino')} />
           <div><Link className="btn" to={`/historico?aluno=${student.id}`}><HistoryIcon size={16} strokeWidth={1.8} /> Histórico completo</Link></div>
