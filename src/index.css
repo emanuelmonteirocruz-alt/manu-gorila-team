@@ -331,3 +331,24 @@ label.row:has(> input[type=checkbox]) { flex-wrap: nowrap; align-items: center; 
 .focus-bars .fb i { height: 10px; border-radius: 6px; background: #CBD5E1; display: block; }
 .focus-bars .fb.want i { background: var(--accent); }
 .focus-bars .fb small { color: var(--sub); font-variant-numeric: tabular-nums; }
+
+/* mensalidade atrasada: sempre em vermelho */
+.tag.pay-late { background: var(--danger); color: #fff; border-color: var(--danger); font-weight: 700; }
+.m-item.is-late { border-color: #FCA5A5; box-shadow: inset 3px 0 0 var(--danger); }
+.tile small.pay-late-text { color: var(--danger); font-weight: 700; }
+.pay-late-alert { border-color: var(--danger); background: var(--danger-soft); color: #991B1B; font-weight: 600; }
+.pay-late-alert a { color: #991B1B; text-decoration: underline; }
+
+/* anamnese & montagem */
+.anam-sec { gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.anam-sec textarea { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 15px; color: var(--ink); width: 100%; resize: vertical; }
+.triage { display: grid; gap: 6px; }
+.tr-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.tr-row span { color: var(--sub); font-weight: 600; }
+.tr-row b { font-weight: 600; }
+.tr-alert b { color: var(--danger); }
+@media (max-width: 760px) { .tr-row { grid-template-columns: 1fr; gap: 2px; } }
+.rem-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.rem-warn { color: var(--warn) !important; }
+details > summary { list-style: none; width: fit-content; }
+details > summary::-webkit-details-marker { display: none; }

@@ -6,20 +6,21 @@ import { db } from '../../data/db'
 import { resetTimeline } from '../../data/repo'
 import { toISODate, weekStart } from '../../engine/metrics'
 import Copilot from '../components/Copilot'
-import { ChangeBadge, ConfirmButton, SleepCheckin, StudentForm, WeekContextEditor } from '../components/common'
+import { ChangeBadge, ConfirmButton, PayBadge, SleepCheckin, StudentForm, WeekContextEditor } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
 import { WeeklyTable } from '../components/WeeklyTable'
 import { SessionList } from '../components/SessionList'
 import { FocusCheck } from '../components/FocusCheck'
+import { AnamnesePanel } from '../components/AnamnesePanel'
 
-type Tab = 'historico' | 'copiloto' | 'ficha'
+type Tab = 'historico' | 'copiloto' | 'ficha' | 'anamnese'
 
 export default function StudentDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const student = useLiveQuery(() => db.students.get(id!), [id])
   const [params] = useSearchParams()
-  const [tab, setTab] = useState<Tab>(params.get('aba') === 'copiloto' ? 'copiloto' : params.get('aba') === 'ficha' ? 'ficha' : 'historico')
+  const [tab, setTab] = useState<Tab>(params.get('aba') === 'copiloto' ? 'copiloto' : params.get('aba') === 'ficha' ? 'ficha' : params.get('aba') === 'anamnese' ? 'anamnese' : 'historico')
   const [emph, setEmph] = useState(false)
   if (!student) return <div className="muted">Carregando…</div>
   const today = toISODate(new Date())
@@ -27,7 +28,7 @@ export default function StudentDetail() {
     <>
       <div className="page-head">
         <div>
-          <h1>{student.full_name} <ChangeBadge student={student} /></h1>
+          <h1>{student.full_name} <ChangeBadge student={student} /> <PayBadge student={student} /></h1>
           <div className="muted">{student.modality === 'online' ? `Consultoria Online${student.plan_period ? ` · ${student.plan_period}` : ''}` : `Personal Presencial · ${student.sex === 'F' ? 'Feminino' : 'Masculino'}`} · {student.plan_name || 'sem plano'}</div>
         </div>
         <div className="row">
@@ -59,7 +60,9 @@ export default function StudentDetail() {
         <button className={`chip sm ${tab === 'historico' ? 'on' : ''}`} onClick={() => setTab('historico')}>Histórico & semanas</button>
         <button className={`chip sm ${tab === 'copiloto' ? 'on' : ''}`} onClick={() => setTab('copiloto')}>Copiloto do próximo ciclo</button>
         <button className={`chip sm ${tab === 'ficha' ? 'on' : ''}`} onClick={() => setTab('ficha')}>Ficha / financeiro</button>
+        <button className={`chip sm ${tab === 'anamnese' ? 'on' : ''}`} onClick={() => setTab('anamnese')}>Anamnese & montagem</button>
       </div>
+      {tab === 'anamnese' && <AnamnesePanel student={student} />}
 
       {tab === 'ficha' && (
         <div className="grid">

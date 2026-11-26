@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ClipboardCopy, Link2 as LinkIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { anamneseTemplateText } from '../../data/repo'
+import { parseTemplate } from '../../consultoria/anamneseTemplate'
 import { db, getKV, setKV } from '../../data/db'
 import { saveFile } from '../../artifact/claude'
 import { InstallApp } from '../components/InstallApp'
@@ -67,6 +69,7 @@ export default function Settings() {
       <div className="page-head"><div><h1>Configurações</h1><div className="muted">Nuvem (Supabase), perfil do treinador e caches</div></div></div>
       <div className="grid cols-2"><BrandSection /><InstallApp /></div>
       <WritingGuide />
+      <AnamneseTemplateEditor />
       <div className="grid cols-2" style={{ marginTop: 14 }}>
         <div className="card grid">
           <h2>Supabase (sincronização)</h2>
@@ -284,6 +287,35 @@ function WritingGuide() {
           <div className="muted">Faixas de reps no Nível do desafio: até 6 = 3 pontos · 7–10 = 2 · 11–15 = 1 · acima de 15 = 0,5 por série; cada série com técnica avançada soma +1.</div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Modelo da anamnese (consultoria): cole aqui as suas perguntas reais. Formato explicado no próprio campo. */
+function AnamneseTemplateEditor() {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const current = useLiveQuery(anamneseTemplateText, []) ?? ''
+  const val = text ?? current
+  const qs = parseTemplate(val).reduce((a, s) => a + s.questions.length, 0)
+  return (
+    <div className="card grid" style={{ marginTop: 14 }}>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2 style={{ margin: 0 }}>Modelo da anamnese (consultoria)</h2>
+        <button className="btn sm" onClick={() => setOpen((v) => !v)}>{open ? 'Esconder' : 'Editar modelo'}</button>
+      </div>
+      <div className="muted">As perguntas que aparecem em Alunos → (aluno da consultoria) → Anamnese & montagem. Uma pergunta por linha; "# " abre uma seção; [campo] no fim diz ao app o que a resposta significa (objetivo, enfase, lesoes, dores, restricoes, saude, medicacao, preferencias, nao_gosta, dias, tempo, local, equipamentos, experiencia, dieta, sono, ciclo, rotina, observacoes); opções depois de " | ".</div>
+      {open && (<>
+        <textarea className="code" style={{ minHeight: 360 }} value={val} onChange={(e) => setText(e.target.value)} />
+        <div className="row">
+          <button className="btn primary" disabled={text == null} onClick={async () => { await setKV('anamnese_template', text ?? ''); setText(null); setMsg(`Modelo salvo (${qs} perguntas).`) }}>Salvar modelo</button>
+          <button className="btn" onClick={async () => { await setKV('anamnese_template', ''); setText(null); setMsg('Voltou ao modelo padrão do app.') }}>Restaurar padrão</button>
+          <span className="muted">{qs} perguntas</span>
+          {msg && <span className="tag ok">{msg}</span>}
+        </div>
+        <div className="muted">As respostas já salvas continuam ligadas a cada pergunta pelo texto dela: se mudar muito o texto de uma pergunta, a resposta antiga deixa de aparecer nela.</div>
+      </>)}
     </div>
   )
 }

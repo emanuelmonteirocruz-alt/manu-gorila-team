@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Activity, Bell, CircleCheck, FileText, MessageSquare, Dumbbell, Wallet } from 'lucide-react'
+import { Activity, AlertCircle, Bell, CircleCheck, FileText, MessageSquare, Dumbbell, Wallet } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { db } from '../../data/db'
 import { divergenceAlert, fmtBR, toISODate, weekStart } from '../../engine/metrics'
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const today = new Date()
   const day = today.getDate()
   const changes = students.flatMap((s) => { const st = changeStatus(s); return st ? [{ s, st }] : [] }).sort((a, b) => a.st.days - b.st.days)
+  const late = students.filter((s) => s.payment_status === 'atrasado') // mensalidade atrasada (vermelho)
   const dueSoon = students.filter((s) => s.due_day && ((s.due_day - day + 31) % 31) <= 3)
   const data = useLiveQuery(async () => {
     const ratings = await db.ratings.toArray()
@@ -41,6 +42,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {late.length > 0 && (
+        <div className="alert danger pay-late-alert" style={{ marginBottom: 14 }}>
+          <AlertCircle size={16} strokeWidth={2} />
+          <div>
+            <b>Mensalidade atrasada</b>{' · '}
+            {late.map((s, i) => <span key={s.id}>{i ? ' · ' : ''}<Link to={`/alunos/${s.id}?aba=ficha`}>{titleCase(s.full_name)}</Link></span>)}
+          </div>
+        </div>
+      )}
       {changes.length > 0 && (
         <div className="alert warn" style={{ marginBottom: 14 }}>
           <Bell size={16} strokeWidth={1.8} />

@@ -171,6 +171,18 @@ describe('sincronização entre aparelhos', () => {
     expect((await db.sessions.toArray()).map((s) => s.label)).toEqual(['Treino B'])
   })
 
+  it('anamnese preenchida no celular aparece no PC', async () => {
+    await use('celular')
+    const st = await save(db.students, student())
+    await save(db.anamneses, { id: uid(), student_id: st.id, answers: { objetivo: 'Hipertrofia', dores: 'joelho' }, raw_text: null, created_at: new Date().toISOString(), updated_at: '' })
+    expect((await syncNow()).state).toBe('ok')
+    await use('pc')
+    await syncNow()
+    const [an] = await db.anamneses.toArray()
+    expect(an.answers).toEqual({ objetivo: 'Hipertrofia', dores: 'joelho' })
+    expect(an.student_id).toBe(st.id)
+  })
+
   it('exclusão num aparelho apaga nos outros', async () => {
     await use('celular')
     const st = await save(db.students, student())

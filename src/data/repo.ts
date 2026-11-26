@@ -1,8 +1,8 @@
 /**
  * Repositório de alto nível — junta banco local + motor de cálculo.
  */
-import { db, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
-import type { ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
+import { db, getKV, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
+import type { Anamnese, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
 import { aggregateSessions, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
 import { resolveProfiles } from '../engine/classifier'
 import type { ParsedExerciseLine } from '../engine/prescription'
@@ -35,11 +35,12 @@ export async function deleteSession(sessionId: string) {
 export async function deleteStudent(studentId: string) {
   const sessions = await db.sessions.where('student_id').equals(studentId).toArray()
   const sessionIds = sessions.map((x) => x.id)
-  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts], async () => {
+  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts, db.anamneses], async () => {
     for (const r of await db.ratings.where('session_id').anyOf(sessionIds).toArray()) await softDelete(db.ratings, r.id)
     for (const x of sessions) await softDelete(db.sessions, x.id)
     for (const c of await db.checkins.where('student_id').equals(studentId).toArray()) await softDelete(db.checkins, c.id)
     for (const w of await db.weekContexts.where('student_id').equals(studentId).toArray()) await softDelete(db.weekContexts, w.id)
+    for (const an of await db.anamneses.where('student_id').equals(studentId).toArray()) await softDelete(db.anamneses, an.id)
     await softDelete(db.students, studentId)
   })
 }
@@ -211,4 +212,20 @@ export async function previousBests(studentId: string, session: Session): Promis
     }
   }
   return best
+}
+
+// ---------------- Anamnese da consultoria (acréscimo) ----------------
+/** Modelo da anamnese em uso: o editado em Config. (neste aparelho) ou o padrão do app. */
+export async function anamneseTemplateText(): Promise<string> {
+  const { ANAMNESE_TEMPLATE } = await import('../consultoria/anamneseTemplate')
+  return (await getKV<string>('anamnese_template', '')) || ANAMNESE_TEMPLATE
+}
+
+export async function getAnamnese(studentId: string): Promise<Anamnese | undefined> {
+  return db.anamneses.where('student_id').equals(studentId).filter((a) => !a._deleted).first()
+}
+
+export async function saveAnamnese(studentId: string, answers: Record<string, string>, raw_text?: string | null): Promise<Anamnese> {
+  const cur = await db.anamneses.where('student_id').equals(studentId).first()
+  return save(db.anamneses, { id: cur?.id ?? uid(), student_id: studentId, answers, raw_text: raw_text ?? cur?.raw_text ?? null, created_at: cur?.created_at ?? nowISO(), updated_at: nowISO(), _deleted: 0 })
 }

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
 import { fmtBR } from '../../engine/metrics'
 import { deleteStudent } from '../../data/repo'
-import { ChangeBadge, ConfirmButton, useStudents } from '../components/common'
+import { ChangeBadge, ConfirmButton, PayBadge, useStudents } from '../components/common'
 import { consultState, usePastedWeeks, WeekStrip } from '../components/ConsultancyBar'
 
 /** Aba Consultoria: todos os alunos online, com as semanas enviadas, a próxima a colar e atalhos. */
@@ -32,7 +32,7 @@ export default function Consultancy() {
         {shown.map(({ s, st, c }) => (
           <div key={s.id} className={`card grid consult-tile ${st ? `alert-${st.level}` : ''}`}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <Link to={`/alunos/${s.id}`} className="tile-name">{s.full_name}</Link>
+              <span className="row" style={{ gap: 6 }}><Link to={`/alunos/${s.id}`} className="tile-name">{s.full_name}</Link><PayBadge student={s} /></span>
               {st ? <ChangeBadge student={s} /> : <span className={`tag ${c.covered ? 'regenerativa' : 'warn'}`}>{c.covered ? 'semana enviada' : 'sem treino desta semana'}</span>}
             </div>
             <div className="consult-meta">

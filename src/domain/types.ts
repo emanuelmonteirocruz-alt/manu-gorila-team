@@ -121,6 +121,15 @@ export interface DailyCheckin extends SyncMeta {
   reported_by: Reporter
 }
 
+/** Anamnese da consultoria: respostas por pergunta do modelo (id da pergunta → resposta). */
+export interface Anamnese extends SyncMeta {
+  id: string
+  student_id: string
+  answers: Record<string, string>
+  raw_text?: string | null // anamnese colada, como veio
+  created_at: string
+}
+
 export interface ExerciseProfile {
   key: string
   name: string

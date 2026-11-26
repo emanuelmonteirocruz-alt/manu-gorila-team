@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Bell, Check, Lock } from 'lucide-react'
+import { AlertCircle, Bell, Check, Lock } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { db } from '../../data/db'
 import { clearCheckin, deleteStudent, getCheckin, getWeekContext, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
@@ -234,6 +234,12 @@ export function SleepCheckin({ student }: { student: Student }) {
 }
 
 /** Sino de troca de treino (consultoria). */
+/** Mensalidade atrasada: selo vermelho bem visível (usa o status de pagamento já existente). */
+export function PayBadge({ student }: { student: Pick<Student, 'payment_status'> }) {
+  if (student.payment_status !== 'atrasado') return null
+  return <span className="tag pay-late" title="Mensalidade atrasada"><AlertCircle size={12} strokeWidth={2.2} /> Atrasado</span>
+}
+
 export function ChangeBadge({ student }: { student: Student }) {
   const st = changeStatus(student)
   if (!st) return null

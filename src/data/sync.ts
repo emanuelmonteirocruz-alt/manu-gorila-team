@@ -95,12 +95,13 @@ const fromRemote = <T extends object>(row: T) => {
   return { ...rest, _dirty: 0 as const }
 }
 
-type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins'
+type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins' | 'anamneses'
 /** Chaves naturais únicas: evita conflito quando duas telas criam o mesmo registro offline. */
-const CONFLICT: Partial<Record<Simple, string>> = { weekContexts: 'student_id,week_start', checkins: 'student_id,date,reported_by' }
+const CONFLICT: Partial<Record<Simple, string>> = { weekContexts: 'student_id,week_start', checkins: 'student_id,date,reported_by', anamneses: 'student_id' }
 
 const REMOTE: Record<Simple, string> = {
   students: 'students', weekContexts: 'week_context', ratings: 'session_ratings', checkins: 'daily_checkins',
+  anamneses: 'anamneses',
 }
 
 export interface SyncResult {
@@ -174,7 +175,7 @@ async function doSync(): Promise<SyncResult> {
 
     pushed += await pushExerciseCache(sb)
     // students antes de sessions (FK)
-    for (const t of ['students', 'weekContexts'] as Simple[]) pushed += await pushSimple(sb, t)
+    for (const t of ['students', 'weekContexts', 'anamneses'] as Simple[]) pushed += await pushSimple(sb, t)
     pushed += await pushSessions(sb)
     for (const t of ['ratings', 'checkins'] as Simple[]) pushed += await pushSimple(sb, t)
     const dirtyLinks = await db.links.where('_dirty').equals(1).toArray()
@@ -278,7 +279,7 @@ async function pullAll(sb: SupabaseClient): Promise<number> {
     if (rows.length) marks[table] = rows[rows.length - 1].synced_at
   }
 
-  for (const t of ['students', 'weekContexts'] as Simple[]) {
+  for (const t of ['students', 'weekContexts', 'anamneses'] as Simple[]) {
     const rows = await fetchChanged<{ id: string; synced_at: string; deleted?: boolean }>(sb, REMOTE[t], marks[REMOTE[t]] ?? '')
     for (const r of rows) {
       const local = (await db[t].get(r.id)) as { _dirty?: number } | undefined

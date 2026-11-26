@@ -30,8 +30,8 @@ export default function Students() {
       </div>
       <div className="m-list only-mobile">
         {shown.map((s) => (
-          <Link key={s.id} className="m-item" to={`/alunos/${s.id}`}>
-            <div className="m-top"><span>{s.full_name} <ChangeBadge student={s} /></span><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'choque' : 'warn'}`}>{s.payment_status.replace('_', ' ')}</span></div>
+          <Link key={s.id} className={`m-item ${s.payment_status === 'atrasado' ? 'is-late' : ''}`} to={`/alunos/${s.id}`}>
+            <div className="m-top"><span>{s.full_name} <ChangeBadge student={s} /></span><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'pay-late' : 'warn'}`}>{s.payment_status === 'atrasado' ? 'Atrasado' : s.payment_status.replace('_', ' ')}</span></div>
             <div className="m-sub">
               <span>{s.modality === 'online' ? 'Consultoria' : 'Presencial'}{s.modality === 'online' ? (s.plan_period ? ` · ${PERIOD_LABEL[s.plan_period]}` : '') : s.weekly_frequency ? ` · ${s.weekly_frequency}x/sem` : ''}</span>
               {(s.due_date || s.due_day) && <span>Venc. {s.due_date ? fmtBR(s.due_date) : `dia ${s.due_day}`}</span>}
@@ -56,7 +56,7 @@ export default function Students() {
                 <td>{s.modality === 'online' && s.next_change_date ? fmtBR(s.next_change_date) : '—'}</td>
                 <td>{s.plan_value ? `R$ ${s.plan_value.toFixed(2).replace(".", ",")}` : '—'}</td>
                 <td>{s.hourly_rate ? `R$ ${s.hourly_rate.toFixed(2).replace(".", ",")}` : '—'}</td>
-                <td><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'choque' : 'warn'}`}>{s.payment_status.replace('_', ' ')}</span></td>
+                <td><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'pay-late' : 'warn'}`}>{s.payment_status === 'atrasado' ? 'Atrasado' : s.payment_status.replace('_', ' ')}</span></td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <ConfirmButton label={<Trash2 size={16} strokeWidth={1.8} />} confirmLabel="Deseja realmente excluir este aluno?" className="btn danger trash-btn" onConfirm={() => deleteStudent(s.id)} />
                 </td>

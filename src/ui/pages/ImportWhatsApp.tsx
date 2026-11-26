@@ -31,7 +31,11 @@ Também aceita texto sem cabeçalho (Treino A / Treino B ou linha em branco).`
 export default function ImportWhatsApp() {
   const [params] = useSearchParams()
   const [studentId, setStudentId] = useState(params.get('aluno') ?? '')
-  const [raw, setRaw] = useState('')
+  // rascunho vindo de "Anamnese & montagem → Salvar como semana": já entra colado
+  const [raw, setRaw] = useState(() => {
+    try { const t = sessionStorage.getItem('mgt_paste_prefill'); if (t) { sessionStorage.removeItem('mgt_paste_prefill'); return t } } catch { /* sem armazenamento */ }
+    return ''
+  })
   const [readText, setReadText] = useState('') // texto lido no "Ler Treinos" (passo 2 → passo 3)
   const student = useLiveQuery(() => (studentId ? db.students.get(studentId) : undefined), [studentId])
   const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
