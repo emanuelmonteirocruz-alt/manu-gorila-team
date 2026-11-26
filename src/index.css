@@ -365,3 +365,11 @@ details > summary::-webkit-details-marker { display: none; }
 .prev-row.done { opacity: .55; }
 .prev-top { font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 2px; }
 .tablet.single { grid-template-columns: minmax(0, 1fr); max-width: 980px; }
+/* montar à mão: exercício em linha inteira; séries · repetições · carga lado a lado */
+.manual-form .f .ac-wrap { flex: none; }
+@media (max-width: 760px) {
+  .manual-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .manual-form > .f:first-child { grid-column: 1 / -1; }
+  .manual-form > label.row { grid-column: 1 / 2; }
+  .manual-form > .btn { grid-column: 2 / -1; }
+}

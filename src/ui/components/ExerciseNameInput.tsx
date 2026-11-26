@@ -42,13 +42,13 @@ export function ExerciseNameInput({ id, value, onChange, groups = [], placeholde
   return (
     <div className="ac-wrap">
       <input id={id} className={className} value={value} placeholder={placeholder} autoComplete="off"
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { onChange(e.target.value); setFocus(true) }}
         onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)}
-        onKeyDown={(e) => { if ((e.key === 'Tab' || e.key === 'Enter') && list[0] && focus) { e.preventDefault(); onChange(list[0].name) } }} />
+        onKeyDown={(e) => { if ((e.key === 'Tab' || e.key === 'Enter') && list[0] && focus) { e.preventDefault(); onChange(list[0].name); setFocus(false) } }} />
       {focus && list.length > 0 && (
         <div className="ac-list" role="listbox">
           {list.map((p) => (
-            <button key={p.key} type="button" role="option" className="ac-item" onMouseDown={(e) => e.preventDefault()} onClick={() => onChange(p.name)}>
+            <button key={p.key} type="button" role="option" className="ac-item" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(p.name); setFocus(false) }}>
               <b>{p.name}</b><span>{p.muscle_group.replace('Perna - ', '')}</span>
             </button>
           ))}
