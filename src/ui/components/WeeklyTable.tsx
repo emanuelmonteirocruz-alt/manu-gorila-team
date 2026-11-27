@@ -19,14 +19,14 @@ export function WeeklyTable({ student, emph = false, weeks = 8 }: { student: Stu
       <h2>Evolução semanal</h2>
       {points && !points.length ? <div className="muted">Ainda sem treinos nas últimas {weeks} semanas.</div> : (
       <table className="t">
-        <thead><tr><th>Semana</th><th>Sessões</th><th>Válidas</th><th>Pesadas</th><th>% pesadas</th><th>Índice de intensidade</th><th>Multi/Mono</th><th>Livre/Máq</th>{!online && <th>Tonelagem</th>}<th>kcal</th><th>kcal/treino</th><th>Gordura eq.</th><th>Cardio</th><th>PSE</th><th>Microciclo</th>{emph && <th>Ênfase</th>}</tr></thead>
+        <thead><tr><th>Semana</th><th>Sessões</th><th>Válidas</th><th>Pesadas</th><th>% pesadas</th><th>Índice de intensidade</th><th>Multi/Mono</th><th>Livre/Máq</th>{!online && <th>Tonelagem</th>}<th>kcal</th><th>kcal/treino</th><th>Gordura eq.</th><th>Cardio</th><th title="Só você vê: séries com drop, bi-set, rest-pause…">Métodos</th><th>PSE</th><th>Microciclo</th>{emph && <th>Ênfase</th>}</tr></thead>
         <tbody>
           {points?.map((p) => (
             <tr key={p.week}>
               <td>{fmtBR(p.week)}{p.ctx?.menstrual ? <span className="tag danger" style={{ marginLeft: 6 }}>ciclo</span> : null}</td><td>{p.agg.sessions}</td><td><b>{p.agg.validSets}</b></td>
               <td>{p.agg.heavySets}</td><td>{fmtPct(p.agg.heavyPct)}</td><td><b>{p.agg.sessions ? (online ? p.agg.intensityPrescribed : p.agg.intensityReal) : '—'}</b></td>
               <td>{p.agg.multiSets}/{p.agg.monoSets}</td><td>{p.agg.freeSets}/{p.agg.machineSets}</td>
-              {!online && <td>{p.agg.tonnageKg ? `${fmtNum(p.agg.tonnageKg)} kg` : '—'}</td>}<td>{fmtNum(p.agg.kcal)}</td><td>{p.agg.sessions ? fmtNum(p.agg.kcal / p.agg.sessions) : '—'}</td><td>{fmtNum(p.agg.fatGrams)} g</td><td>{p.cardio.sessions ? `${fmtNum(p.cardio.kcal)} kcal · ${p.cardio.days}d` : '—'}</td>
+              {!online && <td>{p.agg.tonnageKg ? `${fmtNum(p.agg.tonnageKg)} kg` : '—'}</td>}<td>{fmtNum(p.agg.kcal)}</td><td>{p.agg.sessions ? fmtNum(p.agg.kcal / p.agg.sessions) : '—'}</td><td>{fmtNum(p.agg.fatGrams)} g</td><td>{p.cardio.sessions ? `${fmtNum(p.cardio.kcal)} kcal · ${p.cardio.days}d` : '—'}</td><td>{p.agg.advancedSets ? `${p.agg.advancedSets} séries` : '—'}</td>
               <td>{p.agg.avgPse?.toFixed(1) ?? '—'}</td>
               <td>{p.agg.sessions ? <MicroTag m={p.verdict.final} blocked={p.verdict.blocked} /> : <span className="muted">—</span>}</td>
               {emph && <td>{dominantGroup(p.agg)?.group ?? '—'}</td>}
