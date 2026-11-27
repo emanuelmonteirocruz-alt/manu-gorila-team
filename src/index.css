@@ -395,3 +395,8 @@ details > summary::-webkit-details-marker { display: none; }
 .cardio-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
 .weight-in { width: 70px; height: 32px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 8px; }
 .cardio-row > span:last-child { margin-left: auto; }
+/* caixa de ditado compacta: uma linha; cresce só quando tem texto */
+textarea.voice-box { min-height: 44px; height: 44px; resize: none; overflow: hidden; line-height: 1.4; padding-top: 11px; padding-bottom: 8px; }
+textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; overflow: auto; field-sizing: content; max-height: 160px; }
+.cardio-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; color: var(--ink); font-size: 16px; }
+.cardio-head .muted { font-size: 13px; }

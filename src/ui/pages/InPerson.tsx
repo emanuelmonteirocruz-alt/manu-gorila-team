@@ -507,8 +507,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
             <b>Dite ou digite</b>
             {sp.recording && <span className="tag danger"><Mic size={12} /> gravando</span>}
           </div>
-          <textarea id="voice-box" className="code" style={{ minHeight: 84 }} value={box} readOnly={sp.recording}
-            placeholder="Toque em Gravar e dite, ou digite como fala: extensora 4 séries de 15 com 20 kg; supino máquina 4 séries 20, 30, 40, 50 kg de cada lado"
+          <textarea id="voice-box" className="code voice-box" rows={1} value={box} readOnly={sp.recording}
+            placeholder="Dite ou digite: extensora 4x15 20kg"
             onChange={(e) => setBox(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && box.trim() && !sp.recording) { e.preventDefault(); correctAndBuild(box) } }} />
           {sp.recording && sp.interim && <div className="muted">… {sp.interim}</div>}
