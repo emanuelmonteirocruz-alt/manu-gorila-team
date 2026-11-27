@@ -17,10 +17,23 @@ export function NutritionUpload({ value, onChange }: { value: { file: File | nul
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const d = value.data
-  const set = (patch: Partial<NutritionData>) => onChange({ ...value, data: { ...d, ...patch } })
+  // o que está sendo digitado fica como texto (aceita "68," enquanto digita); o número vai para os dados
+  const [txt, setTxt] = useState<Partial<Record<keyof NutritionData, string>>>({})
+  const field = (k: keyof NutritionData) => ({
+    value: txt[k] ?? str(d[k]),
+    onChange: (e: { target: { value: string } }) => {
+      const v = e.target.value.replace(/[^\d.,]/g, '')
+      setTxt((t) => ({ ...t, [k]: v }))
+      let nv = toNum(v)
+      if (nv != null && Number.isNaN(nv)) nv = null
+      if (k === 'height_m' && nv != null && nv > 3) nv = Math.round(nv) / 100 // 168 → 1,68 m
+      onChange({ ...value, data: { ...d, [k]: nv } })
+    },
+  })
   async function pick(file: File | null) {
     if (!file) return
     onChange({ file, data: EMPTY, raw: '' })
+    setTxt({})
     setBusy(true)
     try {
       const raw = await fileText(file, setMsg)
@@ -37,17 +50,17 @@ export function NutritionUpload({ value, onChange }: { value: { file: File | nul
   return (
     <div className="grid nutri-upload" style={{ gap: 8 }}>
       <label className="btn nutri-file">
-        <Paperclip size={16} strokeWidth={1.8} /> {value.file ? value.file.name : 'Anexar foto ou PDF da avaliação'}
+        <Paperclip size={16} strokeWidth={1.8} /> <span className="nutri-fname">{value.file ? (/^[0-9a-f-]{20,}/i.test(value.file.name) ? 'Foto anexada' : value.file.name) : 'Anexar foto ou PDF da avaliação'}</span>
         <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => pick(e.target.files?.[0] ?? null)} />
       </label>
-      {(busy || msg) && <span className={busy ? 'muted' : 'tag ok'} style={{ alignSelf: 'start' }}>{msg || 'Lendo…'}</span>}
+      {(busy || msg) && <span className={busy ? 'muted' : msg.startsWith('Não') ? 'tag warn' : 'tag ok'} style={{ alignSelf: 'start' }}>{msg || 'Lendo…'}</span>}
       {value.file && !busy && (
         <div className="nutri-fields">
-          <label className="f">Peso (kg)<input inputMode="decimal" value={str(d.weight_kg)} onChange={(e) => set({ weight_kg: toNum(e.target.value) })} /></label>
-          <label className="f">Altura (m)<input inputMode="decimal" value={str(d.height_m)} onChange={(e) => set({ height_m: toNum(e.target.value) })} /></label>
-          <label className="f">Idade<input inputMode="numeric" value={str(d.age)} onChange={(e) => set({ age: toNum(e.target.value) })} /></label>
-          <label className="f">Gordura (%)<input inputMode="decimal" value={str(d.body_fat)} onChange={(e) => set({ body_fat: toNum(e.target.value) })} /></label>
-          <label className="f">Massa magra (kg)<input inputMode="decimal" value={str(d.lean_mass_kg)} onChange={(e) => set({ lean_mass_kg: toNum(e.target.value) })} /></label>
+          <label className="f">Peso (kg)<input inputMode="decimal" {...field('weight_kg')} placeholder="68,4" /></label>
+          <label className="f">Altura (m)<input inputMode="decimal" {...field('height_m')} placeholder="1,68" /></label>
+          <label className="f">Idade<input inputMode="numeric" {...field('age')} /></label>
+          <label className="f">Gordura (%)<input inputMode="decimal" {...field('body_fat')} placeholder="22,5" /></label>
+          <label className="f">Massa magra (kg)<input inputMode="decimal" {...field('lean_mass_kg')} placeholder="50,2" /></label>
         </div>
       )}
     </div>

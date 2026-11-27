@@ -443,3 +443,10 @@ textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; ove
 .close-split .ok { color: var(--ok, #15803d); }
 .close-split .open { color: #b45309; }
 a.cardio-row { color: inherit; text-decoration: none; }
+/* nutricionista: nada passa da largura da tela */
+.nutri-upload { min-width: 0; max-width: 100%; }
+.nutri-file { min-width: 0; max-width: 100%; overflow: hidden; }
+.nutri-fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nutri-upload .tag { white-space: normal; height: auto; line-height: 1.35; padding-top: 4px; padding-bottom: 4px; max-width: 100%; }
+.nutri-fields { grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr)); }
+.nutri-fields input { width: 100%; min-width: 0; }
