@@ -490,7 +490,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     : undefined
   if (isOnline(o)) best = undefined
   const regen = wk && after.phase === 'regenerativa'
-  const shock = wk && !regen && after.phase === 'choque' && after.shock ? after.shock : null
+  const shock = wk && !regen && after.phase === 'choque' ? (after.shock ?? []) : null // choque sem registro do que mudou: só o título
   const steady = !regen && !best && !proof && hasBefore && Math.abs(pct(a.validSets, b.validSets) ?? 0) < 5
   fill(d, shock ? C.ink : regen ? C.zone.regenerativa : best || proof ? C.heavy : steady ? C.zone.choque : C.zone.ordinaria)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
@@ -500,9 +500,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     text(d, 'Redução planejada de volume e esforço.', PAGE.m + 16, y + 50, { size: 7.2, c: C.zoneInk.regenerativa })
   } else if (shock) {
     // semana de choque: estímulo novo de propósito — diz o que mudou, sem nome de método
-    text(d, PHASE_NAME.choque, PAGE.m + 16, y + 34, { size: 18, bold: true, c: '#ffffff' })
-    const what = shock.length ? `o que mudou: ${shock.slice(0, 3).join(' · ')}` : 'mesmos exercícios, com variáveis novas de treino'
-    text(d, what, PAGE.m + 16, y + 50, { size: 7.2, c: '#D9E2EA' })
+    text(d, PHASE_NAME.choque, PAGE.m + 16, shock.length ? y + 34 : y + 40, { size: 18, bold: true, c: '#ffffff' })
+    if (shock.length) text(d, `o que mudou: ${shock.slice(0, 3).join(' · ')}`, PAGE.m + 16, y + 50, { size: 7.2, c: '#D9E2EA' })
   } else if (proof) {
     const [lbl, sub, x, y2] = proof
     const isLvl = lbl === 'intensidade a mais'
