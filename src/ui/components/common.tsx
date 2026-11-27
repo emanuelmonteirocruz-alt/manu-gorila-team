@@ -4,6 +4,7 @@ import { AlertCircle, Bell, Check, Lock } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { db, getKV } from '../../data/db'
 import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemplate'
+import { buildTriage } from '../../consultoria/triage'
 import { NutritionUpload } from './NutritionPanel'
 import type { NutritionData } from '../../nutrition/extract'
 import { anamneseTemplateText, saveNutrition, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
@@ -48,7 +49,13 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
   const [nutri, setNutri] = useState<{ file: File | null; data: NutritionData; raw: string }>({ file: null, data: { weight_kg: null, height_m: null, age: null, body_fat: null, lean_mass_kg: null }, raw: '' })
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
-  const anamFound = useMemo(() => (anamText.trim() && tplText ? Object.keys(answersFromPasted(anamText, parseTemplate(tplText), trainerName)).length : 0), [anamText, tplText, trainerName])
+  const anamRead = useMemo(() => {
+    if (!anamText.trim() || !tplText) return { found: 0, enfases: [] as string[] }
+    const sections = parseTemplate(tplText)
+    const answers = answersFromPasted(anamText, sections, trainerName)
+    return { found: Object.keys(answers).length, enfases: buildTriage(sections, answers).enfases }
+  }, [anamText, tplText, trainerName])
+  const anamFound = anamRead.found
   // Estado local do formulário; o pai usa key={student.id} para reiniciar ao trocar de aluno.
   const [s, setS] = useState(initial)
   const latest = useRef(s)
@@ -98,7 +105,7 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             </select>
           </label>
         )}
-        <label className="f">{s.modality === 'online' ? 'Nome do plano' : 'Plano'}<input id="st-plan" value={s.plan_name ?? ''} onChange={(e) => set('plan_name', e.target.value)} /></label>
+        {s.modality !== 'online' && <label className="f">Plano<input id="st-plan" value={s.plan_name ?? ''} onChange={(e) => set('plan_name', e.target.value)} /></label>}
         {s.modality === 'online' ? (
           <label className="f">Tipo / frequência do plano *
             <select id="st-period" value={s.plan_period ?? ''} onChange={(e) => {
@@ -139,6 +146,18 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
           </select>
         </label>
       </div>
+      {withAnamnese && s.modality === 'online' && (
+        <label className="f">Anamnese respondida (opcional)
+          <textarea className="code" style={{ minHeight: 120 }} value={anamText} onChange={(e) => setAnamText(e.target.value)}
+            placeholder="Cole aqui a resposta do aluno no WhatsApp (pelo número ou respondendo por cima das perguntas). Ao salvar, o app lê e abre o resumo, as restrições e os lembretes." />
+          {anamText.trim() && <span className={anamFound ? 'tag ok' : 'tag warn'} style={{ alignSelf: 'start' }}>{anamFound ? `${anamFound} respostas encontradas` : 'Nenhuma resposta reconhecida ainda'}</span>}
+        </label>
+      )}
+      {withAnamnese && (
+        <div className="f">Avaliação do nutricionista (opcional)
+          <NutritionUpload value={nutri} onChange={setNutri} />
+        </div>
+      )}
       {s.modality === 'online' && (
         <label className="f">Nível de treino (consultoria)
           <select id="st-level" value={s.training_level ?? ''} onChange={(e) => setS((x) => ({ ...x, training_level: (e.target.value || null) as Student['training_level'] }))}>
@@ -156,20 +175,13 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             return <button key={g} type="button" className={`chip sm ${on ? 'on' : ''}`} onClick={() => setS((x) => ({ ...x, emphasis: on ? (x.emphasis ?? []).filter((y) => y !== g) : [...(x.emphasis ?? []), g] }))}>{g.replace('Perna - ', '')}</button>
           })}
         </div>
+        {anamRead.enfases.length > 0 && (
+          <span className="muted">Pela anamnese: <b>{anamRead.enfases.map((g) => g.replace('Perna - ', '')).join(', ')}</b>{' '}
+            <button type="button" className="btn sm link-btn" onClick={() => setS((x) => ({ ...x, emphasis: [...new Set([...(x.emphasis ?? []), ...anamRead.enfases])] }))}>marcar</button>
+            {' '}· junte com o pedido do aluno e ajuste.</span>
+        )}
         <span className="muted">Só para você: a ficha compara com o foco medido no que você prescreveu. Na montagem automática de treinos, é esta ênfase que será seguida. Os relatórios do aluno mostram sempre o foco medido.</span>
       </div>
-      {withAnamnese && s.modality === 'online' && (
-        <label className="f">Anamnese respondida (opcional)
-          <textarea className="code" style={{ minHeight: 120 }} value={anamText} onChange={(e) => setAnamText(e.target.value)}
-            placeholder="Cole aqui a resposta do aluno no WhatsApp (pelo número ou respondendo por cima das perguntas). Ao salvar, o app lê e abre o resumo, as restrições e os lembretes." />
-          {anamText.trim() && <span className={anamFound ? 'tag ok' : 'tag warn'} style={{ alignSelf: 'start' }}>{anamFound ? `${anamFound} respostas encontradas` : 'Nenhuma resposta reconhecida ainda'}</span>}
-        </label>
-      )}
-      {withAnamnese && (
-        <div className="f">Avaliação do nutricionista (opcional)
-          <NutritionUpload value={nutri} onChange={setNutri} />
-        </div>
-      )}
       <div className="row">
         <button className="btn primary big" type="submit">Salvar aluno</button>
         {status && <span className={status.startsWith('Alterações salvas') ? 'tag regenerativa' : 'tag choque'}>{status}</span>}
