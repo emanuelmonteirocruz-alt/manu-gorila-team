@@ -112,3 +112,43 @@ export function SessionEditor({ session, pse, onClose }: { session: Session; pse
     </div>
   )
 }
+
+/**
+ * Edição rápida das séries de UM exercício, no próprio card (sem tirar o exercício do lugar):
+ * reps e carga de cada série, apagar ou somar série. Nome, aquecimento, observações e drop ficam como estão.
+ */
+export function InlineSetsEditor({ exercise, onSave, onCancel }: { exercise: SessionExercise; onSave: (e: SessionExercise) => void | Promise<void>; onCancel: () => void }) {
+  const [rows, setRows] = useState<Row[]>(() => toEdit(exercise).rows)
+  const unit = exercise.per_side ? 'kg/lado' : 'kg'
+  const put = (i: number, patch: Partial<Row>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+  function save() {
+    const reps = rows.map((r) => parseReps(r.reps, r.reps === r.orig ? r.heavy : undefined))
+    const loads = rows.map((r) => (r.kg.trim() === '' ? null : Number(r.kg.replace(',', '.'))))
+    const work = loads.filter((k): k is number => k != null && !Number.isNaN(k))
+    return onSave({
+      ...exercise,
+      valid_sets: rows.length,
+      heavy_sets: reps.filter(isHeavy).length,
+      reps,
+      loads: work.length ? loads.map((k) => (k == null || Number.isNaN(k) ? null : k)) : undefined,
+      load_kg: work.length ? Math.max(...work) : exercise.load_kg ?? null,
+    })
+  }
+  return (
+    <div className="grid inline-edit" style={{ gap: 6 }}>
+      {rows.map((r, i) => (
+        <div key={i} className="edit-row">
+          <span className="set-n">S{i + 1}</span>
+          <label className="f"><span>reps</span><input value={r.reps} onChange={(e) => put(i, { reps: e.target.value })} placeholder="10 ou Máx" /></label>
+          <label className="f"><span>{unit}</span><input inputMode="decimal" value={r.kg} onChange={(e) => put(i, { kg: e.target.value })} /></label>
+          <button className="btn icon" aria-label={`Remover série ${i + 1}`} onClick={() => setRows((x) => x.filter((_, j) => j !== i))}><X size={16} /></button>
+        </div>
+      ))}
+      <div className="row">
+        <button className="btn sm" onClick={() => setRows((x) => [...x, { ...(x[x.length - 1] ?? { reps: '10', kg: '' }), orig: undefined }])}><Plus size={14} /> Série</button>
+        <button className="btn primary sm" disabled={!rows.length} onClick={save}><Save size={14} /> Salvar</button>
+        <button className="btn sm" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  )
+}

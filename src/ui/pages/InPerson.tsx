@@ -21,6 +21,7 @@ import { useSpeech } from '../../voice/useSpeech'
 import { ConfirmButton, SleepCheckin, useStudents, WeekContextEditor } from '../components/common'
 import { ExerciseNameInput } from '../components/ExerciseNameInput'
 import { CardioPanel } from '../components/CardioPanel'
+import { InlineSetsEditor } from '../components/SessionEditor'
 import { topSetText } from '../format'
 import { detectMuscleGroups } from '../../engine/sessionGroups'
 import { normalizeKey } from '../../engine/exerciseSeed'
@@ -282,6 +283,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   useEffect(() => { saveDrafts(session.id, drafts) }, [session.id, drafts])
   const [box, setBox] = useState('') // transcrição já corrigida (editável)
   const [changes, setChanges] = useState<Correction[]>([])
+  const [quickEdit, setQuickEdit] = useState<string | null>(null) // exercício sendo editado no próprio card
   const lastText = useRef('') // último texto ditado/digitado (contexto para classificar exercícios novos)
   /** Salva o treino com os grupamentos detectados pelos exercícios (músculo principal de cada um). */
   async function persist(exercises: SessionExercise[]) {
@@ -657,13 +659,19 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                   {e.heavy_sets ? <span className="tag warn">{e.heavy_sets} pesadas</span> : null}
                   <span style={{ marginLeft: 'auto' }} className="row">
                     {e.valid_sets > 0 && <button className="btn" onClick={() => addSeriesToExercise(e)}>+ Série</button>}
-                    <button className="btn" onClick={() => editExercise(e)}>Editar</button>
+                    <button className={`btn ${quickEdit === e.id ? 'primary' : ''}`} onClick={() => setQuickEdit(quickEdit === e.id ? null : e.id)}>Editar</button>
                     {next && <button className={`btn icon biset-btn ${withNext ? 'on' : ''}`} aria-label={withNext ? 'Desfazer bi-set com o próximo' : 'Bi-set com o próximo exercício'} title={withNext ? 'Desfazer bi-set com o próximo' : 'Bi-set com o próximo exercício'} onClick={() => toggleBiset(idx)}><Link2 size={16} /></button>}
                     <button className="btn icon" aria-label="Remover" onClick={() => removeExercise(e.id)}><X size={16} /></button>
                   </span>
                 </div>
                 <LastLoadHint last={lastFor(e.display_name, e.exercise_key)} peak={e.load_kg ?? null} />
-                <div className="chips">
+                {quickEdit === e.id && (
+                  <>
+                    <InlineSetsEditor exercise={e} onCancel={() => setQuickEdit(null)} onSave={async (ne) => { await persist(session.exercises.map((x) => (x.id === e.id ? ne : x))); setQuickEdit(null) }} />
+                    <button type="button" className="btn sm link-btn" onClick={() => { setQuickEdit(null); void editExercise(e) }}>Trocar exercício, aquecimento ou drop (edição completa)</button>
+                  </>
+                )}
+                {quickEdit !== e.id && <div className="chips">
                   {(e.warmup_detail ?? []).map((w, i) => (
                     <span key={`w${i}`} className="tag">Aq{i + 1} · {w.reps.min === w.reps.max ? w.reps.min : `${w.reps.min}–${w.reps.max}`}{w.kg != null ? ` × ${kgFmt(w.kg)} ${unit}` : ''}</span>
                   ))}
@@ -674,7 +682,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     const dr = dropsOf(e.notes)[i + 1]
                     return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) ? ' · pesada' : ''}{dr !== undefined ? ` + drop${dr ? ` ${dr}` : ''}` : ''}</span>
                   })}
-                </div>
+                </div>}
               </div>
             )
           })}
