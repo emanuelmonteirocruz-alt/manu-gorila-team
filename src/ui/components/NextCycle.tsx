@@ -174,12 +174,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
           ) : (
             <div className="muted">Sem anamnese nem observações para este aluno{onOpenAnamnese ? <> · <button className="link-btn" onClick={onOpenAnamnese}>colar anamnese</button></> : ''}.</div>
           )}
-          {nutri && (
-            <div className={nutri.phase === 'deficit' ? 'alert warn' : 'muted'}>
-              <b>Nutricionista ({nutri.date.split('-').reverse().slice(0, 2).join('/')}):</b> {nutritionLine(nutri)}
-              {nutri.phase === 'deficit' ? ' · em déficit a recuperação é menor: priorize manter carga e força e use as técnicas com moderação no choque.' : nutri.phase === 'superavit' ? ' · em superávit: bom momento para progredir volume e carga.' : ''}
-            </div>
-          )}
+          {nutri && <div className="muted"><b>Nutricionista ({nutri.date.split('-').reverse().slice(0, 2).join('/')}):</b> {nutritionLine(nutri)}</div>}
           <TrainerNotes student={student} compact />
           <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : isNew ? 'Montar 1ª semana' : 'Gerar treino'}</button>
           {!isNew && phase === 'choque' && <div className="muted">No choque, os exercícios que recebem estímulo novo e a variável de cada um (drop, rest-pause, myo-reps, cluster, carga alta, pirâmide, excêntrica, isometria, parciais alongadas, FST-7, falha, série a mais) são sorteados a cada geração, dentro do que o nível do aluno permite, um por família de método, conforme o tipo do exercício e sem repetir o que o aluno já fez nele.</div>}

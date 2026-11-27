@@ -216,6 +216,9 @@ export interface NutritionEntry extends SyncMeta {
   phase?: 'deficit' | 'manutencao' | 'superavit' | null
   protein_g?: number | null
   body_fat?: number | null
+  height_m?: number | null
+  age?: number | null
+  lean_mass_kg?: number | null
   notes?: string | null
   raw_text?: string | null
   created_at: string

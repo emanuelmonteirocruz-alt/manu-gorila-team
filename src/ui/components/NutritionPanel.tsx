@@ -8,8 +8,7 @@ import { fileText, parseNutritionText, type NutritionData } from '../../nutritio
 import { fmtBR, fmtNum, toISODate } from '../../engine/metrics'
 import type { NutritionEntry, Student } from '../../domain/types'
 
-export const PHASE_NUTRI: Record<NonNullable<NutritionEntry['phase']>, string> = { deficit: 'Déficit calórico', manutencao: 'Manutenção', superavit: 'Superávit calórico' }
-const EMPTY: NutritionData = { weight_kg: null, kcal: null, phase: null, protein_g: null, body_fat: null }
+const EMPTY: NutritionData = { weight_kg: null, height_m: null, age: null, body_fat: null, lean_mass_kg: null }
 const toNum = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
 const str = (v: number | null | undefined) => (v == null ? '' : String(v).replace('.', ','))
 
@@ -45,15 +44,10 @@ export function NutritionUpload({ value, onChange }: { value: { file: File | nul
       {value.file && !busy && (
         <div className="nutri-fields">
           <label className="f">Peso (kg)<input inputMode="decimal" value={str(d.weight_kg)} onChange={(e) => set({ weight_kg: toNum(e.target.value) })} /></label>
-          <label className="f">Calorias/dia<input inputMode="numeric" value={str(d.kcal)} onChange={(e) => set({ kcal: toNum(e.target.value) })} /></label>
-          <label className="f">Fase
-            <select value={d.phase ?? ''} onChange={(e) => set({ phase: (e.target.value || null) as NutritionData['phase'] })}>
-              <option value="">—</option>
-              {Object.entries(PHASE_NUTRI).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-          </label>
-          <label className="f">Proteína (g)<input inputMode="numeric" value={str(d.protein_g)} onChange={(e) => set({ protein_g: toNum(e.target.value) })} /></label>
+          <label className="f">Altura (m)<input inputMode="decimal" value={str(d.height_m)} onChange={(e) => set({ height_m: toNum(e.target.value) })} /></label>
+          <label className="f">Idade<input inputMode="numeric" value={str(d.age)} onChange={(e) => set({ age: toNum(e.target.value) })} /></label>
           <label className="f">Gordura (%)<input inputMode="decimal" value={str(d.body_fat)} onChange={(e) => set({ body_fat: toNum(e.target.value) })} /></label>
+          <label className="f">Massa magra (kg)<input inputMode="decimal" value={str(d.lean_mass_kg)} onChange={(e) => set({ lean_mass_kg: toNum(e.target.value) })} /></label>
         </div>
       )}
     </div>
@@ -62,7 +56,8 @@ export function NutritionUpload({ value, onChange }: { value: { file: File | nul
 
 /** Resumo de uma avaliação em uma linha. */
 export function nutritionLine(x: NutritionEntry): string {
-  return [x.phase ? PHASE_NUTRI[x.phase] : '', x.kcal ? `${fmtNum(x.kcal)} kcal/dia` : '', x.weight_kg ? `${fmtNum(x.weight_kg, Number.isInteger(x.weight_kg) ? 0 : 1)} kg` : '', x.protein_g ? `${fmtNum(x.protein_g)} g proteína` : '', x.body_fat ? `${fmtNum(x.body_fat, 1)}% gordura` : ''].filter(Boolean).join(' · ') || 'sem dados lidos'
+  const kg = (v: number) => fmtNum(v, Number.isInteger(v) ? 0 : 1)
+  return [x.weight_kg ? `${kg(x.weight_kg)} kg` : '', x.height_m ? `${fmtNum(x.height_m, 2)} m` : '', x.age ? `${x.age} anos` : '', x.body_fat ? `${fmtNum(x.body_fat, 1)}% gordura` : '', x.lean_mass_kg ? `${kg(x.lean_mass_kg)} kg massa magra` : ''].filter(Boolean).join(' · ') || 'sem dados lidos'
 }
 
 /** Quadro na ficha do aluno: avaliações anexadas (abrir arquivo, excluir) e anexar nova. Recolhido por padrão. */
@@ -111,7 +106,7 @@ export function NutritionPanel({ student }: { student: Student }) {
         <>
           <NutritionUpload value={up} onChange={setUp} />
           <div><button className="btn primary" disabled={!up.file} onClick={add}>Salvar avaliação</button></div>
-          <div className="muted">O peso passa a ser usado no cardio; a fase (déficit, manutenção ou superávit) aparece na montagem do próximo ciclo.</div>
+          <div className="muted">Só dados corporais (peso, altura, idade, % de gordura e massa magra). O peso passa a ser usado no cálculo do cardio.</div>
         </>
       )}
     </div>

@@ -458,5 +458,11 @@ create policy trainer_nutrition_files on storage.objects for all to authenticate
   using (bucket_id = 'nutrition' and public.is_trainer())
   with check (bucket_id = 'nutrition' and public.is_trainer());
 
+-- >>> 0013_nutrition_body.sql
+-- 0013 — Avaliação do nutricionista: só dados corporais (altura, idade, massa magra além de peso e % gordura). Acréscimo.
+alter table public.nutrition add column if not exists height_m numeric;
+alter table public.nutrition add column if not exists age numeric;
+alter table public.nutrition add column if not exists lean_mass_kg numeric;
+
 -- Resultado: confira aqui qual e-mail ficou como Treinador (é com ele que você entra no app).
 select display_name as email, role, active from app_users order by (role = 'trainer') desc, display_name;

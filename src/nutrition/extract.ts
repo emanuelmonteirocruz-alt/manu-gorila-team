@@ -2,19 +2,19 @@
  * Leitura da avaliação do nutricionista (foto ou PDF), tudo no aparelho e sem custo:
  *  - PDF com texto: pdf.js extrai o texto direto;
  *  - foto (ou PDF escaneado): reconhecimento de texto (OCR, Tesseract, português).
- * Depois, regras simples encontram peso, calorias/dia, fase (déficit, manutenção, superávit),
- * proteína e % de gordura. O treinador SEMPRE confere antes de salvar.
+ * Só dados corporais que o nutricionista realmente informa: peso, altura, idade, % de gordura e massa magra.
+ * (Nada de fase/déficit ou calorias: não costuma vir na avaliação.) O treinador SEMPRE confere antes de salvar.
  */
 export interface NutritionData {
   weight_kg: number | null
-  kcal: number | null
-  phase: 'deficit' | 'manutencao' | 'superavit' | null
-  protein_g: number | null
+  height_m: number | null
+  age: number | null
   body_fat: number | null
+  lean_mass_kg: number | null
 }
 
-const n = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-const num = (s: string) => Number(s.replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'))
+const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const num = (s: string) => Number(s.replace(',', '.'))
 
 export function parseNutritionText(text: string): NutritionData {
   const t = n(text).replace(/\s+/g, ' ')
@@ -22,15 +22,13 @@ export function parseNutritionText(text: string): NutritionData {
     for (const m of t.matchAll(re)) { const v = num(m[1]); if (ok(v)) return v }
     return null
   }
-  const weight_kg = pick(/(?:peso(?: atual| corporal)?|massa corporal)\D{0,12}(\d{2,3}(?:[.,]\d{1,2})?)\s*kg?/g, (v) => v >= 30 && v <= 250)
-  const kcal = pick(/(\d{1,2}[.,]?\d{3})\s*(?:kcal|calorias)/g, (v) => v >= 900 && v <= 6000)
-    ?? pick(/(?:valor energetico|vet|calorias(?: totais| diarias)?|meta calorica|get)\D{0,15}(\d{1,2}[.,]?\d{3})/g, (v) => v >= 900 && v <= 6000)
-  const protein_g = pick(/proteinas?\D{0,15}(\d{2,3}(?:[.,]\d)?)\s*g/g, (v) => v >= 30 && v <= 400)
-  const body_fat = pick(/(?:% ?(?:de )?gordura|gordura corporal|percentual de gordura|bf)\D{0,12}(\d{1,2}(?:[.,]\d{1,2})?)\s*%?/g, (v) => v >= 3 && v <= 60)
-  const phase = /deficit|cutting|emagrec|perda de (?:peso|gordura)|restricao calorica|hipocalor/.test(t) ? 'deficit'
-    : /superavit|bulking|hipercalor|ganho de massa|ganho de peso/.test(t) ? 'superavit'
-    : /manutencao|normocalor|manter o peso/.test(t) ? 'manutencao' : null
-  return { weight_kg, kcal, phase, protein_g, body_fat }
+  const weight_kg = pick(/(?:peso(?: atual| corporal)?|massa corporal(?: total)?)\D{0,12}(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:kg)?/g, (v) => v >= 30 && v <= 250)
+  let height_m = pick(/(?:altura|estatura)\D{0,10}(\d{3}|\d[.,]\d{1,2})\s*(?:m|cm)?/g, (v) => (v >= 1.2 && v <= 2.3) || (v >= 120 && v <= 230))
+  if (height_m && height_m > 3) height_m = Math.round(height_m) / 100
+  const age = pick(/(?:idade)\D{0,6}(\d{1,2})\s*(?:anos)?/g, (v) => v >= 10 && v <= 99) ?? pick(/(\d{1,2})\s*anos/g, (v) => v >= 10 && v <= 99)
+  const body_fat = pick(/(?:% ?(?:de )?gordura|gordura corporal|percentual de gordura|massa gorda ?%|bf)\D{0,12}(\d{1,2}(?:[.,]\d{1,2})?)\s*%?/g, (v) => v >= 3 && v <= 60)
+  const lean_mass_kg = pick(/(?:massa magra|massa livre de gordura|mlg)\D{0,12}(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:kg)?/g, (v) => v >= 20 && v <= 150)
+  return { weight_kg, height_m, age, body_fat, lean_mass_kg }
 }
 
 /** Texto do arquivo (PDF ou imagem). */

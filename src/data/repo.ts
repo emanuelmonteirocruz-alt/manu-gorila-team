@@ -344,10 +344,5 @@ export async function saveNutrition(entry: Omit<NutritionEntry, 'id' | 'created_
     const st = await db.students.get(entry.student_id)
     if (st) await save(db.students, { ...st, weight_kg: entry.weight_kg })
   }
-  // fase da dieta → contexto da semana (presencial usa no relatório e na leitura do esforço)
-  if (entry.phase) {
-    const diet = entry.phase === 'deficit' ? 'cutting' : entry.phase === 'superavit' ? 'bulking' : 'manutencao'
-    await upsertWeekContext(entry.student_id, weekStart(entry.date), { diet })
-  }
   return saved
 }

@@ -45,7 +45,7 @@ export function StudentSelect({ value, onChange, modality, placeholder = 'Seleci
 
 export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { initial: Student; onSaved?: (s: Student, anamnese?: boolean) => void; onDeleted?: () => void; withAnamnese?: boolean }) {
   const [anamText, setAnamText] = useState('') // cadastro novo de consultoria: já cola a anamnese
-  const [nutri, setNutri] = useState<{ file: File | null; data: NutritionData; raw: string }>({ file: null, data: { weight_kg: null, kcal: null, phase: null, protein_g: null, body_fat: null }, raw: '' })
+  const [nutri, setNutri] = useState<{ file: File | null; data: NutritionData; raw: string }>({ file: null, data: { weight_kg: null, height_m: null, age: null, body_fat: null, lean_mass_kg: null }, raw: '' })
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
   const anamFound = useMemo(() => (anamText.trim() && tplText ? Object.keys(answersFromPasted(anamText, parseTemplate(tplText), trainerName)).length : 0), [anamText, tplText, trainerName])
