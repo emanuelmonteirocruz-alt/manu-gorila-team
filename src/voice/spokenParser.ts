@@ -11,6 +11,8 @@ export interface SpokenSet {
   failure: boolean // "do máximo / até a falha" → Máx
   heavy: boolean | null // null = automático pela faixa de reps; true/false = marcado
   warmup?: boolean // série de aquecimento (não conta como válida)
+  drop?: boolean // drop-set nesta série (continuação da mesma série: não soma série nem kg)
+  dropKg?: string // cargas do drop, como digitadas ("30, 20")
 }
 
 export interface SpokenEntry {

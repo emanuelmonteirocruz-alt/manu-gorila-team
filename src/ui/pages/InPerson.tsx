@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, ChevronLeft, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
+import { Check, ChevronLeft, Link2, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
@@ -220,6 +220,15 @@ function mergeConsecutive(list: Draft[]): Draft[] {
   }
   return out
 }
+/** Drops gravados nas observações ("S4 drop: 30 → 20 kg") → { série: cargas }. */
+const DROP_NOTE = /S(\d+) drop(?:: ([^·]+?) kg)?(?=\s*(?:·|$))/g
+function dropsOf(notes?: string | null): Record<number, string> {
+  const out: Record<number, string> = {}
+  for (const m of (notes ?? '').matchAll(DROP_NOTE)) out[Number(m[1])] = (m[2] ?? '').trim()
+  return out
+}
+const notesWithoutDrops = (notes?: string | null) => (notes ?? '').replace(DROP_NOTE, '').split('·').map((x) => x.trim()).filter(Boolean).join(' · ')
+
 /** Exercício já registrado → card editável. */
 function exerciseToDraft(e: SessionExercise): Draft {
   const wu: SpokenSet[] = Array.from({ length: e.warmup_sets }, (_, i) => {
@@ -227,6 +236,7 @@ function exerciseToDraft(e: SessionExercise): Draft {
     return { kg: w?.kg ?? null, repsMin: w?.reps.min ?? null, repsMax: w?.reps.max ?? null, failure: false, heavy: false, warmup: true }
   })
   const n = e.valid_sets
+  const drops = dropsOf(e.notes)
   const work: SpokenSet[] = Array.from({ length: n }, (_, i) => {
     const r = e.reps[i] ?? e.reps[e.reps.length - 1]
     return {
@@ -235,12 +245,13 @@ function exerciseToDraft(e: SessionExercise): Draft {
       repsMax: r?.failure ? null : r?.max ?? null,
       failure: !!r?.failure,
       heavy: r?.heavy ?? null,
+      ...(drops[i + 1] !== undefined ? { drop: true, dropKg: drops[i + 1].replace(/\s*→\s*/g, ', ') } : {}),
     }
   })
   const series = [...wu, ...work]
   return {
     key: uid(), name: e.display_name, sets: series.length, repsMin: null, repsMax: null, loadKg: e.load_kg ?? null, perSide: !!e.per_side,
-    failure: false, series, warmup: false, drop: e.drop_set, notes: e.notes ?? '', needsReview: false,
+    failure: false, series, warmup: false, drop: e.drop_set && !Object.keys(drops).length, notes: notesWithoutDrops(e.notes), needsReview: false,
   }
 }
 
@@ -362,6 +373,22 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     await persist(session.exercises.map((x) => (x.id === e.id ? next : x)))
   }
 
+  /** Bi-set: liga (ou desliga) o exercício ao seguinte; os grupos são refeitos pelas ligações em sequência. */
+  async function toggleBiset(idx: number) {
+    const ex = session.exercises.map((x) => ({ ...x }))
+    if (!ex[idx + 1]) return
+    const links = ex.slice(0, -1).map((x, i) => x.superset_group != null && x.superset_group === ex[i + 1].superset_group)
+    links[idx] = !links[idx]
+    let g = 0
+    for (let i = 0; i < ex.length; i++) {
+      const inRun = links[i - 1] || links[i]
+      if (!inRun) { ex[i].superset_group = null; continue }
+      if (!links[i - 1]) g++
+      ex[i].superset_group = g
+    }
+    await persist(ex)
+  }
+
   async function approve(list: Draft[]) {
     const ok = list.filter((d) => d.series.length && d.name.trim())
     if (!ok.length) return
@@ -381,6 +408,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         }))
         const loads = work.map((x) => x.kg)
         const hasLoads = loads.some((k) => k != null)
+        // drop por série: fica nas observações ("S4 drop: 30 → 20 kg") e marca o exercício como intensificado
+        const dropNotes = work.map((x, i) => (x.drop ? `S${i + 1} drop${x.dropKg?.trim() ? `: ${x.dropKg.split(/[,;/ ]+/).filter(Boolean).join(' → ')} kg` : ''}` : '')).filter(Boolean)
         const warmupDetail = wu.map((x) => ({ kg: x.kg, reps: { min: x.repsMin ?? 15, max: x.repsMax ?? x.repsMin ?? 15 } }))
         const ex: SessionExercise = {
           id: uid(), position: exercises.length, exercise_key: p.key, display_name: p.name,
@@ -388,7 +417,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           heavy_sets: reps.filter(isHeavy).length,
           reps, loads: hasLoads ? loads : undefined, per_side: d.perSide,
           warmup_detail: warmupDetail.length ? warmupDetail : undefined,
-          load_kg: peakOf(all), drop_set: d.drop, notes: d.notes || undefined,
+          load_kg: peakOf(all), drop_set: d.drop || dropNotes.length > 0, notes: [d.notes, ...dropNotes].filter(Boolean).join(' · ') || undefined,
         }
         // modo série a série: mesmo exercício logo em seguida → vira Série 2, 3… do mesmo card
         const last = exercises[exercises.length - 1]
@@ -503,22 +532,26 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         </div>
 
         <div className="card grid manual-entry">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <b>Dite ou digite</b>
-            {sp.recording && <span className="tag danger"><Mic size={12} /> gravando</span>}
-          </div>
-          <textarea id="voice-box" className="code voice-box" rows={1} value={box} readOnly={sp.recording}
-            placeholder="Dite ou digite: extensora 4x15 20kg"
-            onChange={(e) => setBox(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && box.trim() && !sp.recording) { e.preventDefault(); correctAndBuild(box) } }} />
-          {sp.recording && sp.interim && <div className="muted">… {sp.interim}</div>}
+          {(sp.recording || box.trim()) && (
+            <div className="grid" style={{ gap: 6 }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <b>{sp.recording ? 'Ouvindo…' : 'Não entendi tudo: corrija e tente de novo'}</b>
+                {sp.recording && <span className="tag danger"><Mic size={12} /> gravando</span>}
+              </div>
+              <textarea id="voice-box" className="code voice-box" rows={1} value={box} readOnly={sp.recording} onChange={(e) => setBox(e.target.value)} />
+              {sp.recording && sp.interim && <div className="muted">… {sp.interim}</div>}
+              {!sp.recording && (
+                <div className="row">
+                  <button className="btn primary" disabled={!box.trim()} onClick={() => correctAndBuild(box)}>Tentar de novo</button>
+                  <button className="btn" onClick={() => setBox('')}>Descartar</button>
+                </div>
+              )}
+            </div>
+          )}
           {changes.length > 0 && (
             <div className="chips">{changes.map((c, i) => <span key={i} className="tag ordinaria">{c.from} → {c.to}</span>)}</div>
           )}
-          <div className="row">
-            <button className={`btn ${box.trim() ? 'primary' : ''}`} disabled={sp.recording || !box.trim()} onClick={() => correctAndBuild(box)}>Criar cards</button>
-            <button className={`btn hand-btn ${manualOpen ? 'open' : ''}`} onClick={() => setManualOpen((v) => !v)}><PencilLine size={18} strokeWidth={1.9} /> {manualOpen ? 'Fechar' : 'Montar à mão'}</button>
-          </div>
+          <button className={`btn hand-btn wide ${manualOpen ? 'open' : ''}`} onClick={() => setManualOpen((v) => !v)}><PencilLine size={18} strokeWidth={1.9} /> {manualOpen ? 'Fechar' : 'Montar à mão'}</button>
           {sp.error && <div className="alert warn">{sp.error}</div>}
           {manualOpen && (
             <div className="manual-form">
@@ -567,7 +600,11 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                       const put = (patch: Partial<SpokenSet>) => setSeries(d.series.map((y, j) => (j === i ? { ...y, ...patch } : y)))
                       return (
                         <div key={i} className={`set-row ${x.warmup ? 'is-warmup' : ''}`}>
-                          <span className="set-n">{x.warmup ? `Aquec. ${warmIndex}` : `Série ${(joins ? last.valid_sets : 0) + workIndex}`}</span>
+                          <span className="set-n">
+                            {x.warmup ? `Aquec. ${warmIndex}` : `Série ${(joins ? last.valid_sets : 0) + workIndex}`}
+                            {!x.warmup && <button type="button" className={`drop-chip ${x.drop ? 'on' : ''}`} aria-pressed={!!x.drop} title="Drop-set nesta série (não soma série nem kg)" onClick={() => put({ drop: !x.drop })}>drop</button>}
+                            {!x.warmup && x.drop && <input className="drop-kg" inputMode="decimal" value={x.dropKg ?? ''} placeholder="kg: 30, 20" aria-label="Cargas do drop" onChange={(e) => put({ dropKg: e.target.value })} />}
+                          </span>
                           <label className="f"><span>reps</span>
                             <input key={repsLabel(x)} defaultValue={repsLabel(x)} placeholder="10 ou Máx" onBlur={(e) => put(parseRepsInput(e.target.value))} />
                           </label>
@@ -605,17 +642,23 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
 
         <div className="card grid">
           <h2>Registrado nesta sessão</h2>
-          {session.exercises.map((e) => {
+          {session.exercises.map((e, idx) => {
             const unit = e.per_side ? 'kg/lado' : 'kg'
+            const next = session.exercises[idx + 1]
+            const prev = session.exercises[idx - 1]
+            const withNext = !!next && e.superset_group != null && e.superset_group === next.superset_group
+            const withPrev = !!prev && e.superset_group != null && e.superset_group === prev.superset_group
             return (
-              <div key={e.id} className="done-card">
+              <div key={e.id} className={`done-card ${withNext ? 'biset-top' : ''} ${withPrev ? 'biset-bottom' : ''}`}>
                 <div className="set-head">
                   <b>{e.display_name}</b>
+                  {(withNext || withPrev) && <span className="tag warn">Bi-set</span>}
                   <span className="set-sum">{[e.warmup_sets ? `${e.warmup_sets} aquec.` : '', e.valid_sets ? `${e.valid_sets} ${e.valid_sets === 1 ? 'série válida' : 'séries válidas'}` : '', e.load_kg ? `Maior: ${topSetText(Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg), e.reps, !!e.per_side)}` : ''].filter(Boolean).join(' • ')}</span>
                   {e.heavy_sets ? <span className="tag warn">{e.heavy_sets} pesadas</span> : null}
                   <span style={{ marginLeft: 'auto' }} className="row">
                     {e.valid_sets > 0 && <button className="btn" onClick={() => addSeriesToExercise(e)}>+ Série</button>}
                     <button className="btn" onClick={() => editExercise(e)}>Editar</button>
+                    {next && <button className={`btn icon biset-btn ${withNext ? 'on' : ''}`} aria-label={withNext ? 'Desfazer bi-set com o próximo' : 'Bi-set com o próximo exercício'} title={withNext ? 'Desfazer bi-set com o próximo' : 'Bi-set com o próximo exercício'} onClick={() => toggleBiset(idx)}><Link2 size={16} /></button>}
                     <button className="btn icon" aria-label="Remover" onClick={() => removeExercise(e.id)}><X size={16} /></button>
                   </span>
                 </div>
@@ -628,7 +671,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     const r = e.reps[i]
                     const kg = e.loads?.[i] ?? e.load_kg
                     const reps = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`
-                    return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) ? ' · pesada' : ''}</span>
+                    const dr = dropsOf(e.notes)[i + 1]
+                    return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) ? ' · pesada' : ''}{dr !== undefined ? ` + drop${dr ? ` ${dr}` : ''}` : ''}</span>
                   })}
                 </div>
               </div>

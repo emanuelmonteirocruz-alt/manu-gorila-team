@@ -403,3 +403,14 @@ textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; ove
 /* montar à mão: mesma cor do Gravar e um pouco maior */
 .btn.hand-btn { background: var(--accent); border-color: var(--accent); color: #fff; height: 50px; padding: 0 20px; font-size: 16px; gap: 8px; }
 .btn.hand-btn.open { background: var(--panel); color: var(--accent); }
+/* drop por série e bi-set: compactos */
+.set-n { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.drop-chip { height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--sub); font-size: 12px; font-weight: 600; cursor: pointer; }
+.drop-chip.on { background: var(--warn-soft, #FEF3C7); border-color: #F59E0B; color: #92400E; }
+.drop-kg { height: 26px; width: 96px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 8px; font-size: 13px; }
+.biset-btn { height: 36px; gap: 4px; }
+.biset-btn.on { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
+.done-card.biset-top { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; border-left: 3px solid #F59E0B; }
+.done-card.biset-bottom { border-top-left-radius: 4px; border-top-right-radius: 4px; border-left: 3px solid #F59E0B; margin-top: -4px; }
+.set-row .set-n input.drop-kg { width: 96px; height: 26px; }
+.biset-btn { height: 44px; }
