@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { History as HistoryIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { db } from '../../data/db'
+import { db, save } from '../../data/db'
 import { resetTimeline } from '../../data/repo'
 import Copilot from '../components/Copilot'
 import NextCycle from '../components/NextCycle'
@@ -43,6 +43,15 @@ export default function StudentDetail() {
   const tabs: [Tab, string][] = online
     ? [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['montar', 'Montar'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]
     : [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]
+  const inactiveCard = (
+    <div className="card grid">
+      <b>{student.archived ? 'Aluno inativo' : 'Aluno parou?'}</b>
+      <div className="muted">{student.archived ? 'Não aparece nas listas, no fechamento nem nos avisos. O histórico está guardado.' : 'Inative em vez de excluir: o histórico fica guardado e você reativa quando ele voltar.'}</div>
+      <div>{student.archived
+        ? <button className="btn primary" onClick={() => save(db.students, { ...student, archived: false })}>Reativar aluno</button>
+        : <ConfirmButton label="Inativar aluno" confirmLabel="Confirmar: inativar (o histórico fica guardado)" onConfirm={() => save(db.students, { ...student, archived: true })} />}</div>
+    </div>
+  )
   const resetCard = (
     <div className="card grid">
       <b>Recomeçar a linha do tempo</b>
@@ -58,6 +67,7 @@ export default function StudentDetail() {
           <div className="muted">{online ? `Consultoria Online${student.plan_period ? ` · ${student.plan_period}` : ''}` : `Personal Presencial · ${student.sex === 'F' ? 'Feminino' : 'Masculino'} · Mensal`}</div>
         </div>
       </div>
+      {student.archived && <div className="alert warn" style={{ marginBottom: 10 }}><span><b>Aluno inativo.</b> O histórico está guardado. <button className="btn sm link-btn" onClick={() => save(db.students, { ...student, archived: false })}>Reativar</button></span></div>}
       <div className="tabs-bar" role="tablist">
         {tabs.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={`tab-btn ${tab === t ? 'on' : ''}`} onClick={() => go(t)}>{l}</button>)}
       </div>
@@ -96,7 +106,8 @@ export default function StudentDetail() {
         <div className="grid">
           {online && <AnamnesePanel student={student} onGoCycle={() => go('montar')} />}
           <NutritionPanel student={student} />
-          <div className="card"><StudentForm key={student.id + student.modality} initial={student} onDeleted={() => nav('/alunos')} /></div>
+          <div className="card"><StudentForm key={student.id + student.modality + String(student.archived)} initial={student} onDeleted={() => nav('/alunos')} /></div>
+          {inactiveCard}
           {resetCard}
         </div>
       )}

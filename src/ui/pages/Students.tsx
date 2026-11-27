@@ -4,6 +4,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
 import { fmtBR } from '../../engine/metrics'
 import { deleteStudent, newStudent } from '../../data/repo'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, save } from '../../data/db'
+import { titleCase } from '../format'
 import { ChangeBadge, ConfirmButton, StudentForm, useStudents } from '../components/common'
 
 export default function Students() {
@@ -12,9 +15,11 @@ export default function Students() {
   const [creating, setCreating] = useState(!!params0.get('novo'))
   const [params] = useSearchParams()
   const [filter, setFilter] = useState<'todos' | 'online' | 'presencial' | 'vencer'>((params.get('filtro') as 'vencer') ?? 'todos')
+  const inactive = useLiveQuery(async () => (await db.students.toArray()).filter((s) => !s._deleted && s.archived).sort((a, b) => a.full_name.localeCompare(b.full_name)), []) ?? []
   const due = students.filter((s) => changeStatus(s))
   const shown = students.filter((s) => filter === 'todos' || (filter === 'vencer' ? changeStatus(s) : s.modality === filter))
   const nav = useNavigate()
+  const [showInactive, setShowInactive] = useState(false)
   return (
     <>
       <div className="page-head">
@@ -27,7 +32,22 @@ export default function Students() {
           <button key={k} className={`chip sm ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>
         ))}
         <button className={`chip sm ${filter === 'vencer' ? 'on' : ''}`} onClick={() => setFilter('vencer')}><Bell size={14} /> Treinos a vencer ({due.length})</button>
+        {inactive.length > 0 && <button className={`chip sm ${showInactive ? 'on' : ''}`} onClick={() => setShowInactive((v) => !v)}>Inativos ({inactive.length})</button>}
       </div>
+      {showInactive && (
+        <div className="card grid" style={{ marginBottom: 12 }}>
+          <b>Alunos inativos</b>
+          <div className="muted">Histórico guardado: não aparecem nas listas, no fechamento nem nos avisos. Reative quando o aluno voltar.</div>
+          <div className="cardio-list">
+            {inactive.map((s) => (
+              <div key={s.id} className="cardio-row">
+                <Link to={`/alunos/${s.id}`}>{titleCase(s.full_name)} <span className="muted">· {s.modality === 'online' ? 'Consultoria' : 'Presencial'}</span></Link>
+                <button className="btn sm" onClick={() => save(db.students, { ...s, archived: false })}>Reativar</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="m-list only-mobile">
         {shown.map((s) => (
           <Link key={s.id} className={`m-item ${s.payment_status === 'atrasado' ? 'is-late' : ''}`} to={`/alunos/${s.id}`}>

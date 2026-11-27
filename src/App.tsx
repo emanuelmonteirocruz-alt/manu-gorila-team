@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Dumbbell, FileText, History as HistoryIcon, LayoutDashboard, MessageSquare, Settings as SettingsIcon, Smartphone, Users, Wifi, WifiOff, Cloud, CloudOff, Menu, X } from 'lucide-react'
+import { Dumbbell, FileText, History as HistoryIcon, LayoutDashboard, MessageSquare, Settings as SettingsIcon, Smartphone, Users, Wallet, Wifi, WifiOff, Cloud, CloudOff, Menu, X } from 'lucide-react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { installAutoSync, type SyncResult } from './data/sync'
@@ -17,6 +17,7 @@ const Reports = lazy(() => import('./ui/pages/Reports'))
 const History = lazy(() => import('./ui/pages/History'))
 const Consultancy = lazy(() => import('./ui/pages/Consultancy'))
 const Settings = lazy(() => import('./ui/pages/Settings'))
+const Closing = lazy(() => import('./ui/pages/Closing'))
 
 // main: aparece na barra de baixo do celular; o resto fica em "Mais"
 const NAV = [
@@ -27,6 +28,7 @@ const NAV = [
   { to: '/consultoria', label: 'Colar WhatsApp', icon: MessageSquare },
   { to: '/historico', label: 'Histórico', icon: HistoryIcon },
   { to: '/relatorios', label: 'Relatórios PDF', icon: FileText },
+  { to: '/fechamento', label: 'Fechamento', icon: Wallet },
   { to: '/config', label: 'Config.', icon: SettingsIcon },
 ]
 
@@ -120,6 +122,7 @@ export default function App() {
           <Route path="/historico" element={<History />} />
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/config" element={<Settings />} />
+          <Route path="/fechamento" element={<Closing />} />
         </Routes>
         </Suspense>
       </main>
