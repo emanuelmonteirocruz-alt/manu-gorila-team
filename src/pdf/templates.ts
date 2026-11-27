@@ -470,19 +470,28 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     cands.push(['mais volume de treino', pct(a.validSets, b.validSets)!])
     if (!isOnline(o) && b.heavySets) cands.push(['mais séries pesadas', pct(a.heavySets, b.heavySets)!])
     if (isOnline(o) && perSession(b)) cands.push(['mais séries por treino', pct(perSession(a), perSession(b))!])
-    if (isOnline(o) && levelOf(b)) cands.push(['mais intensidade', pct(levelOf(a)!, levelOf(b)!)!])
-    // intensidade é uma escala de 0 a 100: a diferença em PONTOS (não em %) — base pequena não vira "+500%"
-    if (isOnline(o) && intensityOf(b, o) != null) cands.push(['pontos de intensidade', intensityOf(a, o) - intensityOf(b, o)])
   }
-  const best = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
+  let best: [string, number] | undefined = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
+  // CONSULTORIA: a manchete é uma PROVA que o aluno confere — "+10 séries pesadas" (até 10 reps) ou "+4 séries com técnica"
+  const proof = isOnline(o) && hasBefore
+    ? ([['séries pesadas a mais', 'até 10 repetições', b.lowRepSets, a.lowRepSets], ['séries com técnica a mais', 'drop, bi-set, rest-pause…', b.advancedSets, a.advancedSets], ['séries de trabalho a mais', 'sem contar o aquecimento', b.validSets, a.validSets]] as [string, string, number, number][])
+      .find(([, , x, y2]) => y2 > x)
+    : undefined
+  if (isOnline(o)) best = undefined
   const regen = wk && after.phase === 'regenerativa'
-  fill(d, regen ? C.zone.regenerativa : best ? C.heavy : C.headerBg)
+  fill(d, regen ? C.zone.regenerativa : best || proof ? C.heavy : C.headerBg)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
   if (regen) {
     // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
     text(d, 'Semana regenerativa', PAGE.m + 16, y + 30, { size: 18, bold: true, c: C.zoneInk.regenerativa })
     text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 44, { size: 7.2, c: C.zoneInk.regenerativa })
     text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 16, y + 55, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+  } else if (proof) {
+    const [lbl, sub, x, y2] = proof
+    text(d, `+${fmtNum(y2 - x)}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
+    text(d, lbl.toUpperCase(), PAGE.m + W - 16, y + 26, { size: 9, bold: true, c: '#ffffff', align: 'right' })
+    text(d, `${sub} · ${before.label}: ${fmtNum(x)} > ${after.label}: ${fmtNum(y2)}`, PAGE.m + W - 16, y + 40, { size: 7, c: '#E6F4F2', align: 'right' })
+    text(d, 'mais intensidade no treino', PAGE.m + W - 16, y + 53, { size: 7, bold: true, c: '#E6F4F2', align: 'right' })
   } else if (best) {
     const isPts = best[0] === 'pontos de intensidade'
     text(d, `+${Math.round(best[1])}${isPts ? '' : '%'}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
@@ -516,15 +525,16 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg, `cada treino teve ~${perSession(a)} séries`)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
-  if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, W, th, 'Nível de estímulo', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first, rg)
-  else if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Grupos musculares', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, true)
+  if (isOnline(o)) {
+    scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
+    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Séries com técnica', b.advancedSets, a.advancedSets, (n) => fmtNum(n), hasBefore, first, rg, 'drop, bi-set, rest-pause…')
+  }
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
-  if (isOnline(o) && levelOf(a) == null) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Séries em até 10 reps', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg)
-  else if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
+  if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
   y += th * 2 + 22
 
-  // consultoria: o que ficou mais desafiador (só o que subiu)
-  if (isOnline(o) && hasBefore) {
+  // consultoria: os placares já mostram as provas (séries pesadas e com técnica); os selos ficam só no Mês × mês
+  if (isOnline(o) && hasBefore && !wk) {
     const per = (n: number, x: Aggregate) => (x.sessions ? n / x.sessions : n)
     const what: string[] = []
     const dl = Math.round(per(a.lowRepSets, a) - per(b.lowRepSets, b))
