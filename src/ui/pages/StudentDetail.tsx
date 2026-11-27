@@ -34,12 +34,13 @@ export default function StudentDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const student = useLiveQuery(() => db.students.get(id!), [id])
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>(tabFrom(params.get('aba'), params.get('treino')))
   const [openSession, setOpenSession] = useState<string | null>(params.get('treino'))
   if (!student) return <div className="muted">Carregando…</div>
   const online = student.modality === 'online'
-  const go = (t: Tab) => { setTab(t); window.scrollTo({ top: 0 }) }
+  // a aba fica no endereço: ao voltar de um relatório, a página reabre na mesma aba
+  const go = (t: Tab) => { setTab(t); setParams((p) => { const n = new URLSearchParams(p); n.set('aba', t); n.delete('treino'); return n }, { replace: true }); window.scrollTo({ top: 0 }) }
   const tabs: [Tab, string][] = online
     ? [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['montar', 'Montar'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]
     : [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]

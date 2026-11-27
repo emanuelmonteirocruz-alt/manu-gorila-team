@@ -142,7 +142,10 @@ export function PresencialSummary({ student, goTreinos }: { student: Student; go
 
 /** Um botão de relatórios com as opções dentro (substitui os botões do topo). */
 export function ReportsMenu({ student }: { student: Student }) {
-  const [open, setOpen] = useState(false)
+  // continua aberto ao voltar do relatório (não precisa abrir de novo)
+  const key = `mgt_reports_open_${student.id}`
+  const [open, setOpenState] = useState(() => { try { return sessionStorage.getItem(key) === '1' } catch { return false } })
+  const setOpen = (f: (v: boolean) => boolean) => setOpenState((v) => { const n = f(v); try { sessionStorage.setItem(key, n ? '1' : '0') } catch { /* sem armazenamento */ } return n })
   const pres = student.modality === 'presencial'
   const items: [string, string][] = [
     ...(pres ? [['Progressão da semana', 'tpl=L&modo=semana'], ['Progressão do mês', 'tpl=L&modo=mes']] as [string, string][] : []),
