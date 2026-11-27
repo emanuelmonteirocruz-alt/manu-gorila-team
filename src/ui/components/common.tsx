@@ -120,6 +120,12 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
         ) : (
           <label className="f">Frequência semanal<input id="st-freq" type="number" min={1} max={7} value={s.weekly_frequency ?? ''} onChange={(e) => set('weekly_frequency', num(e.target.value))} /></label>
         )}
+        {s.modality === 'online' && (
+          <label className="f">Dias de treino por semana
+            <input id="st-days" type="number" min={1} max={7} value={s.weekly_frequency ?? ''} placeholder="pela anamnese" onChange={(e) => set('weekly_frequency', num(e.target.value))} />
+            <span className="muted" style={{ fontWeight: 400 }}>Se o aluno repete treino (4 treinos em 5 dias = ABCDA), os relatórios contam o A duas vezes.</span>
+          </label>
+        )}
         <label className="f">Valor do plano (R$)<input id="st-value" type="number" step="0.01" value={s.plan_value ?? ''} onChange={(e) => set('plan_value', num(e.target.value))} /></label>
         {s.modality === 'presencial' && (
           <label className="f">Valor hora/aula (R$)

@@ -9,7 +9,7 @@ import { saveFile } from '../artifact/claude'
 import { DIET_LABEL, type Microcycle, type Session, type WeekContext } from '../domain/types'
 import { aggregateSessions, challengeLevel, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
 import {
-  C, PAGE, applyBrand, badgeRow, card, chartSeal, deltaPill, fill, header, iconDrop, iconFlame, iconTrend, legend, lineSeries,
+  C, PAGE, applyBrand, badgeRow, card, chartSeal, deltaPill, fill, header, iconFlame, iconTrend, legend, lineSeries,
   muscleRanking, newDoc, ring, seal, sectionTitle, text, type MuscleRow, type PdfBrand,
 } from './charts'
 
@@ -63,6 +63,7 @@ function start(o: ReportOptions): jsPDF {
   CH_BASE = o.challenge?.baseSession
   CH_LABEL = o.challenge?.byLabel ?? {}
   CARDIO = o.cardio && o.cardio.sessions > 0 ? o.cardio : null
+  BEFORE_LBL = 'antes'; AFTER_LBL = 'depois'
   return newDoc()
 }
 // grupos realmente trabalhados (músculo auxiliar com pouca fração não conta como "grupo do treino")
@@ -376,6 +377,7 @@ export interface MonthSide {
   label: string // "out/26"
   agg: Aggregate
   lifts: Record<string, { name: string; kg: number; perSide: boolean }> // maior carga de cada exercício no mês
+  phase?: Microcycle | null // fase da semana (Semana × Semana)
 }
 
 /** Um treino (A, B, C…) nas duas semanas comparadas. */
@@ -385,12 +387,15 @@ export interface PerTraining {
   after?: Aggregate
 }
 
+/** Nomes do "antes" e do "depois" nos placares: as datas das semanas (ou os meses) em vez de antes/depois. */
+let BEFORE_LBL = 'antes', AFTER_LBL = 'depois'
 /** Placar "antes → depois" de uma métrica, com barras lado a lado. */
 function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: string, before: number, after: number, fmt: (n: number) => string, hasBefore: boolean, first = 'primeiro mês', neutral = false) {
   card(d, x, y, w, h, '#FFFFFF')
   text(d, label.toUpperCase(), x + 10, y + 15, { size: 6.3, bold: true, c: C.sub })
-  text(d, fmt(after), x + 10, y + 46, { size: 22, bold: true, c: C.ink })
-  text(d, hasBefore ? `antes ${fmt(before)}` : first, x + 10, y + 59, { size: 7, c: C.sub })
+  const short = h < 90 // placar compacto: número e "antes" um pouco mais acima, para a pílula não encostar
+  text(d, fmt(after), x + 10, y + (short ? 39 : 46), { size: 22, bold: true, c: C.ink })
+  text(d, hasBefore ? `${BEFORE_LBL}: ${fmt(before)}` : first, x + 10, y + (short ? 50 : 59), { size: 7, c: C.sub })
   // neutral: PSE mais baixa com mais carga é adaptação, não piora — sem seta de queda
   if (hasBefore && before > 0 && !neutral) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
   // barras verticais: antes (cinza) × depois (destaque)
@@ -402,8 +407,8 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
   if (hb) d.roundedRect(bx, base - hb, 18, hb, 3, 3, 'F')
   fill(d, after >= before || neutral ? C.heavy : C.volume)
   d.roundedRect(bx + 22, base - ha, 18, ha, 3, 3, 'F')
-  text(d, 'antes', bx + 9, base + 8, { size: 5.2, c: C.sub, align: 'center' })
-  text(d, 'depois', bx + 31, base + 8, { size: 5.2, bold: true, c: C.heavy, align: 'center' })
+  text(d, BEFORE_LBL, bx + 9, base + 8, { size: 5.2, c: C.sub, align: 'center' })
+  text(d, AFTER_LBL, bx + 31, base + 8, { size: 5.2, bold: true, c: C.heavy, align: 'center' })
 }
 
 /** Barra dupla horizontal "antes × depois" (usada em cargas e qualidade). */
@@ -444,6 +449,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   else header(d, 'Antes × Depois', `${before.label}  >  ${after.label}`, nm(o))
   const b = before.agg, a = after.agg
   const hasBefore = b.validSets > 0
+  BEFORE_LBL = before.label; AFTER_LBL = after.label
   let y = 92
 
   // 1) manchete: a maior melhora do período
@@ -453,15 +459,19 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     cands.push(['mais volume de treino', pct(a.validSets, b.validSets)!])
     if (!isOnline(o) && b.heavySets) cands.push(['mais séries pesadas', pct(a.heavySets, b.heavySets)!])
     if (isOnline(o) && perSession(b)) cands.push(['mais séries por treino', pct(perSession(a), perSession(b))!])
-    if (isOnline(o) && levelOf(b)) cands.push(['mais desafio no treino', pct(levelOf(a)!, levelOf(b)!)!])
-    if (isOnline(o) && intensityOf(b, o)) cands.push(['mais intensidade', pct(intensityOf(a, o), intensityOf(b, o))!])
+    if (isOnline(o) && levelOf(b)) cands.push(['mais intensidade', pct(levelOf(a)!, levelOf(b)!)!])
+    // intensidade é uma escala de 0 a 100: a diferença em PONTOS (não em %) — base pequena não vira "+500%"
+    if (isOnline(o) && intensityOf(b, o) != null) cands.push(['pontos de intensidade', intensityOf(a, o) - intensityOf(b, o)])
   }
   const best = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
   fill(d, best ? C.heavy : C.headerBg)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
   if (best) {
-    text(d, `+${Math.round(best[1])}%`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
-    text(d, best[0].toUpperCase(), PAGE.m + W - 16, y + 30, { size: 9, bold: true, c: '#ffffff', align: 'right' })
+    const isPts = best[0] === 'pontos de intensidade'
+    text(d, `+${Math.round(best[1])}${isPts ? '' : '%'}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
+    text(d, isPts ? 'MAIS INTENSIDADE' : best[0].toUpperCase(), PAGE.m + W - 16, y + 30, { size: 9, bold: true, c: '#ffffff', align: 'right' })
+    if (isPts) text(d, `pontos (0 a 100): ${Math.round(intensityOf(b, o))} > ${Math.round(intensityOf(a, o))}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
+    else if (best[0] === 'mais intensidade' && levelOf(b)) text(d, `nível de estímulo ${levelOf(b)} > ${levelOf(a)}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
     text(d, `${before.label} > ${after.label}`, PAGE.m + W - 16, y + 44, { size: 7.5, c: '#E6F4F2', align: 'right' })
   } else {
     text(d, hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês'), PAGE.m + 16, y + 38, { size: 20, bold: true, c: '#ffffff' })
@@ -469,9 +479,22 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   }
   y += 76
 
+  // fase de cada semana (nomes para o aluno) e quem é quem: cinza = antes, cor = depois
+  if (wk && (before.phase || after.phase)) {
+    card(d, PAGE.m, y, W, 30, C.card)
+    const half = W / 2
+    fill(d, C.grid); d.roundedRect(PAGE.m + 10, y + 11, 8, 8, 2, 2, 'F')
+    text(d, `Semana de ${before.label}`, PAGE.m + 22, y + 13, { size: 6.2, bold: true, c: C.sub })
+    text(d, before.phase ? PHASE_NAME[before.phase] : '—', PAGE.m + 22, y + 23, { size: 8, bold: true, c: before.phase ? C.zoneInk[before.phase] : C.sub })
+    fill(d, C.heavy); d.roundedRect(PAGE.m + half + 4, y + 11, 8, 8, 2, 2, 'F')
+    text(d, `Semana de ${after.label}`, PAGE.m + half + 16, y + 13, { size: 6.2, bold: true, c: C.sub })
+    text(d, after.phase ? PHASE_NAME[after.phase] : '—', PAGE.m + half + 16, y + 23, { size: 8, bold: true, c: after.phase ? C.zoneInk[after.phase] : C.sub })
+    y += 38
+  }
+
   // 2) quatro placares grandes
   const first = wk ? 'primeira semana' : 'primeiro mês'
-  const tw = (W - 10) / 2, th = 92
+  const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
   scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
@@ -529,9 +552,11 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     iconFlame(d, PAGE.m + 18, y + 27, 14, C.heavy)
     text(d, wk ? 'GASTO NA SEMANA' : 'GASTO NO MÊS', PAGE.m + 32, y + 20, { size: 6.3, bold: true, c: C.sub })
     text(d, `${fmtNum(a.kcal)} kcal`, PAGE.m + 32, y + 37, { size: 15, bold: true, c: C.ink })
-    if (hasBefore) text(d, `antes ${fmtNum(b.kcal)}`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
-    iconDrop(d, PAGE.m + W - 74, y + 27, 14, C.fat)
-    text(d, `${fmtNum(a.fatGrams)} g`, PAGE.m + W - 12, y + 37, { size: 13, bold: true, c: C.ink, align: 'right' })
+    if (hasBefore) text(d, `${before.label}: ${fmtNum(b.kcal)} kcal`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
+    if (a.sessions > 1) {
+      text(d, `${fmtNum(a.kcal / a.sessions)} kcal`, PAGE.m + W - 12, y + 30, { size: 11, bold: true, c: C.ink, align: 'right' })
+      text(d, 'média de calorias por treino', PAGE.m + W - 12, y + 41, { size: 6, c: C.sub, align: 'right' })
+    }
   }
   return d
 }
@@ -542,7 +567,9 @@ function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportO
   if (!list.length) return y
   sectionTitle(d, 'Treino a treino', y + 6)
   chartSeal(d, PAGE.m + W, y + 6)
-  y += 16
+  y += 14
+  legend(d, PAGE.m, y, [{ c: C.grid, l: `Semana de ${BEFORE_LBL}` }, { c: C.heavy, l: `Semana de ${AFTER_LBL}` }])
+  y += 12
   const max = Math.max(1, ...list.map((r) => Math.max(r.before?.validSets ?? 0, r.after?.validSets ?? 0)))
   const rowH = fitRowH(BOTTOM - 56 - y, list.length, 26, 20)
   for (const r of list) {

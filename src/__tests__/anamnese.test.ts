@@ -329,3 +329,16 @@ describe('copiar treino para outro aluno', () => {
     expect(exerciseAlert(['Remada baixa'], t)).toBe('trocar: aluno não pode fazer')
   })
 })
+
+describe('consultoria: semana com treino repetido (ABCDA)', () => {
+  it('4 treinos em 5 dias completa com o A; sem frequência, fica como está', async () => {
+    const { expandWeek } = await import('../data/reportData')
+    const s = (l: string): Session => ({ id: l, student_id: 'x', date: '2026-11-23', label: `Treino ${l}`, source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: [] })
+    const wk = ['B', 'A', 'D', 'C'].map(s)
+    expect(expandWeek(wk, 5).map((x) => x.label)).toEqual(['Treino B', 'Treino A', 'Treino D', 'Treino C', 'Treino A'])
+    expect(expandWeek(wk, 6).slice(4).map((x) => x.label)).toEqual(['Treino A', 'Treino B'])
+    expect(expandWeek(wk, null)).toHaveLength(4)
+    expect(expandWeek(wk, 3)).toHaveLength(4) // nunca corta treino colado
+    expect(new Set(expandWeek(wk, 5).map((x) => x.id)).size).toBe(5)
+  })
+})

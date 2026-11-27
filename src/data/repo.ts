@@ -99,8 +99,10 @@ export async function weekPoints(student: Student, weeks: string[]): Promise<Wee
   const firstPrev = addDays(weeks[0], -7)
   const prevSessions = await studentSessions(student, firstPrev, addDays(firstPrev, 6))
   if (prevSessions.length) prevAgg = aggregateSessions(prevSessions, lookup, ratings)
+  const { consultDays, expandWeek } = await import('./reportData')
+  const days = await consultDays(student) // consultoria: ABCDA conta o A duas vezes
   for (const w of weeks) {
-    const sessions = await studentSessions(student, w, addDays(w, 6))
+    const sessions = expandWeek(await studentSessions(student, w, addDays(w, 6)), days)
     const agg = aggregateSessions(sessions, lookup, ratings)
     const ctx = await getWeekContext(student.id, w)
     const verdict = weekVerdict(agg, prevAgg, student.sex === 'F' ? ctx : ctx && { ...ctx, menstrual: false })
