@@ -21,7 +21,7 @@ export default function Students() {
         <div><h1>Alunos</h1><div className="muted">Cadastro nominal, financeiro e modalidade</div></div>
         <button className="btn primary big" onClick={() => setCreating((c) => !c)}>{creating ? 'Fechar' : '+ Novo aluno'}</button>
       </div>
-      {creating && <div className="card" style={{ marginBottom: 14 }}><StudentForm initial={newStudent(params0.get('novo') === 'online' ? { modality: 'online' } : params0.get('novo') === 'presencial' ? { modality: 'presencial' } : {})} onSaved={(s) => nav(`/alunos/${s.id}`)} /></div>}
+      {creating && <div className="card" style={{ marginBottom: 14 }}><StudentForm initial={newStudent(params0.get('novo') === 'online' ? { modality: 'online' } : params0.get('novo') === 'presencial' ? { modality: 'presencial' } : {})} withAnamnese onSaved={(s, anam) => nav(`/alunos/${s.id}${anam ? '?aba=anamnese' : ''}`)} /></div>}
       <div className="chips" style={{ marginBottom: 12 }}>
         {([['todos', 'Todos'], ['online', 'Consultoria'], ['presencial', 'Presencial']] as const).map(([k, l]) => (
           <button key={k} className={`chip sm ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>

@@ -1,9 +1,10 @@
 import { LEVELS, LEVEL_BY_ID } from '../../consultoria/levels'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AlertCircle, Bell, Check, Lock } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { db } from '../../data/db'
-import { clearCheckin, deleteStudent, getCheckin, getWeekContext, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { db, getKV } from '../../data/db'
+import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemplate'
+import { anamneseTemplateText, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
 import { changeStatus } from '../../domain/plan'
 import { titleCase } from '../format'
 import {
@@ -40,7 +41,11 @@ export function StudentSelect({ value, onChange, modality, placeholder = 'Seleci
   )
 }
 
-export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student; onSaved?: (s: Student) => void; onDeleted?: () => void }) {
+export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { initial: Student; onSaved?: (s: Student, anamnese?: boolean) => void; onDeleted?: () => void; withAnamnese?: boolean }) {
+  const [anamText, setAnamText] = useState('') // cadastro novo de consultoria: já cola a anamnese
+  const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
+  const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
+  const anamFound = useMemo(() => (anamText.trim() && tplText ? Object.keys(answersFromPasted(anamText, parseTemplate(tplText), trainerName)).length : 0), [anamText, tplText, trainerName])
   // Estado local do formulário; o pai usa key={student.id} para reiniciar ao trocar de aluno.
   const [s, setS] = useState(initial)
   const latest = useRef(s)
@@ -62,8 +67,13 @@ export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student;
         if (cur.modality === 'online' && !cur.plan_period) return setStatus('Escolha o tipo do plano: Mensal, Quinzenal ou Semanal.')
         try {
           const saved = await saveStudent(cur)
+          let anam = false
+          if (withAnamnese && cur.modality === 'online' && anamText.trim()) {
+            const answers = answersFromPasted(anamText, parseTemplate(tplText), trainerName)
+            if (Object.keys(answers).length) { await saveAnamnese(saved.id, answers, anamText.trim()); anam = true }
+          }
           setStatus('Alterações salvas com sucesso!')
-          onSaved?.(saved)
+          onSaved?.(saved, anam)
         } catch (err) {
           setStatus(`Não foi possível salvar: ${(err as Error).message}`)
         }
@@ -144,6 +154,13 @@ export function StudentForm({ initial, onSaved, onDeleted }: { initial: Student;
         </div>
         <span className="muted">Só para você: a ficha compara com o foco medido no que você prescreveu. Na montagem automática de treinos, é esta ênfase que será seguida. Os relatórios do aluno mostram sempre o foco medido.</span>
       </div>
+      {withAnamnese && s.modality === 'online' && (
+        <label className="f">Anamnese respondida (opcional)
+          <textarea className="code" style={{ minHeight: 120 }} value={anamText} onChange={(e) => setAnamText(e.target.value)}
+            placeholder="Cole aqui a resposta do aluno no WhatsApp (pelo número ou respondendo por cima das perguntas). Ao salvar, o app lê e abre o resumo, as restrições e os lembretes." />
+          {anamText.trim() && <span className={anamFound ? 'tag ok' : 'tag warn'} style={{ alignSelf: 'start' }}>{anamFound ? `${anamFound} respostas encontradas` : 'Nenhuma resposta reconhecida ainda'}</span>}
+        </label>
+      )}
       <div className="row">
         <button className="btn primary big" type="submit">Salvar aluno</button>
         {status && <span className={status.startsWith('Alterações salvas') ? 'tag regenerativa' : 'tag choque'}>{status}</span>}
