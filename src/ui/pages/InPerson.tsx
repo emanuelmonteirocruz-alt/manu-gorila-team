@@ -530,9 +530,18 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
             }}>
               {sp.recording ? <Square size={16} fill="currentColor" /> : <Mic size={18} strokeWidth={1.8} />}{sp.recording ? 'Parar' : 'Gravar'}
             </button>
-            <button className="btn ok" onClick={() => setEnding(true)}>Encerrar treino</button>
+            <button className={`btn ${ending ? '' : 'ok'}`} onClick={() => setEnding((v) => !v)}>{ending ? 'Continuar treino' : 'Encerrar treino'}</button>
           </div>
         </div>
+
+        {/* PSE logo abaixo do Encerrar treino, só quando ele é tocado */}
+        {ending && (
+          <div className="card grid pse-card">
+            <h2 style={{ margin: 0 }}>Como o aluno respondeu hoje? (PSE 0–10)</h2>
+            <div className="pse">{Array.from({ length: 11 }, (_, i) => <button key={i} className={pse === i ? 'on' : ''} onClick={() => setPse(i)}>{i}</button>)}</div>
+            <button className="btn primary big" disabled={pse == null} onClick={finish}>Salvar avaliação e encerrar</button>
+          </div>
+        )}
 
         <div className="card grid manual-entry">
           {(sp.recording || box.trim()) && (
@@ -710,13 +719,6 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
           </div>
         )}
 
-        {ending && (
-          <div className="card grid">
-            <h2>Como o aluno respondeu hoje? (PSE 0–10)</h2>
-            <div className="pse">{Array.from({ length: 11 }, (_, i) => <button key={i} className={pse === i ? 'on' : ''} onClick={() => setPse(i)}>{i}</button>)}</div>
-            <button className="btn primary big" disabled={pse == null} onClick={finish}>Salvar avaliação e encerrar</button>
-          </div>
-        )}
       </div>
 
     </div>
