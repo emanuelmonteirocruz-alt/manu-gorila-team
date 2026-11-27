@@ -65,7 +65,7 @@ export default function StudentDetail() {
       {tab === 'resumo' && (
         <div className="grid">
           {online
-            ? <><ConsultSummary student={student} goMontar={() => go('montar')} goAluno={() => go('aluno')} /><ConsultancyBar student={student} showPaste={false} hideName /></>
+            ? <><ConsultSummary student={student} goAluno={() => go('aluno')} /><ConsultancyBar student={student} showPaste={false} hideName /></>
             : <PresencialSummary student={student} goTreinos={(sid) => { setOpenSession(sid ?? null); go('treinos') }} />}
         </div>
       )}

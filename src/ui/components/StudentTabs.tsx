@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, ChevronDown, ChevronRight, Copy, FileText, MessageSquare, Play, Send, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy, FileText, MessageSquare, Play, Send, TrendingUp, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { anamneseTemplateText, getAnamnese, lastLoads, latestNutrition, studentSessions } from '../../data/repo'
@@ -24,7 +24,7 @@ function Check1({ ok, label }: { ok: boolean; label: string }) {
 }
 
 /** RESUMO da consultoria: situação do aluno numa olhada e o próximo passo. */
-export function ConsultSummary({ student, goMontar, goAluno }: { student: Student; goMontar: () => void; goAluno: () => void }) {
+export function ConsultSummary({ student, goAluno }: { student: Student; goAluno: () => void }) {
   const pasted = usePastedWeeks()[student.id]
   const { next } = consultState(student, pasted)
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
@@ -57,9 +57,8 @@ export function ConsultSummary({ student, goMontar, goAluno }: { student: Studen
       {attention.length > 0 && <div className="alert warn"><span><b>Atenção (anamnese):</b> {attention.join(' · ')}</span></div>}
       <div className="muted"><b>Nível:</b> {level.label} · <b>Ênfase:</b> {emph.length ? emph.map(short).join(', ') : 'não definida'}</div>
       <div className="row stack-sm">
-        {!triage ? <button className="btn primary big" onClick={goAluno}><MessageSquare size={16} strokeWidth={1.8} /> Colar anamnese</button>
-          : <button className="btn primary big" onClick={goMontar}><Sparkles size={16} strokeWidth={1.8} /> {weeks.length ? 'Montar próximo ciclo' : 'Montar 1ª semana'}</button>}
-        <Link className="btn big" to={`/consultoria?aluno=${student.id}&semana=${next}`}><MessageSquare size={16} strokeWidth={1.8} /> Colar semana de {fmtBR(next).slice(0, 5)}</Link>
+        <Link className="btn primary big" to={`/consultoria?aluno=${student.id}&semana=${next}`}><MessageSquare size={16} strokeWidth={1.8} /> Colar semana de {fmtBR(next).slice(0, 5)}</Link>
+        {!triage && <button className="btn big" onClick={goAluno}><MessageSquare size={16} strokeWidth={1.8} /> Colar anamnese</button>}
       </div>
     </div>
   )
