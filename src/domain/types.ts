@@ -202,3 +202,21 @@ export interface CardioEntry extends SyncMeta {
   notes?: string | null
   created_at: string
 }
+
+/** Avaliação do nutricionista: arquivo (foto/PDF) + dados lidos e conferidos pelo treinador. */
+export interface NutritionEntry extends SyncMeta {
+  id: string
+  student_id: string
+  date: string
+  file_path?: string | null // caminho no armazenamento da nuvem (bucket "nutrition")
+  file_name?: string | null
+  mime?: string | null
+  weight_kg?: number | null
+  kcal?: number | null // calorias por dia do plano
+  phase?: 'deficit' | 'manutencao' | 'superavit' | null
+  protein_g?: number | null
+  body_fat?: number | null
+  notes?: string | null
+  raw_text?: string | null
+  created_at: string
+}

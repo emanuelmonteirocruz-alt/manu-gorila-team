@@ -95,13 +95,13 @@ const fromRemote = <T extends object>(row: T) => {
   return { ...rest, _dirty: 0 as const }
 }
 
-type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins' | 'anamneses' | 'cardio'
+type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins' | 'anamneses' | 'cardio' | 'nutrition'
 /** Chaves naturais únicas: evita conflito quando duas telas criam o mesmo registro offline. */
 const CONFLICT: Partial<Record<Simple, string>> = { weekContexts: 'student_id,week_start', checkins: 'student_id,date,reported_by', anamneses: 'student_id' }
 
 const REMOTE: Record<Simple, string> = {
   students: 'students', weekContexts: 'week_context', ratings: 'session_ratings', checkins: 'daily_checkins',
-  anamneses: 'anamneses', cardio: 'cardio',
+  anamneses: 'anamneses', cardio: 'cardio', nutrition: 'nutrition',
 }
 
 export interface SyncResult {
@@ -175,7 +175,8 @@ async function doSync(): Promise<SyncResult> {
 
     pushed += await pushExerciseCache(sb)
     // students antes de sessions (FK)
-    for (const t of ['students', 'weekContexts', 'anamneses', 'cardio'] as Simple[]) pushed += await pushSimple(sb, t)
+    pushed += await uploadFiles(sb)
+    for (const t of ['students', 'weekContexts', 'anamneses', 'cardio', 'nutrition'] as Simple[]) pushed += await pushSimple(sb, t)
     pushed += await pushSessions(sb)
     for (const t of ['ratings', 'checkins'] as Simple[]) pushed += await pushSimple(sb, t)
     const dirtyLinks = await db.links.where('_dirty').equals(1).toArray()
@@ -279,7 +280,7 @@ async function pullAll(sb: SupabaseClient): Promise<number> {
     if (rows.length) marks[table] = rows[rows.length - 1].synced_at
   }
 
-  for (const t of ['students', 'weekContexts', 'anamneses', 'cardio'] as Simple[]) {
+  for (const t of ['students', 'weekContexts', 'anamneses', 'cardio', 'nutrition'] as Simple[]) {
     const rows = await fetchChanged<{ id: string; synced_at: string; deleted?: boolean }>(sb, REMOTE[t], marks[REMOTE[t]] ?? '')
     for (const r of rows) {
       const local = (await db[t].get(r.id)) as { _dirty?: number } | undefined
@@ -354,4 +355,30 @@ export function installAutoSync(onResult?: (r: SyncResult) => void) {
 /** Pede uma sincronização logo após salvar algo (o App escuta e atualiza o status). */
 export function requestSync() {
   window.dispatchEvent(new Event('sync-now'))
+}
+
+/** Arquivos anexados (avaliação do nutricionista) guardados no aparelho → armazenamento privado da nuvem. */
+async function uploadFiles(sb: SupabaseClient): Promise<number> {
+  const pending = await db.files.where('uploaded').equals(0).toArray()
+  let n = 0
+  for (const f of pending) {
+    const entry = await db.nutrition.get(f.id)
+    if (!entry || entry._deleted) { await db.files.update(f.id, { uploaded: 1 }); continue }
+    const ext = (f.name.split('.').pop() || (f.mime.includes('pdf') ? 'pdf' : 'jpg')).toLowerCase()
+    const path = `${entry.student_id}/${entry.id}.${ext}`
+    const { error } = await sb.storage.from('nutrition').upload(path, f.blob, { contentType: f.mime, upsert: true })
+    if (error) continue // arquivo fica no aparelho e tenta de novo na próxima sincronização (não trava o resto)
+    await db.files.update(f.id, { uploaded: 1 })
+    await db.nutrition.put({ ...entry, file_path: path, _dirty: 1 })
+    n++
+  }
+  return n
+}
+
+/** Link temporário para abrir um arquivo da nuvem (quando não está guardado neste aparelho). */
+export async function signedFileUrl(path: string): Promise<string | null> {
+  const sb = await getSupabase()
+  if (!sb) return null
+  const { data } = await sb.storage.from('nutrition').createSignedUrl(path, 600)
+  return data?.signedUrl ?? null
 }

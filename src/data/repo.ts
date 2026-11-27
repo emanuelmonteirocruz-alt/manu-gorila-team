@@ -2,7 +2,7 @@
  * Repositório de alto nível — junta banco local + motor de cálculo.
  */
 import { db, getKV, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
-import type { Anamnese, CardioEntry, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
+import type { Anamnese, CardioEntry, NutritionEntry, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
 import { aggregateSessions, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
 import { resolveProfiles } from '../engine/classifier'
 import type { ParsedExerciseLine } from '../engine/prescription'
@@ -35,13 +35,14 @@ export async function deleteSession(sessionId: string) {
 export async function deleteStudent(studentId: string) {
   const sessions = await db.sessions.where('student_id').equals(studentId).toArray()
   const sessionIds = sessions.map((x) => x.id)
-  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts, db.anamneses, db.cardio], async () => {
+  await db.transaction('rw', [db.students, db.sessions, db.ratings, db.checkins, db.weekContexts, db.anamneses, db.cardio, db.nutrition], async () => {
     for (const r of await db.ratings.where('session_id').anyOf(sessionIds).toArray()) await softDelete(db.ratings, r.id)
     for (const x of sessions) await softDelete(db.sessions, x.id)
     for (const c of await db.checkins.where('student_id').equals(studentId).toArray()) await softDelete(db.checkins, c.id)
     for (const w of await db.weekContexts.where('student_id').equals(studentId).toArray()) await softDelete(db.weekContexts, w.id)
     for (const an of await db.anamneses.where('student_id').equals(studentId).toArray()) await softDelete(db.anamneses, an.id)
     for (const c of await db.cardio.where('student_id').equals(studentId).toArray()) await softDelete(db.cardio, c.id)
+    for (const nu of await db.nutrition.where('student_id').equals(studentId).toArray()) await softDelete(db.nutrition, nu.id)
     await softDelete(db.students, studentId)
   })
 }
@@ -294,6 +295,8 @@ export async function saveAnamnese(studentId: string, answers: Record<string, st
 /** Peso para o gasto calórico: o da ficha; sem ele, o da anamnese ("Peso atual"); sem nada, null. */
 export async function studentWeight(student: Student): Promise<number | null> {
   if (student.weight_kg) return student.weight_kg
+  const nu = (await latestNutrition(student.id))?.weight_kg
+  if (nu) return nu
   const an = await getAnamnese(student.id)
   if (an) {
     const { parseTemplate } = await import('../consultoria/anamneseTemplate')
@@ -323,4 +326,28 @@ export async function cardioSummary(studentId: string, from: string, to: string)
 
 export async function saveCardio(entry: Omit<CardioEntry, 'id' | 'created_at' | 'updated_at'> & { id?: string }): Promise<CardioEntry> {
   return save(db.cardio, { ...entry, id: entry.id ?? uid(), created_at: nowISO(), updated_at: nowISO() } as CardioEntry)
+}
+
+// ---------------- Avaliação do nutricionista (acréscimo) ----------------
+export async function nutritionOf(studentId: string): Promise<NutritionEntry[]> {
+  return (await db.nutrition.where('student_id').equals(studentId).toArray()).filter((x) => !x._deleted).sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))
+}
+export async function latestNutrition(studentId: string): Promise<NutritionEntry | undefined> {
+  return (await nutritionOf(studentId))[0]
+}
+/** Salva a avaliação (o arquivo fica no aparelho e sobe para a nuvem na sincronização) e usa o peso no aluno. */
+export async function saveNutrition(entry: Omit<NutritionEntry, 'id' | 'created_at' | 'updated_at'>, file?: File | Blob | null, fileName?: string): Promise<NutritionEntry> {
+  const id = uid()
+  if (file) await db.files.put({ id, blob: file, name: fileName ?? (file as File).name ?? 'avaliacao', mime: file.type || 'application/octet-stream', uploaded: 0 })
+  const saved = await save(db.nutrition, { ...entry, id, file_name: fileName ?? (file as File | undefined)?.name ?? null, mime: file?.type ?? null, created_at: nowISO(), updated_at: nowISO() } as NutritionEntry)
+  if (entry.weight_kg) {
+    const st = await db.students.get(entry.student_id)
+    if (st) await save(db.students, { ...st, weight_kg: entry.weight_kg })
+  }
+  // fase da dieta → contexto da semana (presencial usa no relatório e na leitura do esforço)
+  if (entry.phase) {
+    const diet = entry.phase === 'deficit' ? 'cutting' : entry.phase === 'superavit' ? 'bulking' : 'manutencao'
+    await upsertWeekContext(entry.student_id, weekStart(entry.date), { diet })
+  }
+  return saved
 }

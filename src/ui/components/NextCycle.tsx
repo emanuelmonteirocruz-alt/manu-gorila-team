@@ -2,7 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ClipboardCopy, MessageSquare, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { anamneseTemplateText, getAnamnese, profileLookup, studentSessions } from '../../data/repo'
+import { anamneseTemplateText, getAnamnese, latestNutrition, profileLookup, studentSessions } from '../../data/repo'
+import { nutritionLine } from './NutritionPanel'
 import { listWeeks, weekLabel } from '../../data/reportData'
 import { parseTemplate } from '../../consultoria/anamneseTemplate'
 import { buildTriage, type Triage } from '../../consultoria/triage'
@@ -29,6 +30,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const anam = useLiveQuery(() => getAnamnese(student.id), [student.id])
+  const nutri = useLiveQuery(() => latestNutrition(student.id), [student.id])
   const triage: Triage | null = useMemo(() => {
     if (!anam || !Object.values(anam.answers ?? {}).some((v) => v?.trim())) return null
     return buildTriage(parseTemplate(tplText), anam.answers)
@@ -171,6 +173,12 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
             </details>
           ) : (
             <div className="muted">Sem anamnese nem observações para este aluno{onOpenAnamnese ? <> · <button className="link-btn" onClick={onOpenAnamnese}>colar anamnese</button></> : ''}.</div>
+          )}
+          {nutri && (
+            <div className={nutri.phase === 'deficit' ? 'alert warn' : 'muted'}>
+              <b>Nutricionista ({nutri.date.split('-').reverse().slice(0, 2).join('/')}):</b> {nutritionLine(nutri)}
+              {nutri.phase === 'deficit' ? ' · em déficit a recuperação é menor: priorize manter carga e força e use as técnicas com moderação no choque.' : nutri.phase === 'superavit' ? ' · em superávit: bom momento para progredir volume e carga.' : ''}
+            </div>
           )}
           <TrainerNotes student={student} compact />
           <button className="btn primary big" onClick={generate}><Sparkles size={16} strokeWidth={1.8} /> {text ? 'Gerar outra variação' : isNew ? 'Montar 1ª semana' : 'Gerar treino'}</button>

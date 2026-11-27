@@ -416,3 +416,6 @@ textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; ove
 .biset-btn { height: 44px; }
 .tag.drop-tag { background: #FEF3C7; border-color: #F59E0B; color: #92400E; font-weight: 700; }
 .pse-card { border: 2px solid var(--accent); }
+/* avaliação do nutricionista */
+.nutri-file { justify-content: center; gap: 8px; cursor: pointer; }
+.nutri-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
