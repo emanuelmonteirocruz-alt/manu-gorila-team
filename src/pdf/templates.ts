@@ -244,16 +244,20 @@ function kcalCard(d: jsPDF, y: number, kcal: number, minutes: number | undefined
   let x = PAGE.m
   iconFlame(d, x + 18, y + 25, 15, C.heavy)
   text(d, fmtNum(kcal), x + 32, y + 30, { size: 16, bold: true, c: C.ink })
-  text(d, sessions > 1 ? `kcal na musculação · ${sessions} treinos` : 'kcal na musculação', x + 32, y + 42, { size: 6.5, c: C.sub })
+  text(d, 'kcal na musculação', x + 32, y + 41, { size: 6.5, c: C.sub })
+  if (sessions > 1) text(d, `em ${sessions} treinos`, x + 32, y + 48, { size: 6.5, c: C.sub })
   x += cw
   if (sessions > 1) {
-    text(d, fmtNum(kcal / sessions), x + 10, y + 30, { size: 16, bold: true, c: C.ink })
-    text(d, 'média / treino', x + 10, y + 42, { size: 6.5, c: C.sub })
+    // coluna do meio: média por treino (cada coluna com o seu espaço, sem sobrepor)
+    text(d, fmtNum(kcal / sessions), x + 6, y + 30, { size: 16, bold: true, c: C.ink })
+    text(d, 'média de calorias', x + 6, y + 41, { size: 6.5, c: C.sub })
+    text(d, 'por treino', x + 6, y + 48, { size: 6.5, c: C.sub })
     x += cw
   }
   if (minutes) {
-    text(d, `${fmtNum(minutes)} min`, x + 10, y + 30, { size: 16, bold: true, c: C.ink })
-    text(d, sessions > 1 ? 'de treino no total' : realMin ? 'de treino' : 'de treino (estimado)', x + 10, y + 42, { size: 6.5, c: C.sub })
+    text(d, `${fmtNum(minutes)} min`, x + 6, y + 30, { size: 16, bold: true, c: C.ink })
+    text(d, sessions > 1 ? 'de treino no total' : realMin ? 'de treino' : 'de treino', x + 6, y + 41, { size: 6.5, c: C.sub })
+    if (sessions === 1 && !realMin) text(d, '(estimado)', x + 6, y + 48, { size: 6.5, c: C.sub })
   }
   if (CARDIO) {
     // linha do cardio: kcal, sessões/dias, minutos e o total (treino + cardio)
