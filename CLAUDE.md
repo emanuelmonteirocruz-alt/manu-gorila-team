@@ -23,6 +23,6 @@ O usuário escreve em português: responda em português, de forma curta.
 - Não usar "superior/inferior"; nos grupos musculares, só o músculo principal.
 - **Repetições antes do kg** em tudo (ex.: 10 × 40 kg).
 - Consultoria: sem comparação ou lista de músculos nos PDFs; sem gramas de gordura; sem "equivalente em caminhada".
-- Nomes das fases: "Fase de consolidação", "Base e controle técnico", "Pico de estímulo". Semana regenerativa deve ficar evidente ("não é perda de treino").
+- Nomes das fases: "Fase de consolidação", "Base e controle técnico", "Pico de estímulo". Semana regenerativa deve ficar evidente ("redução planejada de volume"), sem a frase "não é perda de treino".
 - Manter o termo "mais intensidade".
 - **Pergunte antes de mudar o layout** ou propor algo grande, com exemplos de opções.

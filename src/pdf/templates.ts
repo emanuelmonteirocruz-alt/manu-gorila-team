@@ -496,9 +496,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
   if (regen) {
     // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
-    text(d, 'Semana regenerativa', PAGE.m + 16, y + 30, { size: 18, bold: true, c: C.zoneInk.regenerativa })
-    text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 44, { size: 7.2, c: C.zoneInk.regenerativa })
-    text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 16, y + 55, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+    text(d, 'Semana regenerativa', PAGE.m + 16, y + 34, { size: 18, bold: true, c: C.zoneInk.regenerativa })
+    text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 50, { size: 7.2, c: C.zoneInk.regenerativa })
   } else if (shock) {
     // semana de choque: estímulo novo de propósito — diz o que mudou, sem nome de método
     text(d, 'SEMANA DE CHOQUE', PAGE.m + 16, y + 22, { size: 7.5, bold: true, c: C.zone.choque })
@@ -923,10 +922,9 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   let y = heroCard(d, 92, o, cur, regen ? undefined : prev, regen ? 'Semana regenerativa' : prev?.validSets ? 'Semana vs anterior' : 'Total da semana')
   if (regen) {
     // menos volume é planejado: deixa claro que não é destreino
-    card(d, PAGE.m, y, W, 30, C.zone.regenerativa)
-    text(d, 'Semana regenerativa: redução planejada para recuperar e voltar mais forte.', PAGE.m + 12, y + 13, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
-    text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 12, y + 23, { size: 7, c: C.zoneInk.regenerativa })
-    y += 38
+    card(d, PAGE.m, y, W, 24, C.zone.regenerativa)
+    text(d, 'Semana regenerativa: redução planejada para recuperar e voltar mais forte.', PAGE.m + 12, y + 15, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+    y += 32
   }
 
   // conquistas da semana
