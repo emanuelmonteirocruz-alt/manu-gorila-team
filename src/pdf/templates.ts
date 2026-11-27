@@ -497,21 +497,19 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   if (regen) {
     // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
     text(d, 'Semana regenerativa', PAGE.m + 16, y + 34, { size: 18, bold: true, c: C.zoneInk.regenerativa })
-    text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 50, { size: 7.2, c: C.zoneInk.regenerativa })
+    text(d, 'Redução planejada de volume e esforço.', PAGE.m + 16, y + 50, { size: 7.2, c: C.zoneInk.regenerativa })
   } else if (shock) {
     // semana de choque: estímulo novo de propósito — diz o que mudou, sem nome de método
-    text(d, 'SEMANA DE CHOQUE', PAGE.m + 16, y + 22, { size: 7.5, bold: true, c: C.zone.choque })
-    text(d, 'Estímulo novo para o corpo voltar a evoluir', PAGE.m + 16, y + 38, { size: 13, bold: true, c: '#ffffff' })
+    text(d, PHASE_NAME.choque, PAGE.m + 16, y + 34, { size: 18, bold: true, c: '#ffffff' })
     const what = shock.length ? `o que mudou: ${shock.slice(0, 3).join(' · ')}` : 'mesmos exercícios, com variáveis novas de treino'
-    text(d, what, PAGE.m + 16, y + 53, { size: 7.2, c: '#D9E2EA' })
+    text(d, what, PAGE.m + 16, y + 50, { size: 7.2, c: '#D9E2EA' })
   } else if (proof) {
     const [lbl, sub, x, y2] = proof
     const isLvl = lbl === 'intensidade a mais'
     text(d, isLvl ? `+${Math.round(monthLevel!)}%` : lbl === 'carga mais pesada' ? `-${fmtNum(y2)} reps` : `+${fmtNum(y2 - x)}`, PAGE.m + 16, y + 45, { size: lbl === 'carga mais pesada' ? 30 : 36, bold: true, c: '#ffffff' })
-    text(d, lbl.toUpperCase(), PAGE.m + W - 16, y + 26, { size: 9, bold: true, c: '#ffffff', align: 'right' })
+    text(d, lbl.toUpperCase(), PAGE.m + W - 16, y + 30, { size: 9, bold: true, c: '#ffffff', align: 'right' })
     const isReps = lbl === 'carga mais pesada'
-    text(d, isReps ? `média de ${fmtNum(Math.round(b.avgReps!))} > ${fmtNum(Math.round(a.avgReps!))} repetições por série` : `${sub} · ${before.label}: ${fmtNum(x)} > ${after.label}: ${fmtNum(y2)}`, PAGE.m + W - 16, y + 40, { size: 7, c: '#E6F4F2', align: 'right' })
-    text(d, isLvl ? 'sua intensidade evoluiu de um mês para o outro' : 'mais intensidade no treino', PAGE.m + W - 16, y + 53, { size: 7, bold: true, c: '#E6F4F2', align: 'right' })
+    text(d, isReps ? `média de ${fmtNum(Math.round(b.avgReps!))} > ${fmtNum(Math.round(a.avgReps!))} repetições por série` : `${sub} · ${before.label}: ${fmtNum(x)} > ${after.label}: ${fmtNum(y2)}`, PAGE.m + W - 16, y + 46, { size: 7, c: '#E6F4F2', align: 'right' })
   } else if (best) {
     const isPts = best[0] === 'pontos de intensidade'
     text(d, `+${Math.round(best[1])}${isPts ? '' : '%'}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
@@ -522,9 +520,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   } else {
     // nada subiu: "Periodização consistente" (constância) ou "Semana de ajuste" — em tom calmo, nunca como queda
     const title = steady ? 'Periodização consistente' : hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês')
-    const sub = steady ? '' : hasBefore ? 'base para o próximo salto' : 'ponto de partida da sua evolução'
-    text(d, title, PAGE.m + 16, sub ? y + 36 : y + 40, { size: 20, bold: true, c: steady ? C.heavy : C.ink })
-    if (sub) text(d, sub, PAGE.m + 16, y + 51, { size: 7.5, c: C.sub })
+    text(d, title, PAGE.m + 16, y + 40, { size: 20, bold: true, c: steady ? C.heavy : C.ink })
   }
   y += 76
 
@@ -923,7 +919,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   if (regen) {
     // menos volume é planejado: deixa claro que não é destreino
     card(d, PAGE.m, y, W, 24, C.zone.regenerativa)
-    text(d, 'Semana regenerativa: redução planejada para recuperar e voltar mais forte.', PAGE.m + 12, y + 15, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+    text(d, 'Semana regenerativa: redução planejada de volume e esforço.', PAGE.m + 12, y + 15, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
     y += 32
   }
 
