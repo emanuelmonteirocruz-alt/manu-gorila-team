@@ -390,14 +390,24 @@ export interface PerTraining {
 /** Nomes do "antes" e do "depois" nos placares: as datas das semanas (ou os meses) em vez de antes/depois. */
 let BEFORE_LBL = 'antes', AFTER_LBL = 'depois'
 /** Placar "antes → depois" de uma métrica, com barras lado a lado. */
-function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: string, before: number, after: number, fmt: (n: number) => string, hasBefore: boolean, first = 'primeiro mês', neutral = false) {
+function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: string, before: number, after: number, fmt: (n: number) => string, hasBefore: boolean, first = 'primeiro mês', neutral = false, hint?: string) {
   card(d, x, y, w, h, '#FFFFFF')
   text(d, label.toUpperCase(), x + 10, y + 15, { size: 6.3, bold: true, c: C.sub })
+  // frase curta que explica o número (ex.: "cada treino teve ~21 séries")
+  if (hint) text(d, hint, x + 10, y + 23, { size: 5.8, c: C.sub })
   const short = h < 90 // placar compacto: número e "antes" um pouco mais acima, para a pílula não encostar
-  text(d, fmt(after), x + 10, y + (short ? 39 : 46), { size: 22, bold: true, c: C.ink })
-  text(d, hasBefore ? `${BEFORE_LBL}: ${fmt(before)}` : first, x + 10, y + (short ? 50 : 59), { size: 7, c: C.sub })
+  const dy = hint ? 4 : 0
+  text(d, fmt(after), x + 10, y + (short ? 39 : 46) + dy, { size: 22, bold: true, c: C.ink })
+  text(d, hasBefore ? `${BEFORE_LBL}: ${fmt(before)}` : first, x + 10, y + (short ? 50 : 59) + dy, { size: 7, c: C.sub })
+  const same = hasBefore && Math.round(before) === Math.round(after)
+  if (same) {
+    // sem mudança: pílula cinza "= manteve" em vez de nada
+    fill(d, '#EEF2F6')
+    d.roundedRect(x + 10, y + h - 22, 44, 13, 6.5, 6.5, 'F')
+    text(d, '= manteve', x + 32, y + h - 13, { size: 6.5, bold: true, c: C.sub, align: 'center' })
+  }
   // neutral: PSE mais baixa com mais carga é adaptação, não piora — sem seta de queda
-  if (hasBefore && before > 0 && !neutral) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
+  else if (hasBefore && before > 0 && !neutral) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
   // barras verticais: antes (cinza) × depois (destaque)
   const bx = x + w - 52, base = y + h - 14, hMax = h - 36
   const max = Math.max(before, after, 1)
@@ -503,7 +513,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
   const rg = !!regen // regenerativa: placares neutros (sem pílula de queda)
   scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg)
-  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg)
+  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg, `cada treino teve ~${perSession(a)} séries`)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, W, th, 'Nível de estímulo', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first, rg)
   else if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Grupos musculares', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, true)
