@@ -397,9 +397,13 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
   if (hint) text(d, hint, x + 10, y + 23, { size: 5.8, c: C.sub })
   const short = h < 90 // placar compacto: número e "antes" um pouco mais acima, para a pílula não encostar
   const dy = hint ? 4 : 0
-  text(d, fmt(after), x + 10, y + (short ? 39 : 46) + dy, { size: 22, bold: true, c: C.ink })
+  // número grande cabe antes das barras (ex.: "1.243 kcal" diminui a fonte)
+  const room = (w > W * 0.7 ? 150 : w - 52) - 16
+  d.setFont('helvetica', 'bold'); d.setFontSize(22)
+  const vs = Math.max(13, Math.min(22, 22 * room / Math.max(1, d.getTextWidth(fmt(after)))))
+  text(d, fmt(after), x + 10, y + (short ? 39 : 46) + dy, { size: vs, bold: true, c: C.ink })
   text(d, hasBefore ? `${BEFORE_LBL}: ${fmt(before)}` : first, x + 10, y + (short ? 50 : 59) + dy, { size: 7, c: C.sub })
-  const same = hasBefore && Math.round(before) === Math.round(after)
+  const same = hasBefore && (Math.round(before) === Math.round(after) || (before > 0 && Math.abs((after - before) / before) < 0.05))
   if (same) {
     // sem mudança: pílula cinza "= manteve" em vez de nada
     fill(d, '#EEF2F6')
@@ -416,7 +420,7 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
   const ha = Math.max(2, (after / max) * hMax)
   fill(d, C.grid)
   if (hb) d.roundedRect(bx, base - hb, 18, hb, 3, 3, 'F')
-  fill(d, after >= before || neutral ? C.heavy : C.volume)
+  fill(d, after >= before || neutral || same ? C.heavy : C.volume)
   d.roundedRect(bx + 22, base - ha, 18, ha, 3, 3, 'F')
   text(d, BEFORE_LBL, bx + 9, base + 8, { size: 5.2, c: C.sub, align: 'center' })
   text(d, AFTER_LBL, bx + 31, base + 8, { size: 5.2, bold: true, c: C.heavy, align: 'center' })
@@ -485,7 +489,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     : undefined
   if (isOnline(o)) best = undefined
   const regen = wk && after.phase === 'regenerativa'
-  fill(d, regen ? C.zone.regenerativa : best || proof ? C.heavy : C.headerBg)
+  const steady = !regen && !best && !proof && hasBefore && Math.abs(pct(a.validSets, b.validSets) ?? 0) < 5
+  fill(d, regen ? C.zone.regenerativa : best || proof ? C.heavy : steady ? C.zone.choque : C.zone.ordinaria)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
   if (regen) {
     // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
@@ -508,8 +513,11 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     else if (best[0] === 'mais intensidade' && levelOf(b)) text(d, `nível de estímulo ${levelOf(b)} > ${levelOf(a)}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
     text(d, `${before.label} > ${after.label}`, PAGE.m + W - 16, y + 44, { size: 7.5, c: '#E6F4F2', align: 'right' })
   } else {
-    text(d, hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês'), PAGE.m + 16, y + 38, { size: 20, bold: true, c: '#ffffff' })
-    text(d, hasBefore ? 'base para o próximo salto' : 'nível de estímulo inicial', PAGE.m + 16, y + 52, { size: 7.5, c: '#CBD5E1' })
+    // nada subiu: "Nível mantido" (constância) ou "Semana de ajuste" — em tom calmo, nunca como queda
+    const title = steady ? 'Nível mantido' : hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês')
+    const sub = steady ? 'mesmo volume e intensidade: constância é o que sustenta a evolução' : hasBefore ? 'base para o próximo salto' : 'ponto de partida da sua evolução'
+    text(d, title, PAGE.m + 16, y + 36, { size: 20, bold: true, c: steady ? C.heavy : C.ink })
+    text(d, sub, PAGE.m + 16, y + 51, { size: 7.5, c: C.sub })
   }
   y += 76
 
@@ -535,7 +543,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) {
     // métodos (drop, bi-set…) não entram no PDF do aluno: são ferramentas, não prova de intensidade (só o treinador vê a contagem)
-    scoreTile(d, PAGE.m, y + th + 10, W, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
+    scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
+    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, wk ? 'Gasto na semana' : 'Gasto no mês', b.kcal, a.kcal, (n) => `${fmtNum(n)} kcal`, hasBefore, first, rg, a.sessions > 1 ? `~${fmtNum(a.kcal / a.sessions)} kcal por treino` : undefined)
   }
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
   if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
@@ -580,8 +589,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     } else y = qualitySection(d, y, b, a, hasBefore)
   } else y = qualitySection(d, y, b, a, hasBefore)
 
-  // 4) calorias do mês: antes × depois
-  if (y + 56 <= BOTTOM) {
+  // 4) calorias do mês: antes × depois (na consultoria o gasto já está nos placares)
+  if (!isOnline(o) && y + 56 <= BOTTOM) {
     card(d, PAGE.m, y + 4, W, 48, C.card)
     iconFlame(d, PAGE.m + 18, y + 27, 14, C.heavy)
     text(d, wk ? 'GASTO NA SEMANA' : 'GASTO NO MÊS', PAGE.m + 32, y + 20, { size: 6.3, bold: true, c: C.sub })
@@ -597,7 +606,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
 
 /** Treino a treino: séries válidas de cada treino (A, B, C…) na semana anterior × na nova. */
 function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportOptions): number {
-  const list = rows.filter((r) => r.after || r.before).slice(0, 6)
+  // consultoria: treino que não está na semana nova (ex.: E trocado por um A repetido) não aparece como "faltou"
+  const list = rows.filter((r) => r.after || (r.before && !isOnline(o))).slice(0, 6)
   if (!list.length) return y
   sectionTitle(d, 'Treino a treino', y + 6)
   chartSeal(d, PAGE.m + W, y + 6)

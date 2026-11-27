@@ -94,11 +94,6 @@ export async function weekPoints(student: Student, weeks: string[], executedTota
   const ratings = await db.ratings.toArray()
   const checkins = await db.checkins.where('student_id').equals(student.id).toArray()
   const out: WeekPoint[] = []
-  let prevAgg = null as WeekPoint['agg'] | null
-  // inclui a semana anterior à primeira para classificar corretamente
-  const firstPrev = addDays(weeks[0], -7)
-  const prevSessions = await studentSessions(student, firstPrev, addDays(firstPrev, 6))
-  if (prevSessions.length) prevAgg = aggregateSessions(prevSessions, lookup, ratings)
   const { consultDays, expandWeek, adjustToExecuted } = await import('./reportData')
   const days = await consultDays(student) // consultoria: ABCDA conta o A duas vezes
   const perWeek = new Map<string, Session[]>()
@@ -111,15 +106,25 @@ export async function weekPoints(student: Student, weeks: string[], executedTota
     for (const w of weeks) perWeek.set(w, perWeek.get(w)!.filter((x) => ids.has(x.id)))
     for (const x of extra) { const w = weekStart(x.date); perWeek.set(w, [...(perWeek.get(w) ?? []), x]) }
   }
+  // a fase de cada semana é sempre contra a semana imediatamente anterior a ela no calendário
+  // (assim 23/11 tem a mesma fase em qualquer comparação ou PDF)
+  // (se ela não foi colada, a última semana com treino nas 4 anteriores)
+  const prevOf = async (w: string) => {
+    for (let k = 1; k <= 4; k++) {
+      const pw = addDays(w, -7 * k)
+      const ss = perWeek.get(pw) ?? expandWeek(await studentSessions(student, pw, addDays(pw, 6)), days)
+      if (ss.length) return aggregateSessions(ss, lookup, ratings)
+    }
+    return null
+  }
   for (const w of weeks) {
     const sessions = perWeek.get(w) ?? []
     const agg = aggregateSessions(sessions, lookup, ratings)
     const ctx = await getWeekContext(student.id, w)
-    const verdict = weekVerdict(agg, prevAgg, student.sex === 'F' ? ctx : ctx && { ...ctx, menstrual: false })
+    const verdict = weekVerdict(agg, await prevOf(w), student.sex === 'F' ? ctx : ctx && { ...ctx, menstrual: false })
     const sleep = { bem: 0, mal: 0, irregular: 0 }
     for (const c of checkins) if (!c._deleted && c.date >= w && c.date <= addDays(w, 6)) sleep[c.sleep]++
     out.push({ week: w, firstDate: sessions[0]?.date, agg, verdict, ctx, sleep })
-    prevAgg = agg
   }
   return out
 }
