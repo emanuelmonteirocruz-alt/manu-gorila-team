@@ -86,3 +86,26 @@ describe('calorias da musculação (MET × peso × tempo)', () => {
     expect(b.kcal / a.kcal).toBeCloseTo(90 / 70, 2) // mais peso, mais gasto
   })
 })
+
+describe('calorias: duração real + MET pelos exercícios + correção anaeróbia', () => {
+  it('usa a duração real quando existe; perna e séries pesadas gastam mais', async () => {
+    const { sessionKcal, setSessionDuration, setStudentWeight } = await import('../engine/metrics')
+    const { SEED_PROFILES, normalizeKey } = await import('../engine/exerciseSeed')
+    const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+    const ex = (name: string, reps: number) => ({ id: name, position: 0, exercise_key: normalizeKey(name), display_name: name, valid_sets: 4, warmup_sets: 0, heavy_sets: 0, reps: [0, 1, 2, 3].map(() => ({ min: reps, max: reps })), drop_set: false })
+    const sess = (id: string, exs: ReturnType<typeof ex>[]) => ({ id, student_id: 'kg60', date: '2026-11-27', label: 'A', source: 'presencial' as const, muscle_groups: [], created_at: '', updated_at: '', exercises: exs })
+    setStudentWeight('kg60', 60)
+    const perna = sess('p', [ex('Agachamento livre', 12), ex('Leg press', 12), ex('Afundo', 12)])
+    const braco = sess('b', [ex('Rosca direta', 12), ex('Tríceps corda', 12), ex('Elevação lateral', 12)])
+    expect(sessionKcal(perna, lookup).kcal).toBeGreaterThan(sessionKcal(braco, lookup).kcal * 1.3)
+    // pesada (6–8 reps) gasta mais que a mesma série leve
+    const pesada = sess('h', [ex('Agachamento livre', 6), ex('Leg press', 6), ex('Afundo', 6)])
+    expect(sessionKcal(pesada, lookup).kcal).toBeGreaterThan(sessionKcal(perna, lookup).kcal)
+    // duração real: 50 min mudam o total (descanso por percepção entra no tempo)
+    setSessionDuration('p', 50)
+    const k = sessionKcal(perna, lookup, 8)
+    expect(k.real).toBe(true)
+    expect(k.minutes).toBe(50)
+    expect(Math.round(k.kcal)).toBe(Math.round(5.5 * 1.1 * 60 * (50 / 60))) // MET 5,5 (perna) × PSE 8 × 60 kg × 50 min
+  })
+})

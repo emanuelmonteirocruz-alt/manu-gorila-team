@@ -7,7 +7,7 @@ import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, tr
 import { resolveProfiles } from '../../engine/classifier'
 import { DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, type Microcycle, type Session, type SessionExercise, type Student } from '../../domain/types'
 import {
-  addDays, aggregateSessions, classifySessionLevel, divergenceAlert, fmtBR, fmtNum, LEVEL_LABEL, toISODate, weekStart,
+  addDays, aggregateSessions, setSessionDuration, classifySessionLevel, divergenceAlert, fmtBR, fmtNum, LEVEL_LABEL, toISODate, weekStart,
   type DivergenceAlert, type SessionLevel,
 } from '../../engine/metrics'
 import { isHeavy } from '../../engine/prescription'
@@ -477,13 +477,14 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
     await saveRating(session.id, pse)
     const sleep = (await getCheckin(student.id, session.date))?.sleep ?? null
     const lookup = await profileLookup()
-    const agg = aggregateSessions([session], lookup)
+    setSessionDuration(session.id, (Date.now() - new Date(session.created_at).getTime()) / 60000) // duração real p/ calorias
+    const agg = aggregateSessions([session], lookup, pse != null ? [{ id: 'x', session_id: session.id, pse, reported_by: 'trainer', created_at: '', updated_at: '' }] : [])
     const ctx = await getWeekContext(student.id, weekStart(session.date))
     const c = { sleep: sleep ?? undefined, diet: ctx?.diet, menstrual: student.sex === 'F' && !!ctx?.menstrual }
     setResult({ level: classifySessionLevel(pse, agg, c), alert: divergenceAlert(session.planned_microcycle, pse, c), kcal: agg.kcal, fatGrams: agg.fatGrams })
     // PDF do treino já pronto ao encerrar: o aluno está na sua frente
     const ex = await treinoDoDiaExtras(student, session)
-    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }
+    const o = { studentName: student.full_name, showName: true, showEmphasis: false, brand: await getBrand(), modality: 'presencial' as const, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio, prevSame: ex.prevSame, lastTop: ex.lastTop }
     const bests = await previousBests(student.id, session)
     const make = () => templateD(session, lookup, pse, o, bests, ex.last)
     setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })

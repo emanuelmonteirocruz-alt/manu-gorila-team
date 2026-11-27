@@ -7,10 +7,10 @@ import type { jsPDF } from 'jspdf'
 import type { BestSet, LoadRow } from '../data/reportData'
 import { saveFile } from '../artifact/claude'
 import { DIET_LABEL, type Microcycle, type Session, type WeekContext } from '../domain/types'
-import { aggregateSessions, challengeLevel, tonnage, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
+import { aggregateSessions, challengeLevel, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
 import {
   C, PAGE, applyBrand, badgeRow, card, chartSeal, deltaPill, fill, header, iconDrop, iconFlame, iconTrend, legend, lineSeries,
-  muscleRanking, newDoc, ring, seal, sectionTitle, stacked100, text, type MuscleRow, type PdfBrand,
+  muscleRanking, newDoc, ring, seal, sectionTitle, text, type MuscleRow, type PdfBrand,
 } from './charts'
 
 export interface WeekPoint {
@@ -35,6 +35,10 @@ export interface ReportOptions {
   phase?: Microcycle | null
   /** cardio do período (dia, semana ou mês do relatório): entra no quadro de calorias */
   cardio?: { kcal: number; minutes: number; sessions: number; days: number } | null
+  /** Treino do dia: séries da última vez desse mesmo treino (para "+2 vs último Treino A") */
+  prevSame?: { sets: number; label: string } | null
+  /** Treino do dia: maior série da última vez em cada exercício ("10 × 36 kg") */
+  lastTop?: Record<string, string>
 }
 
 /** Nomes das fases para o ALUNO (os relatórios valorizam a evolução; o app continua com ordinária/choque/regenerativa). */
@@ -138,6 +142,16 @@ export function pseWord(p: number): string {
 /** Presencial: anel com a PSE (o que o aluno relatou) — "8/10 · Intenso". Sem PSE: % de séries pesadas. */
 function effortRing(d: jsPDF, cx: number, cy: number, r: number, a: Aggregate, pse: number | null) {
   if (pse == null) {
+    if (a.minutes) {
+      // sem PSE: duração do treino (real no presencial; estimada sem horário)
+      ring(d, cx, cy, r, 100, C.grid, '')
+      fill(d, '#FFFFFF')
+      d.circle(cx, cy, r - 4, 'F')
+      text(d, fmtNum(a.minutes), cx, cy + 3, { size: r * 0.62, bold: true, c: C.ink, align: 'center' })
+      text(d, 'min', cx, cy + 11, { size: 6, bold: true, c: C.sub, align: 'center' })
+      text(d, a.realMinutes ? 'DURAÇÃO DO TREINO' : 'DURAÇÃO ESTIMADA', cx, cy + r + 11, { size: 6, bold: true, c: C.sub, align: 'center' })
+      return
+    }
     ring(d, cx, cy, r, a.heavyPct, C.intensity, 'SÉRIES PESADAS %')
     return
   }
@@ -169,7 +183,12 @@ function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Agg
   text(d, 'sem contar o aquecimento', PAGE.m + 14, y + 69, { size: 6, c: C.sub })
   // variação ao lado do número (embaixo fica a explicação das séries)
   d.setFont('helvetica', 'bold'); d.setFontSize(32)
-  deltaPill(d, PAGE.m + 14 + d.getTextWidth(String(a.validSets)) + 6, y + 30, pct(a.validSets, prev?.validSets))
+  const nx = PAGE.m + 14 + d.getTextWidth(String(a.validSets)) + 6
+  if (o.prevSame) {
+    const diff = a.validSets - o.prevSame.sets
+    const t = diff ? `${diff > 0 ? '+' : ''}${diff} vs último ${o.prevSame.label}` : `= último ${o.prevSame.label}`
+    text(d, t, nx, y + 42, { size: 6.8, bold: true, c: diff > 0 ? C.heavy : C.sub })
+  } else deltaPill(d, nx, y + 30, pct(a.validSets, prev?.validSets))
   const rx = PAGE.m + W - 12
   if (isOnline(o)) {
     // volume: séries por treino (vários treinos) ou grupos trabalhados (um treino)
@@ -218,23 +237,24 @@ function achievementsOf(weeks: WeekPoint[], o: ReportOptions): string[] {
 }
 
 /** Card de gasto: chama + kcal, média por treino e gota + equivalente em gordura. */
-function kcalCard(d: jsPDF, y: number, kcal: number, fatG: number, sessions = 1) {
+function kcalCard(d: jsPDF, y: number, kcal: number, minutes: number | undefined, realMin: boolean | undefined, sessions = 1) {
   card(d, PAGE.m, y, W, 52, C.card)
   const cols = sessions > 1 ? 3 : 2
   const cw = W / cols
   let x = PAGE.m
   iconFlame(d, x + 18, y + 25, 15, C.heavy)
   text(d, fmtNum(kcal), x + 32, y + 30, { size: 16, bold: true, c: C.ink })
-  text(d, sessions > 1 ? `kcal · ${sessions} treinos` : 'kcal', x + 32, y + 42, { size: 6.5, c: C.sub })
+  text(d, sessions > 1 ? `kcal na musculação · ${sessions} treinos` : 'kcal na musculação', x + 32, y + 42, { size: 6.5, c: C.sub })
   x += cw
   if (sessions > 1) {
     text(d, fmtNum(kcal / sessions), x + 10, y + 30, { size: 16, bold: true, c: C.ink })
     text(d, 'média / treino', x + 10, y + 42, { size: 6.5, c: C.sub })
     x += cw
   }
-  iconDrop(d, x + 14, y + 25, 15, C.fat)
-  text(d, `${fmtNum(fatG)} g`, x + 28, y + 30, { size: 16, bold: true, c: C.ink })
-  text(d, 'gordura', x + 28, y + 42, { size: 6.5, c: C.sub })
+  if (minutes) {
+    text(d, `${fmtNum(minutes)} min`, x + 10, y + 30, { size: 16, bold: true, c: C.ink })
+    text(d, sessions > 1 ? 'de treino no total' : realMin ? 'de treino' : 'de treino (estimado)', x + 10, y + 42, { size: 6.5, c: C.sub })
+  }
   if (CARDIO) {
     // linha do cardio: kcal, sessões/dias, minutos e o total (treino + cardio)
     const cy = y + 56
@@ -319,20 +339,29 @@ function hRows(d: jsPDF, y: number, rows: HRow[], rowH = 28, rightLabel = 'Quilo
 
 /** Perfil biomecânico (multi × mono, livre × máquina) — preenche o espaço quando cabe. */
 function profileSection(d: jsPDF, y: number, a: Aggregate): number {
-  if (!a.validSets) return y
-  sectionTitle(d, 'Perfil do treino', y + 6)
+  // "Músculos do dia": o músculo principal de cada exercício (séries de trabalho), sem termos técnicos
+  const rows = trainedGroups(a).slice(0, 5)
+  if (!rows.length) return y
+  sectionTitle(d, a.sessions > 1 ? 'Músculos trabalhados' : 'Músculos do dia', y + 6)
   chartSeal(d, PAGE.m + W, y + 6)
   y += 14
-  const half = (W - 12) / 2
-  stacked100(d, PAGE.m, y, half, a.multiSets, a.monoSets, C.multi, C.mono, 'Multiarticular', 'Mono')
-  stacked100(d, PAGE.m + half + 12, y, half, a.freeSets, a.machineSets, C.free, C.machine, 'Peso livre', 'Máquina')
-  return y + 34
+  const max = Math.max(...rows.map(([, v]) => v), 1)
+  const labelW = 92, barW = W - labelW - 56
+  for (const [g, v] of rows) {
+    text(d, g.replace('Perna - ', ''), PAGE.m, y + 8, { size: 7.5, bold: true })
+    fill(d, C.heavy)
+    d.roundedRect(PAGE.m + labelW, y + 1.5, Math.max((v / max) * barW, 4), 8, 2, 2, 'F')
+    text(d, `${fmtNum(v)} ${v === 1 ? 'série' : 'séries'}`, PAGE.m + W, y + 8, { size: 7, c: C.sub, align: 'right' })
+    y += 13
+  }
+  return y + 4
 }
 
 /** Fecha a página: perfil (se couber) e o card de calorias logo após o conteúdo. */
 function finish(d: jsPDF, y: number, a: Aggregate, sessions: number, withProfile = true) {
-  if (withProfile && y + 48 + 64 + (CARDIO ? 44 : 0) <= BOTTOM) y = profileSection(d, y + 4, a)
-  kcalCard(d, Math.min(y + 6, BOTTOM - (CARDIO ? 96 : 52)), a.kcal, a.fatGrams, sessions)
+  const musclesH = 22 + Math.min(5, trainedGroups(a).length) * 13
+  if (withProfile && y + musclesH + 64 + (CARDIO ? 44 : 0) <= BOTTOM) y = profileSection(d, y + 4, a)
+  kcalCard(d, Math.min(y + 6, BOTTOM - (CARDIO ? 96 : 52)), a.kcal, a.minutes, a.realMinutes, sessions)
 }
 
 /** Altura ideal das linhas de barras para caber no espaço restante. */
@@ -657,7 +686,9 @@ function regenMark(w: WeekPoint, prev: WeekPoint | undefined, online: boolean): 
 }
 
 /** Faixa "Fase atual" + "Nível de estímulo" (presencial): o que o aluno precisa ver para sentir a evolução. */
-function phaseStrip(d: jsPDF, y: number, phase: Microcycle | null | undefined, level: number | null | undefined): number {
+function phaseStrip(d: jsPDF, y: number, phase: Microcycle | null | undefined, level0: number | null | undefined, label = ''): number {
+  // "100" sozinho não diz nada ao aluno: o nível só aparece quando já há comparação com o 1º treino igual
+  const level = level0 != null && level0 !== 100 ? level0 : null
   if (!phase && level == null) return y
   const h = 34
   card(d, PAGE.m, y, W, h, phase ? C.zone[phase] : C.card)
@@ -671,7 +702,7 @@ function phaseStrip(d: jsPDF, y: number, phase: Microcycle | null | undefined, l
     text(d, 'NÍVEL DE ESTÍMULO', x, y + 13, { size: 6, bold: true, c: C.sub })
     text(d, String(level), x, y + 27, { size: 13, bold: true, c: C.heavy })
     d.setFont('helvetica', 'bold'); d.setFontSize(13)
-    if (level !== 100) text(d, levelSub(level), x + d.getTextWidth(String(level)) + 6, y + 26, { size: 7, bold: level > 100, c: level > 100 ? C.heavy : C.sub })
+    text(d, level > 100 ? `+${level - 100}% vs seu 1º ${label || 'treino'}` : `100 = seu 1º ${label || 'treino'}`, x + d.getTextWidth(String(level)) + 6, y + 26, { size: 7, bold: level > 100, c: level > 100 ? C.heavy : C.sub })
   }
   return y + h + 8
 }
@@ -680,10 +711,10 @@ function phaseStrip(d: jsPDF, y: number, phase: Microcycle | null | undefined, l
 export function templateD(session: Session, lookup: ProfileLookup, pse: number | null, o: ReportOptions, bests: Record<string, number> = {}, last: Record<string, number> = {}): jsPDF {
   const d = start(o)
   header(d, 'Treino do Dia', `${session.label} · ${fmtBR(session.date)}`, nm(o))
-  const a = aggregateSessions([session], lookup)
+  const a = aggregateSessions([session], lookup, pse != null ? [{ id: 'x', session_id: session.id, pse, reported_by: 'trainer', created_at: '', updated_at: '' }] : [])
   if (pse != null && !isOnline(o)) a.intensityReal = Math.round(0.45 * pse * 10 + 0.55 * a.intensityPrescribed)
   let y = heroCard(d, 92, o, a, undefined, `${session.exercises.length} exercícios`, pse, isOnline(o) ? levelOfTraining(session.label, a) : undefined)
-  if (!isOnline(o)) y = phaseStrip(d, y, o.phase, CH_BASE ? levelOfTraining(session.label, a) : null)
+  if (!isOnline(o)) y = phaseStrip(d, y, o.phase, CH_LABEL[session.label] ? levelOfTraining(session.label, a) : null, session.label)
 
   // recordes pessoais (só presencial, com carga)
   const peakOf = (e: Session['exercises'][number]) => Math.max(e.load_kg ?? 0, ...(e.loads ?? []).map((k) => k ?? 0))
@@ -697,42 +728,57 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))
 
   const list = session.exercises.filter((e) => e.valid_sets > 0).slice(0, o.showEmphasis ? 7 : 10)
+  if (!isOnline(o)) {
+    // PRESENCIAL: o que o aluno quer ver — a maior série de hoje × a da última vez, com seta quando subiu
+    const top = (e: Session['exercises'][number]) => {
+      const loads = Array.from({ length: e.valid_sets }, (_, i) => e.loads?.[i] ?? e.load_kg ?? null)
+      let bi = -1
+      loads.forEach((k, i) => { if (k != null && (bi < 0 || k > (loads[bi] ?? 0) || (k === loads[bi] && (e.reps[i]?.max ?? 0) > (e.reps[bi]?.max ?? 0)))) bi = i })
+      const r = bi >= 0 ? e.reps[bi] ?? e.reps[e.reps.length - 1] : e.reps[0]
+      const rt = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`
+      const kgv = bi >= 0 ? loads[bi]! : null
+      return kgv != null ? `${rt ? `${rt} × ` : ''}${fmtNum(kgv, Number.isInteger(kgv) ? 0 : 1)} kg${e.per_side ? '/lado' : ''}` : `${e.valid_sets} séries`
+    }
+    const cHoje = PAGE.m + W * 0.5, cAnt = PAGE.m + W
+    text(d, 'EXERCÍCIO', PAGE.m, y + 8, { size: 6, bold: true, c: C.sub })
+    text(d, 'HOJE', cHoje, y + 8, { size: 6, bold: true, c: C.sub })
+    text(d, 'ÚLTIMA VEZ', cAnt, y + 8, { size: 6, bold: true, c: C.sub, align: 'right' })
+    y += 14
+    for (const e of list) {
+      const pr = prKeys.has(e.exercise_key)
+      const nm2 = e.display_name.length > 26 ? e.display_name.slice(0, 25) + '…' : e.display_name
+      text(d, nm2, PAGE.m, y + 9, { size: 7.5, bold: true })
+      text(d, `${e.valid_sets} ${e.valid_sets === 1 ? 'série' : 'séries'}${e.heavy_sets ? ` · ${e.heavy_sets} ${e.heavy_sets === 1 ? 'pesada' : 'pesadas'}` : ''}`, PAGE.m, y + 17, { size: 5.8, c: C.sub })
+      const up = last[e.exercise_key] ? peakOf(e) - last[e.exercise_key] : 0
+      const hoje = top(e)
+      text(d, hoje, cHoje, y + 10, { size: 8, bold: true, c: up > 0 || pr ? C.heavy : C.ink })
+      d.setFont('helvetica', 'bold'); d.setFontSize(8)
+      const hw = d.getTextWidth(hoje)
+      if (up > 0) iconTrend(d, cHoje + hw + 6, y + 7.5, 5, true, C.heavy)
+      if (pr) {
+        fill(d, C.heavy)
+        d.roundedRect(cHoje + hw + (up > 0 ? 12 : 4), y + 3, 16, 9, 4.5, 4.5, 'F')
+        text(d, 'PR', cHoje + hw + (up > 0 ? 20 : 12), y + 9.4, { size: 5.6, bold: true, c: '#ffffff', align: 'center' })
+      }
+      if (up > 0) text(d, `+${fmtNum(up, Number.isInteger(up) ? 0 : 1)} kg`, cHoje, y + 17.5, { size: 5.8, bold: true, c: C.heavy })
+      text(d, o.lastTop?.[e.exercise_key] ?? '—', cAnt, y + 10, { size: 7.5, c: C.sub, align: 'right' })
+      y += 22
+    }
+  } else {
   const maxSets = Math.max(...list.map((e) => e.valid_sets), 1)
   const labelW = 124, rightW = 62, barW = W - labelW - rightW - 40
-  legend(d, PAGE.m, y + 4, isOnline(o) ? [{ c: C.heavy, l: 'Séries de trabalho' }] : [{ c: C.volume, l: 'Séries de trabalho' }, { c: C.heavy, l: 'Séries pesadas' }, { c: C.sub, l: 'Maior carga · quilos levantados' }])
+  legend(d, PAGE.m, y + 4, [{ c: C.heavy, l: 'Séries de trabalho' }])
   chartSeal(d, PAGE.m + W, y + 4)
   y += 14
   for (const e of list) {
-    const pr = prKeys.has(e.exercise_key)
-    const nm2 = e.display_name.length > (pr ? 20 : 25) ? e.display_name.slice(0, pr ? 19 : 24) + '…' : e.display_name
+    const nm2 = e.display_name.length > 25 ? e.display_name.slice(0, 24) + '…' : e.display_name
     text(d, nm2, PAGE.m, y + 10, { size: 7.5, bold: true })
-    if (pr) {
-      const tw = d.getTextWidth(nm2)
-      fill(d, C.heavy)
-      d.roundedRect(PAGE.m + tw + 4, y + 3, 16, 9, 4.5, 4.5, 'F')
-      text(d, 'PR', PAGE.m + tw + 12, y + 9.4, { size: 5.6, bold: true, c: '#ffffff', align: 'center' })
-    }
     const w = (e.valid_sets / maxSets) * barW
-    fill(d, isOnline(o) ? C.heavy : C.volume)
+    fill(d, C.heavy)
     d.roundedRect(PAGE.m + labelW, y + 2, Math.max(w, 4), 11, 2, 2, 'F')
-    if (e.heavy_sets && !isOnline(o)) {
-      fill(d, C.heavy)
-      d.roundedRect(PAGE.m + labelW, y + 2, Math.max((e.heavy_sets / maxSets) * barW, 4), 11, 2, 2, 'F')
-    }
-    text(d, `${e.valid_sets} ${e.valid_sets === 1 ? 'série' : 'séries'}`, PAGE.m + labelW + Math.max(w, 4) + 4, y + 10.5, { size: 6.5, bold: true, c: e.heavy_sets && !isOnline(o) ? C.heavy : C.volume })
-    // evolução de carga contra a última vez no mesmo exercício (só mostra quando subiu: reforço positivo)
-    const up = !isOnline(o) && !pr && last[e.exercise_key] ? peakOf(e) - last[e.exercise_key] : 0
-    if (up > 0) {
-      iconTrend(d, PAGE.m + 2.5, y + 16.6, 4.5, true, C.heavy)
-      text(d, `+${fmtNum(up, 1)} kg vs última vez`, PAGE.m + 7, y + 18.5, { size: 5.8, bold: true, c: C.heavy })
-    }
-    else if (pr) text(d, 'maior carga que já fez', PAGE.m, y + 18.5, { size: 5.8, bold: true, c: C.heavy })
-    if (!isOnline(o)) {
-      if (e.load_kg) text(d, `${fmtNum(e.load_kg, 1)} ${e.per_side ? 'kg/lado' : 'kg'}`, PAGE.m + W, y + 7.5, { size: 7.5, bold: true, c: pr ? C.heavy : C.ink, align: 'right' })
-      const t = tonnage(e)
-      if (t) text(d, `${fmtNum(t)} kg`, PAGE.m + W, y + 15.5, { size: 6, c: C.sub, align: 'right' })
-    }
+    text(d, `${e.valid_sets} ${e.valid_sets === 1 ? 'série' : 'séries'}`, PAGE.m + labelW + Math.max(w, 4) + 4, y + 10.5, { size: 6.5, bold: true, c: C.volume })
     y += 21
+  }
   }
   if (o.showEmphasis) y = focusSection(d, y + 4, a, undefined, 4)
   finish(d, y, a, 1, !o.showEmphasis)

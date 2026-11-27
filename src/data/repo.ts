@@ -3,13 +3,13 @@
  */
 import { db, getKV, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
 import type { Anamnese, CardioEntry, NutritionEntry, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
-import { aggregateSessions, setStudentWeight, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
+import { aggregateSessions, setSessionDuration, setStudentWeight, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
 import { resolveProfiles } from '../engine/classifier'
 import type { ParsedExerciseLine } from '../engine/prescription'
 import type { ParsedWeek } from '../parser/whatsapp'
 import type { KeyLift, WeekPoint } from '../pdf/templates'
 import { normalizeKey } from '../engine/exerciseSeed'
-import { titleCase } from '../ui/format'
+import { titleCase, topSetText } from '../ui/format'
 
 export function newStudent(partial: Partial<Student> = {}): Student {
   return {
@@ -62,6 +62,15 @@ export async function studentSessions(student: Student, from?: string, to?: stri
   if (from) list = list.filter((s) => s.date >= from)
   if (to) list = list.filter((s) => s.date <= to)
   setStudentWeight(student.id, student.weight_kg ?? (await studentWeight(student)))
+  // duração real dos treinos presenciais (início → PSE salva) para as calorias
+  const pres = list.filter((s) => s.source === 'presencial')
+  if (pres.length) {
+    const rs = await db.ratings.where('session_id').anyOf(pres.map((s) => s.id)).toArray()
+    for (const s of pres) {
+      const r = rs.filter((x) => x.session_id === s.id && !x._deleted && x.reported_by === 'trainer').sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+      setSessionDuration(s.id, r ? (new Date(r.created_at).getTime() - new Date(s.created_at).getTime()) / 60000 : null)
+    }
+  }
   return list.sort((a, b) => (a.date + a.label).localeCompare(b.date + b.label))
 }
 
@@ -262,7 +271,7 @@ export async function lastLoads(studentId: string, session: Pick<Session, 'id' |
 }
 
 /** Extras do PDF "Treino do Dia" presencial: fase da semana, nível de estímulo e carga da última vez por exercício. */
-export async function treinoDoDiaExtras(student: Student, session: Session): Promise<{ phase: Session['planned_microcycle']; challenge?: { baseSession: number; baseWeek: string; byLabel: Record<string, number> }; last: Record<string, number>; cardio: CardioSummary }> {
+export async function treinoDoDiaExtras(student: Student, session: Session): Promise<{ phase: Session['planned_microcycle']; challenge?: { baseSession: number; baseWeek: string; byLabel: Record<string, number> }; last: Record<string, number>; cardio: CardioSummary; prevSame?: { sets: number; label: string } | null; lastTop?: Record<string, string> }> {
   const cardio = await cardioSummary(student.id, session.date, session.date)
   if (student.modality === 'online') return { phase: null, last: {}, cardio }
   const ctx = await getWeekContext(student.id, weekStart(session.date))
@@ -273,6 +282,12 @@ export async function treinoDoDiaExtras(student: Student, session: Session): Pro
     challenge: await challengeBase(student),
     last: Object.fromEntries(Object.entries(ll).map(([k, v]) => [k, v.peak])),
     cardio,
+    // última vez deste MESMO treino (Treino A × Treino A anterior) e a maior série de cada exercício
+    prevSame: await (async () => {
+      const prev = (await studentSessions(student)).filter((x) => x.label === session.label && x.id !== session.id && (x.date < session.date || (x.date === session.date && x.created_at < session.created_at))).pop()
+      return prev ? { sets: prev.exercises.reduce((a, e) => a + e.valid_sets, 0), label: session.label } : null
+    })(),
+    lastTop: Object.fromEntries(Object.entries(ll).map(([k, v]) => [k, topSetText(v.exercise.loads ?? v.sets.map((x) => x.kg), v.exercise.reps, v.perSide)])),
   }
 }
 

@@ -54,37 +54,69 @@ export function tonnage(ex: SessionExercise): number {
 }
 
 /**
- * CALORIAS DA MUSCULAÇÃO — mesmo método do cardio: kcal = MET × peso (kg) × tempo (h).
- * Fonte: Compendium of Physical Activities (Ainsworth et al., 2011; Herrmann et al., 2024):
- *   treino resistido geral/moderado 3,5 MET · vigoroso 6,0 MET. Conferência: tabela de Harvard Health
- *   (70 kg: musculação geral ≈ 3,7 kcal/min; vigorosa ≈ 7,4 kcal/min).
- * Tempo de cada série = execução (~3 s por repetição) + descanso típico:
- *   multiarticular 2 min (série pesada 2,5 min) · isolado/máquina 1,25 min · aquecimento 1 min a 3,5 MET.
- * MET da série: multiarticular livre 6,0 · multiarticular em máquina 5,0 · isolado 4,0 (série pesada +0,5).
+ * CALORIAS DA MUSCULAÇÃO — kcal = MET do treino × peso (kg) × duração (h) × correção anaeróbia.
+ *  - DURAÇÃO REAL (presencial): do início do treino até salvar a PSE — o descanso por percepção entra
+ *    naturalmente. Sem horário (consultoria) ou fora de 15–150 min: duração ESTIMADA pelas séries
+ *    (multiarticular 2,5 min · isolado 1,75 min · aquecimento 1 min por série).
+ *  - MET DO TREINO = média das séries, por tipo de exercício (2024 Adult Compendium of Physical Activities:
+ *    musculação variada 3,5 · agachamento/terra 5,0 · circuito com super série 5,8 · vigoroso 6,0):
+ *    perna multiarticular 5,5 · multiarticular superior 5,0 · isolado 3,5 · bi-set +0,8 ·
+ *    drop/série pesada +0,5 · excêntrica/cadência lenta +0,3; aquecimento 3,5.
+ *    Esforço (PSE): 9–10 ×1,2 · 7–8 ×1,1 · até 4 ×0,9.
+ *  - CORREÇÃO ANAERÓBIA: +15% proporcional às séries pesadas/até a falha/drop (medir só O₂ subestima a
+ *    musculação; revisão Sports Medicine 2024 aponta fração anaeróbia que pode passar de 40%).
  * Peso: o do aluno (ficha, nutricionista ou anamnese); sem peso, 70 kg.
  */
 const WEIGHTS = new Map<string, number>()
+const DURATIONS = new Map<string, number>() // sessão → minutos reais (presencial)
 /** Registra o peso do aluno para o cálculo de calorias (chamado ao carregar os treinos dele). */
 export function setStudentWeight(studentId: string, kg: number | null | undefined) {
   if (kg && kg > 20) WEIGHTS.set(studentId, kg)
 }
+/** Registra a duração real do treino (início → PSE salva). */
+export function setSessionDuration(sessionId: string, minutes: number | null | undefined) {
+  if (minutes && minutes >= 15 && minutes <= 150) DURATIONS.set(sessionId, minutes)
+  else DURATIONS.delete(sessionId)
+}
 export const DEFAULT_KCAL_WEIGHT = 70
+const LOWER_GROUPS = ['Perna - Quadríceps', 'Perna - Posterior', 'Glúteo', 'Adutores']
+const SLOW_RE = /exc[eê]ntric|negativ|cad[eê]ncia|isometri/i
 
-export function exerciseKcal(ex: SessionExercise, p?: ExerciseProfile, weightKg = DEFAULT_KCAL_WEIGHT): number {
+/** MET e minutos estimados de um exercício (para a média do treino). */
+function exerciseMetMinutes(ex: SessionExercise, p?: ExerciseProfile): { metMin: number; minutes: number; heavy: number } {
   const multi = p?.mechanic === 'multiarticular'
-  const free = p?.implement === 'livre'
-  const reps = avgReps(ex)
-  const exec = (Math.min(reps, 25) * 3) / 60 // min de execução
-  let kcal = 0
+  const lower = LOWER_GROUPS.includes(p?.muscle_group ?? '')
+  let base = multi ? (lower ? 5.5 : 5.0) : 3.5
+  if (ex.superset_group != null) base += 0.8
+  if (SLOW_RE.test(ex.notes ?? '')) base += 0.3
+  const perSet = multi ? 2.5 : 1.75
+  let metMin = 0, heavy = 0
   for (let i = 0; i < ex.valid_sets; i++) {
     const r = ex.reps[i] ?? ex.reps[ex.reps.length - 1]
-    const heavy = !!r && (r.heavy ?? (r.min >= 4 && r.max <= 8))
-    const rest = multi ? (heavy ? 2.5 : 2) : 1.25
-    const met = (multi ? (free ? 6 : 5) : 4) + (heavy ? 0.5 : 0)
-    kcal += met * weightKg * ((exec + rest) / 60)
+    const isH = !!r && (r.failure || (r.heavy ?? (r.min >= 4 && r.max <= 8)))
+    const dropHere = ex.drop_set && i === ex.valid_sets - 1
+    if (isH || dropHere) heavy++
+    metMin += (base + (isH || dropHere ? 0.5 : 0)) * perSet
   }
-  kcal += ex.warmup_sets * 3.5 * weightKg * (1 / 60)
-  return kcal
+  metMin += ex.warmup_sets * 3.5 * 1
+  return { metMin, minutes: ex.valid_sets * perSet + ex.warmup_sets, heavy }
+}
+
+/** Calorias de um treino (sessão) e a duração usada. */
+export function sessionKcal(s: Session, lookup: ProfileLookup, pse?: number | null): { kcal: number; minutes: number; real: boolean } {
+  let metMin = 0, minutes = 0, heavy = 0, sets = 0
+  for (const ex of s.exercises) {
+    const r = exerciseMetMinutes(ex, lookup(ex.exercise_key))
+    metMin += r.metMin; minutes += r.minutes; heavy += r.heavy; sets += ex.valid_sets
+  }
+  if (!minutes) return { kcal: 0, minutes: 0, real: false }
+  let met = metMin / minutes
+  if (pse != null) met *= pse >= 9 ? 1.2 : pse >= 7 ? 1.1 : pse <= 4 ? 0.9 : 1
+  const real = DURATIONS.get(s.id)
+  const dur = real ?? minutes
+  const kg = WEIGHTS.get(s.student_id) ?? DEFAULT_KCAL_WEIGHT
+  const kcal = met * kg * (dur / 60) * (1 + 0.15 * (sets ? heavy / sets : 0))
+  return { kcal, minutes: Math.round(dur), real: real != null }
 }
 
 // ---------- agregados por sessão / semana ----------
@@ -109,6 +141,9 @@ export interface Aggregate {
   byGroup: Record<string, { valid: number; heavy: number }>
   /** Séries pelo músculo PRINCIPAL de cada exercício (sem frações): "o que o aluno treinou" (supino = Peito, remada = Costas) */
   primaryGroups?: Record<string, number>
+  /** duração do(s) treino(s) usada nas calorias (real no presencial; senão estimada) */
+  minutes?: number
+  realMinutes?: boolean
   /** Nível do desafio (consultoria): pontos do que foi prescrito — faixa de reps + técnicas avançadas */
   challengePoints: number
   lowRepSets: number // séries válidas em até 10 reps
@@ -145,7 +180,6 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
       if (MARKER_RE.test(ex.notes ?? '') || MARKER_RE.test(ex.display_name)) a.markedSets += ex.valid_sets
       else a.markedSets += fails
       if (ex.superset_group != null || ex.drop_set) a.techniqueSets += ex.valid_sets
-      a.kcal += exerciseKcal(ex, p, WEIGHTS.get(s.student_id) ?? DEFAULT_KCAL_WEIGHT)
       const ch = exerciseChallenge(ex)
       a.challengePoints += ch.points
       a.lowRepSets += ch.lowRep
@@ -163,6 +197,10 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
     const rs = ratings.filter((r) => r.session_id === s.id && !r._deleted)
     const r = rs.find((x) => x.reported_by === 'student') ?? rs.find((x) => x.reported_by === 'trainer')
     if (r) pses.push(r.pse)
+    const k = sessionKcal(s, lookup, r?.pse ?? null)
+    a.kcal += k.kcal
+    a.minutes = (a.minutes ?? 0) + k.minutes
+    if (k.real) a.realMinutes = true
   }
   a.heavyPct = a.validSets ? (a.heavySets / a.validSets) * 100 : 0
   a.fatGrams = (a.kcal / KCAL_PER_KG_FAT) * 1000

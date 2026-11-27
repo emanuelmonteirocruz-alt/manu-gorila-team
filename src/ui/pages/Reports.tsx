@@ -83,7 +83,7 @@ export default function Reports() {
       const lookup = await profileLookup()
       const bests = await previousBests(s.id, sess)
       const ex = await treinoDoDiaExtras(s, sess)
-      const oD = s.modality === 'online' ? { ...o, cardio: ex.cardio } : { ...o, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio }
+      const oD = s.modality === 'online' ? { ...o, cardio: ex.cardio } : { ...o, phase: ex.phase, challenge: ex.challenge, cardio: ex.cardio, prevSame: ex.prevSame, lastTop: ex.lastTop }
       make = () => templateD(sess, lookup, pse, oD, bests, ex.last)
       name = `treino-${first}-${sess.date}.pdf`
     } else {
