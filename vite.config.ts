@@ -33,7 +33,14 @@ export default defineConfig(({ mode }) => {
         ],
         },
         // 2 MB padrão é pouco para o bundle com jsPDF + Supabase
-        workbox: { globPatterns: ['**/*.{js,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, navigateFallback: '/index.html' },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, navigateFallback: '/index.html',
+          // fonte guardada no aparelho: abre rápido mesmo sem internet
+          runtimeCaching: [
+            { urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i, handler: 'StaleWhileRevalidate', options: { cacheName: 'google-fonts-css' } },
+            { urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i, handler: 'CacheFirst', options: { cacheName: 'google-fonts', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } } },
+          ],
+        },
       }),
     ],
     test: { environment: 'node' },
