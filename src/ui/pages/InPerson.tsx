@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, ChevronLeft, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
+import { Check, ChevronLeft, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
@@ -516,8 +516,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
             <div className="chips">{changes.map((c, i) => <span key={i} className="tag ordinaria">{c.from} → {c.to}</span>)}</div>
           )}
           <div className="row">
-            <button className="btn primary" disabled={sp.recording || !box.trim()} onClick={() => correctAndBuild(box)}>Criar cards</button>
-            <button className="btn" onClick={() => setManualOpen((v) => !v)}>{manualOpen ? 'Fechar' : 'Montar à mão'}</button>
+            <button className={`btn ${box.trim() ? 'primary' : ''}`} disabled={sp.recording || !box.trim()} onClick={() => correctAndBuild(box)}>Criar cards</button>
+            <button className={`btn hand-btn ${manualOpen ? 'open' : ''}`} onClick={() => setManualOpen((v) => !v)}><PencilLine size={18} strokeWidth={1.9} /> {manualOpen ? 'Fechar' : 'Montar à mão'}</button>
           </div>
           {sp.error && <div className="alert warn">{sp.error}</div>}
           {manualOpen && (

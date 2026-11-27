@@ -400,3 +400,6 @@ textarea.voice-box { min-height: 44px; height: 44px; resize: none; overflow: hid
 textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; overflow: auto; field-sizing: content; max-height: 160px; }
 .cardio-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; color: var(--ink); font-size: 16px; }
 .cardio-head .muted { font-size: 13px; }
+/* montar à mão: mesma cor do Gravar e um pouco maior */
+.btn.hand-btn { background: var(--accent); border-color: var(--accent); color: #fff; height: 50px; padding: 0 20px; font-size: 16px; gap: 8px; }
+.btn.hand-btn.open { background: var(--panel); color: var(--accent); }
