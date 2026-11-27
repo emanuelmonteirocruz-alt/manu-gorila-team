@@ -428,7 +428,7 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
 }
 
 /** Barra dupla horizontal "antes × depois" (usada em cargas e qualidade). */
-function pairRow(d: jsPDF, y: number, label: string, before: number, after: number, max: number, left: string, right: string, pill?: string, labelW = 112) {
+function pairRow(d: jsPDF, y: number, label: string, before: number, after: number, max: number, left: string, right: string, pill?: string, labelW = 112, th = 6) {
   // espaço do selo à direita + do número depois da barra, para nunca encostar
   d.setFont('helvetica', 'bold')
   d.setFontSize(7)
@@ -436,21 +436,23 @@ function pairRow(d: jsPDF, y: number, label: string, before: number, after: numb
   d.setFontSize(5.8)
   const numW = Math.max(d.getTextWidth(left), d.getTextWidth(right)) + 8
   const bw = W - labelW - numW - (pill ? pillW + 6 : 0)
-  text(d, label, PAGE.m, y + 9, { size: 7.5, bold: true })
+  // th = espessura das barras; o resto (rótulo, números, selo) se alinha ao meio do par de barras
+  const mid = y + 2 + th
+  text(d, label, PAGE.m, mid + 2.6, { size: 7.5, bold: true })
   const x0 = PAGE.m + labelW
   fill(d, C.grid)
-  d.roundedRect(x0, y + 1, Math.max(3, (before / max) * bw), 6, 3, 3, 'F')
+  d.roundedRect(x0, y + 1, Math.max(3, (before / max) * bw), th, th / 2, th / 2, 'F')
   fill(d, after >= before ? C.heavy : C.volume)
-  d.roundedRect(x0, y + 9, Math.max(3, (after / max) * bw), 6, 3, 3, 'F')
-  text(d, left, x0 + Math.max(3, (before / max) * bw) + 4, y + 6.5, { size: 5.8, c: C.sub })
-  text(d, right, x0 + Math.max(3, (after / max) * bw) + 4, y + 14.5, { size: 5.8, bold: true, c: C.heavy })
+  d.roundedRect(x0, mid + 1, Math.max(3, (after / max) * bw), th, th / 2, th / 2, 'F')
+  text(d, left, x0 + Math.max(3, (before / max) * bw) + 4, y + 1 + th / 2 + 2, { size: 5.8, c: C.sub })
+  text(d, right, x0 + Math.max(3, (after / max) * bw) + 4, mid + 1 + th / 2 + 2, { size: 5.8, bold: true, c: C.heavy })
   if (pill) {
     d.setFont('helvetica', 'bold')
     d.setFontSize(7)
     const pw = pillW
     fill(d, C.heavy)
-    d.roundedRect(PAGE.m + W - pw, y + 2, pw, 13, 6.5, 6.5, 'F')
-    text(d, pill, PAGE.m + W - pw / 2, y + 10.8, { size: 7, bold: true, c: '#ffffff', align: 'center' })
+    d.roundedRect(PAGE.m + W - pw, mid - 6.5, pw, 13, 6.5, 6.5, 'F')
+    text(d, pill, PAGE.m + W - pw / 2, mid + 2.3, { size: 7, bold: true, c: '#ffffff', align: 'center' })
   }
 }
 
@@ -538,10 +540,10 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
 
   // 2) quatro placares grandes
   const first = wk ? 'primeira semana' : 'primeiro mês'
-  const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
+  const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) && o.showEmphasis ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
   const rg = !!regen // regenerativa: placares neutros (sem pílula de queda)
   scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg)
-  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg, `cada treino teve ~${perSession(a)} séries`)
+  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) {
     // métodos (drop, bi-set…) não entram no PDF do aluno: são ferramentas, não prova de intensidade (só o treinador vê a contagem)
@@ -617,7 +619,9 @@ function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportO
   legend(d, PAGE.m, y, [{ c: C.grid, l: `Semana de ${BEFORE_LBL}` }, { c: C.heavy, l: `Semana de ${AFTER_LBL}` }])
   y += 12
   const max = Math.max(1, ...list.map((r) => Math.max(r.before?.validSets ?? 0, r.after?.validSets ?? 0)))
-  const rowH = fitRowH(BOTTOM - 56 - y, list.length, 26, 20)
+  // sem a seção de músculos, as barras crescem para ocupar o fim da página
+  const rowH = fitRowH(BOTTOM - (o.showEmphasis ? 56 : 4) - y, list.length, o.showEmphasis ? 26 : 50, 20)
+  const th = Math.max(6, Math.min(11, (rowH - 8) / 2.6))
   for (const r of list) {
     const b = r.before, a = r.after
     const bs = b?.validSets ?? 0, as = a?.validSets ?? 0
@@ -631,7 +635,7 @@ function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportO
       else if (dh > 0 && !isOnline(o)) pill = `+${dh} ${dh === 1 ? "pesada" : "pesadas"}`
       else if (dt >= 1) pill = `+${Math.round(dt)}% carga`
     }
-    pairRow(d, y, r.label, bs, as, max, b ? `${bs} séries` : '—', a ? `${as} séries` : '—', pill, 62)
+    pairRow(d, y, r.label, bs, as, max, b ? `${bs} séries` : '—', a ? `${as} séries` : '—', pill, 62, th)
     y += rowH
   }
   return y
