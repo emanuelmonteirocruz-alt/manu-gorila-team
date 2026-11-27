@@ -414,3 +414,4 @@ textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; ove
 .done-card.biset-bottom { border-top-left-radius: 4px; border-top-right-radius: 4px; border-left: 3px solid #F59E0B; margin-top: -4px; }
 .set-row .set-n input.drop-kg { width: 96px; height: 26px; }
 .biset-btn { height: 44px; }
+.tag.drop-tag { background: #FEF3C7; border-color: #F59E0B; color: #92400E; font-weight: 700; }

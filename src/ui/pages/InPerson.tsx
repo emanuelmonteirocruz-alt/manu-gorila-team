@@ -246,7 +246,7 @@ function exerciseToDraft(e: SessionExercise): Draft {
       repsMax: r?.failure ? null : r?.max ?? null,
       failure: !!r?.failure,
       heavy: r?.heavy ?? null,
-      ...(drops[i + 1] !== undefined ? { drop: true, dropKg: drops[i + 1].replace(/\s*→\s*/g, ', ') } : {}),
+      ...(drops[i + 1] !== undefined ? { drop: true } : {}),
     }
   })
   const series = [...wu, ...work]
@@ -411,7 +411,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
         const loads = work.map((x) => x.kg)
         const hasLoads = loads.some((k) => k != null)
         // drop por série: fica nas observações ("S4 drop: 30 → 20 kg") e marca o exercício como intensificado
-        const dropNotes = work.map((x, i) => (x.drop ? `S${i + 1} drop${x.dropKg?.trim() ? `: ${x.dropKg.split(/[,;/ ]+/).filter(Boolean).join(' → ')} kg` : ''}` : '')).filter(Boolean)
+        // drop = alta intensidade: a carga cai ~20% três vezes (padrão para medir; sem digitar as cargas)
+        const dropNotes = work.map((x, i) => (x.drop ? `S${i + 1} drop` : '')).filter(Boolean)
         const warmupDetail = wu.map((x) => ({ kg: x.kg, reps: { min: x.repsMin ?? 15, max: x.repsMax ?? x.repsMin ?? 15 } }))
         const ex: SessionExercise = {
           id: uid(), position: exercises.length, exercise_key: p.key, display_name: p.name,
@@ -604,8 +605,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                         <div key={i} className={`set-row ${x.warmup ? 'is-warmup' : ''}`}>
                           <span className="set-n">
                             {x.warmup ? `Aquec. ${warmIndex}` : `Série ${(joins ? last.valid_sets : 0) + workIndex}`}
-                            {!x.warmup && <button type="button" className={`drop-chip ${x.drop ? 'on' : ''}`} aria-pressed={!!x.drop} title="Drop-set nesta série (não soma série nem kg)" onClick={() => put({ drop: !x.drop })}>drop</button>}
-                            {!x.warmup && x.drop && <input className="drop-kg" inputMode="decimal" value={x.dropKg ?? ''} placeholder="kg: 30, 20" aria-label="Cargas do drop" onChange={(e) => put({ dropKg: e.target.value })} />}
+                            {!x.warmup && <button type="button" className={`drop-chip ${x.drop ? 'on' : ''}`} aria-pressed={!!x.drop} title="Drop-set nesta série: alta intensidade (3 quedas de 20% na carga)" onClick={() => put({ drop: !x.drop })}>{x.drop ? 'drop · alta intensidade' : 'drop'}</button>}
                           </span>
                           <label className="f"><span>reps</span>
                             <input key={repsLabel(x)} defaultValue={repsLabel(x)} placeholder="10 ou Máx" onBlur={(e) => put(parseRepsInput(e.target.value))} />
@@ -680,7 +680,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     const kg = e.loads?.[i] ?? e.load_kg
                     const reps = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`
                     const dr = dropsOf(e.notes)[i + 1]
-                    return <span key={i} className={`tag ${r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) ? ' · pesada' : ''}{dr !== undefined ? ` + drop${dr ? ` ${dr}` : ''}` : ''}</span>
+                    return <span key={i} className={`tag ${dr !== undefined ? 'drop-tag' : r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) && dr === undefined ? ' · pesada' : ''}{dr !== undefined ? ' · drop (alta intensidade)' : ''}</span>
                   })}
                 </div>}
               </div>

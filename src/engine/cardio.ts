@@ -33,6 +33,7 @@ export interface CardioInput {
   kind: CardioKind
   minutes: number
   km?: number | null
+  speed?: number | null // km/h (esteira): o aluno costuma informar a velocidade, não a distância
   intensity?: CardioIntensity | null
   incline?: number | null // % (esteira)
 }
@@ -40,7 +41,7 @@ export interface CardioInput {
 /** MET da atividade (e de onde ele veio, para mostrar ao treinador). */
 export function cardioMet(c: CardioInput): { met: number; how: string } {
   const it = c.intensity ?? 'moderada'
-  const kmh = c.km && c.minutes ? c.km / (c.minutes / 60) : null
+  const kmh = c.speed && c.speed > 0 ? c.speed : c.km && c.minutes ? c.km / (c.minutes / 60) : null
   if (c.kind === 'esteira') {
     if (kmh && kmh > 0) {
       const v = (kmh * 1000) / 60 // m/min
