@@ -89,7 +89,7 @@ export async function upsertWeekContext(studentId: string, week: string, patch: 
   return save(db.weekContexts, { ...base, ...patch })
 }
 
-export async function weekPoints(student: Student, weeks: string[]): Promise<WeekPoint[]> {
+export async function weekPoints(student: Student, weeks: string[], executedTotal?: number | null): Promise<WeekPoint[]> {
   const lookup = await profileLookup()
   const ratings = await db.ratings.toArray()
   const checkins = await db.checkins.where('student_id').equals(student.id).toArray()
@@ -99,10 +99,20 @@ export async function weekPoints(student: Student, weeks: string[]): Promise<Wee
   const firstPrev = addDays(weeks[0], -7)
   const prevSessions = await studentSessions(student, firstPrev, addDays(firstPrev, 6))
   if (prevSessions.length) prevAgg = aggregateSessions(prevSessions, lookup, ratings)
-  const { consultDays, expandWeek } = await import('./reportData')
+  const { consultDays, expandWeek, adjustToExecuted } = await import('./reportData')
   const days = await consultDays(student) // consultoria: ABCDA conta o A duas vezes
+  const perWeek = new Map<string, Session[]>()
+  for (const w of weeks) perWeek.set(w, expandWeek(await studentSessions(student, w, addDays(w, 6)), days))
+  // treinos executados no mês (informado pelo treinador): ajusta o total, semana a semana
+  if (executedTotal != null) {
+    const all = adjustToExecuted([...perWeek.values()].flat(), executedTotal)
+    const ids = new Set(all.map((x) => x.id))
+    const extra = all.filter((x) => x.id.includes('#exec'))
+    for (const w of weeks) perWeek.set(w, perWeek.get(w)!.filter((x) => ids.has(x.id)))
+    for (const x of extra) { const w = weekStart(x.date); perWeek.set(w, [...(perWeek.get(w) ?? []), x]) }
+  }
   for (const w of weeks) {
-    const sessions = expandWeek(await studentSessions(student, w, addDays(w, 6)), days)
+    const sessions = perWeek.get(w) ?? []
     const agg = aggregateSessions(sessions, lookup, ratings)
     const ctx = await getWeekContext(student.id, w)
     const verdict = weekVerdict(agg, prevAgg, student.sex === 'F' ? ctx : ctx && { ...ctx, menstrual: false })

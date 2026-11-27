@@ -23,17 +23,17 @@ export function prevMonth(ym: string): string {
 const peakOf = (e: Session['exercises'][number]) => Math.max(e.load_kg ?? 0, ...(e.loads ?? []).map((k) => k ?? 0))
 
 /** Mês 1 (anterior) × Mês 2 (escolhido): agregados + maior carga de cada exercício em cada mês. */
-export async function buildBeforeAfter(student: Student, ymAfter: string): Promise<{ before: MonthSide; after: MonthSide }> {
+export async function buildBeforeAfter(student: Student, ymAfter: string, executed: { before?: number | null; after?: number | null } = {}): Promise<{ before: MonthSide; after: MonthSide }> {
   const lookup = await profileLookup()
   const ratings = (await db.ratings.toArray()).filter((r) => !r._deleted)
-  const side = async (ym: string): Promise<MonthSide> => {
+  const side = async (ym: string, n?: number | null): Promise<MonthSide> => {
     const r = monthRange(ym)
     const raw = await studentSessions(student, r.from, r.to)
     // consultoria: cada semana completa com o treino repetido (ABCDA)
     const days = await consultDays(student)
     const byWeek = new Map<string, Session[]>()
     for (const x of raw) byWeek.set(weekStart(x.date), [...(byWeek.get(weekStart(x.date)) ?? []), x])
-    const list = [...byWeek.values()].flatMap((w) => expandWeek(w, days))
+    const list = adjustToExecuted([...byWeek.values()].flatMap((w) => expandWeek(w, days)), n)
     const lifts: MonthSide['lifts'] = {}
     for (const s of list) for (const e of s.exercises) {
       const kg = peakOf(e)
@@ -41,20 +41,20 @@ export async function buildBeforeAfter(student: Student, ymAfter: string): Promi
     }
     return { label: r.label, agg: aggregateSessions(list, lookup, ratings), lifts }
   }
-  return { before: await side(prevMonth(ymAfter)), after: await side(ymAfter) }
+  return { before: await side(prevMonth(ymAfter), executed.before), after: await side(ymAfter, executed.after) }
 }
 
 /**
  * Semana: cada treino na ordem real + a vez anterior do MESMO treino (Treino A × Treino A anterior),
  * para mostrar a evolução treino a treino. Também o total da semana e o da semana anterior.
  */
-export async function buildWeek(student: Student, anyDay: string): Promise<{ wk: string; items: WeekSession[]; cur: Aggregate; prev?: Aggregate }> {
+export async function buildWeek(student: Student, anyDay: string, executed?: number | null): Promise<{ wk: string; items: WeekSession[]; cur: Aggregate; prev?: Aggregate }> {
   const lookup = await profileLookup()
   const ratings = (await db.ratings.toArray()).filter((r) => !r._deleted)
   const wk = weekStart(anyDay)
   const all = (await studentSessions(student)).sort((x, z) => (x.date + x.created_at).localeCompare(z.date + z.created_at))
   const days = await consultDays(student)
-  const list = expandWeek(all.filter((s) => s.date >= wk && s.date <= addDays(wk, 6)), days)
+  const list = adjustToExecuted(expandWeek(all.filter((s) => s.date >= wk && s.date <= addDays(wk, 6)), days), executed)
   const pseOf = (id: string) => {
     const rs = ratings.filter((r) => r.session_id === id)
     return (rs.find((r) => r.reported_by === 'student') ?? rs[0])?.pse ?? null
@@ -105,12 +105,12 @@ export function weekLabel(w: SavedWeek): string {
 /**
  * Comparação Semana × Semana: totais de cada semana e cada treino (A, B, C…) lado a lado.
  */
-export async function buildWeeksCompare(student: Student, wkBefore: string, wkAfter: string): Promise<{ before: MonthSide; after: MonthSide; perTraining: PerTraining[] }> {
+export async function buildWeeksCompare(student: Student, wkBefore: string, wkAfter: string, executed: { before?: number | null; after?: number | null } = {}): Promise<{ before: MonthSide; after: MonthSide; perTraining: PerTraining[] }> {
   const lookup = await profileLookup()
   const ratings = (await db.ratings.toArray()).filter((r) => !r._deleted)
   const days = await consultDays(student)
-  const side = async (wk: string) => {
-    const list = expandWeek(await studentSessions(student, wk, addDays(wk, 6)), days)
+  const side = async (wk: string, n?: number | null) => {
+    const list = adjustToExecuted(expandWeek(await studentSessions(student, wk, addDays(wk, 6)), days), n)
     const lifts: MonthSide['lifts'] = {}
     for (const s of list) for (const e of s.exercises) {
       const kg = peakOf(e)
@@ -119,8 +119,8 @@ export async function buildWeeksCompare(student: Student, wkBefore: string, wkAf
     const [, m, d] = wk.split('-')
     return { list, side: { label: `${d}/${m}`, agg: aggregateSessions(list, lookup, ratings), lifts } as MonthSide }
   }
-  const b = await side(wkBefore)
-  const a = await side(wkAfter)
+  const b = await side(wkBefore, executed.before)
+  const a = await side(wkAfter, executed.after)
   // treino a treino pela letra (se repetir na semana, soma as vezes)
   const labels = [...new Set([...b.list, ...a.list].map((s) => s.label))].sort()
   const times = (l: Session[], label: string) => l.filter((s) => s.label === label).length
@@ -292,4 +292,26 @@ export function expandWeek(sessions: Session[], days: number | null): Session[] 
     return { ...s, id: `${s.id}#rep${i + 1}` }
   })
   return [...sessions, ...extra]
+}
+
+/**
+ * Treinos que o aluno EXECUTOU no período (informado pelo treinador antes de gerar o PDF):
+ * mais que os colados → repete na ordem (A, B…); menos → fica com os primeiros.
+ */
+export function adjustToExecuted(sessions: Session[], n: number | null | undefined): Session[] {
+  if (n == null || n < 0 || !sessions.length || n === sessions.length) return sessions
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label))
+  // fez menos: saem primeiro as repetições (ABCDA → ABCD), depois os últimos treinos
+  if (n < sorted.length) return [...sorted].sort((a, b) => Number(a.id.includes('#')) - Number(b.id.includes('#')) || a.label.localeCompare(b.label)).slice(0, n)
+  const base = [...sorted].sort((a, b) => a.label.localeCompare(b.label))
+  return [...sorted, ...Array.from({ length: n - sorted.length }, (_, i) => ({ ...base[i % base.length], id: `${base[i % base.length].id}#exec${i + 1}` }))]
+}
+
+/** Quantos treinos o app conta no período (com a repetição ABCDA pelos dias de treino) — o padrão do campo. */
+export async function plannedCount(student: Student, from: string, to: string): Promise<number> {
+  const days = await consultDays(student)
+  const raw = await studentSessions(student, from, to)
+  const byWeek = new Map<string, Session[]>()
+  for (const x of raw) byWeek.set(weekStart(x.date), [...(byWeek.get(weekStart(x.date)) ?? []), x])
+  return [...byWeek.values()].reduce((a, w) => a + expandWeek(w, days).length, 0)
 }

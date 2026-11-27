@@ -6,12 +6,18 @@ import { getBrand } from '../../data/brand'
 import { cardioSummary, previousBests, treinoDoDiaExtras, keyLifts, profileLookup, studentSessions, weekPoints, weeksBetween } from '../../data/repo'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { sharePdf, templateA, templateC, templateD, templateE, templateL } from '../../pdf/templates'
-import { buildBeforeAfter, buildLoadProgress, challengeBase, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
+import { plannedCount, buildBeforeAfter, buildLoadProgress, challengeBase, buildWeek, buildWeeksCompare, listWeeks, monthRange, prevMonth, weekLabel } from '../../data/reportData'
 import { drawPreview } from '../../pdf/charts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { StudentSelect } from '../components/common'
 
 type Tpl = 'A' | 'C' | 'D' | 'E' | 'W' | 'L'
+
+function monthPeriod(due_day: number | null | undefined, month: string): { from: string; to: string } {
+  const [y, m] = month.split('-').map(Number)
+  if (due_day) return { from: toISODate(new Date(y, m - 2, due_day + 1)), to: toISODate(new Date(y, m - 1, due_day)) }
+  return { from: `${month}-01`, to: toISODate(new Date(y, m, 0)) }
+}
 
 export default function Reports() {
   const [params] = useSearchParams()
@@ -40,6 +46,21 @@ export default function Reports() {
     const st = studentId ? await db.students.get(studentId) : undefined
     return st ? (await studentSessions(st)).reverse().slice(0, 40) : []
   }, [studentId]) ?? []
+  // CONSULTORIA: quantos treinos o aluno executou em cada período (você informa antes de gerar o PDF)
+  const [exec, setExec] = useState<Record<string, string>>({})
+  const execPeriods = useLiveQuery(async () => {
+    const st = studentId ? await db.students.get(studentId) : undefined
+    if (!st || st.modality !== 'online') return []
+    const [b0, a0] = before <= after ? [before, after] : [after, before]
+    const list: { key: string; label: string; from: string; to: string }[] =
+      tpl === 'W' && b0 && a0 ? [{ key: b0, label: `Semana de ${fmtBR(b0).slice(0, 5)}`, from: b0, to: addDays(b0, 6) }, { key: a0, label: `Semana de ${fmtBR(a0).slice(0, 5)}`, from: a0, to: addDays(a0, 6) }]
+      : tpl === 'E' ? [{ key: single, label: `Semana de ${fmtBR(single).slice(0, 5)}`, from: single, to: addDays(single, 6) }]
+      : tpl === 'C' ? [{ key: `m${month}`, label: 'No período do mês', ...monthPeriod(st.due_day, month) }]
+      : tpl === 'A' ? [{ key: `a${prevMonth(month)}`, label: monthRange(prevMonth(month)).label, from: monthRange(prevMonth(month)).from, to: monthRange(prevMonth(month)).to }, { key: `a${month}`, label: monthRange(month).label, from: monthRange(month).from, to: monthRange(month).to }]
+      : []
+    return Promise.all(list.map(async (x) => ({ ...x, planned: await plannedCount(st, x.from, x.to) })))
+  }, [studentId, tpl, before, after, single, month]) ?? []
+  const execOf = (key: string) => { const v = exec[key]; return v == null || v.trim() === '' ? null : Number(v) }
   const [doc, setDoc] = useState<{ d: jsPDF; name: string; draw: () => unknown } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   // prévia desenhada em canvas (PDF em iframe fica em branco no visualizador e no Chrome Android)
@@ -56,7 +77,7 @@ export default function Reports() {
     const first = s.full_name.split(' ')[0].toLowerCase()
     if (tpl === 'A') {
       // Mês 1 (anterior) × Mês 2 (escolhido)
-      const { before, after } = await buildBeforeAfter(s, month)
+      const { before, after } = await buildBeforeAfter(s, month, { before: execOf(`a${prevMonth(month)}`), after: execOf(`a${month}`) })
       make = () => templateA(before, after, o)
       name = `antes-depois-${first}-${month}.pdf`
     } else if (tpl === 'L') {
@@ -67,13 +88,14 @@ export default function Reports() {
     } else if (tpl === 'W') {
       if (!before || !after) return
       const [b, a] = before <= after ? [before, after] : [after, before]
-      const c = await buildWeeksCompare(s, b, a)
+      const c = await buildWeeksCompare(s, b, a, { before: execOf(b), after: execOf(a) })
       make = () => templateA(c.before, c.after, o, c.perTraining)
       name = `semanas-${first}-${b}-x-${a}.pdf`
     } else if (tpl === 'E') {
-      const w = await buildWeek(s, single)
+      const w = await buildWeek(s, single, execOf(single))
       const cardio = await cardioSummary(s.id, w.wk, addDays(w.wk, 6))
-      make = () => templateE(w.wk, w.items, w.cur, w.prev, { ...o, cardio })
+      const phase = s.modality === 'online' ? (await weekPoints(s, [w.wk], execOf(single)))[0]?.verdict.final ?? null : null
+      make = () => templateE(w.wk, w.items, w.cur, w.prev, { ...o, cardio, phase })
       name = `semana-${first}-${w.wk}.pdf`
     } else if (tpl === 'D') {
       const sess = sessions.find((x) => x.id === sessionId) ?? sessions[0]
@@ -95,7 +117,7 @@ export default function Reports() {
         to = toISODate(new Date(y, m - 1, s.due_day))
         from = toISODate(new Date(y, m - 2, s.due_day + 1))
       }
-      const pts = await weekPoints(s, weeksBetween(from, to))
+      const pts = await weekPoints(s, weeksBetween(from, to), execOf(`m${month}`))
       const lifts = await keyLifts(s, from, to)
       const label = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
       const cardio = await cardioSummary(s.id, from, to)
@@ -165,6 +187,19 @@ export default function Reports() {
             </label>
           )}
           {tpl === 'C' && <label className="f">Mês (até o vencimento)<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label>}
+          {execPeriods.length > 0 && (
+            <div className="grid exec-box" style={{ gap: 6 }}>
+              <span className="muted" style={{ fontWeight: 700 }}>Quantos treinos o aluno executou?</span>
+              <div className="grid cols-2">
+                {execPeriods.map((x) => (
+                  <label key={x.key} className="f">{x.label}
+                    <input type="number" min={0} max={60} inputMode="numeric" value={exec[x.key] ?? ''} placeholder={String(x.planned)} onChange={(e) => setExec((v) => ({ ...v, [x.key]: e.target.value }))} />
+                  </label>
+                ))}
+              </div>
+              <span className="muted">Em branco, o app usa {execPeriods.map((x) => x.planned).join(' e ')} (os treinos colados, repetindo o A pelos dias de treino). Se o aluno fez mais, os treinos se repetem na ordem; se fez menos, entram só os primeiros.</span>
+            </div>
+          )}
           <label className="row"><input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} /> Incluir nome do aluno no cabeçalho</label>
           <label className="row"><input type="checkbox" checked={showEmphasis} onChange={(e) => setShowEmphasis(e.target.checked)} /> Especificar musculatura com mais intensidade e volume</label>
           <div className="row">

@@ -464,9 +464,15 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     if (isOnline(o) && intensityOf(b, o) != null) cands.push(['pontos de intensidade', intensityOf(a, o) - intensityOf(b, o)])
   }
   const best = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
-  fill(d, best ? C.heavy : C.headerBg)
+  const regen = wk && after.phase === 'regenerativa'
+  fill(d, regen ? C.zone.regenerativa : best ? C.heavy : C.headerBg)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
-  if (best) {
+  if (regen) {
+    // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
+    text(d, 'Semana regenerativa', PAGE.m + 16, y + 30, { size: 18, bold: true, c: C.zoneInk.regenerativa })
+    text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 44, { size: 7.2, c: C.zoneInk.regenerativa })
+    text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 16, y + 55, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+  } else if (best) {
     const isPts = best[0] === 'pontos de intensidade'
     text(d, `+${Math.round(best[1])}${isPts ? '' : '%'}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
     text(d, isPts ? 'MAIS INTENSIDADE' : best[0].toUpperCase(), PAGE.m + W - 16, y + 30, { size: 9, bold: true, c: '#ffffff', align: 'right' })
@@ -495,14 +501,15 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   // 2) quatro placares grandes
   const first = wk ? 'primeira semana' : 'primeiro mês'
   const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
-  scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
-  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first)
+  const rg = !!regen // regenerativa: placares neutros (sem pílula de queda)
+  scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg)
+  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
-  if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Nível de estímulo', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first)
+  if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, W, th, 'Nível de estímulo', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first, rg)
   else if (isOnline(o)) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Grupos musculares', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, true)
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
-  if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Treinos realizados', b.sessions, a.sessions, (n) => fmtNum(n), hasBefore, first)
-  else scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
+  if (isOnline(o) && levelOf(a) == null) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Séries em até 10 reps', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg)
+  else if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
   y += th * 2 + 22
 
   // consultoria: o que ficou mais desafiador (só o que subiu)
@@ -834,7 +841,15 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   const d = start(o)
   header(d, 'Resumo da Semana', `Semana de ${fmtBR(weekStartDate)} · ${items.length} ${items.length === 1 ? 'treino' : 'treinos'}`, nm(o))
   if (!items.length) return d
-  let y = heroCard(d, 92, o, cur, prev, prev?.validSets ? 'Semana vs anterior' : 'Total da semana')
+  const regen = o.phase === 'regenerativa'
+  let y = heroCard(d, 92, o, cur, regen ? undefined : prev, regen ? 'Semana regenerativa' : prev?.validSets ? 'Semana vs anterior' : 'Total da semana')
+  if (regen) {
+    // menos volume é planejado: deixa claro que não é destreino
+    card(d, PAGE.m, y, W, 30, C.zone.regenerativa)
+    text(d, 'Semana regenerativa: redução planejada para recuperar e voltar mais forte.', PAGE.m + 12, y + 13, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+    text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 12, y + 23, { size: 7, c: C.zoneInk.regenerativa })
+    y += 38
+  }
 
   // conquistas da semana
   const ach: string[] = []
@@ -843,7 +858,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
   ach.push(`${items.length} ${items.length === 1 ? 'treino feito' : 'treinos feitos'}`)
   if (distinct >= 3 && distinct === items.length) ach.push('Divisão completa')
   if (items.length > distinct) ach.push('Treino extra na semana')
-  if (prev?.validSets && cur.validSets > prev.validSets) ach.push('Mais volume que a semana anterior')
+  if (!regen && prev?.validSets && cur.validSets > prev.validSets) ach.push('Mais volume que a semana anterior')
   if (prev && isOnline(o) && (levelOf(cur) ?? 0) > (levelOf(prev) ?? 0)) ach.push('Desafio em alta')
   else if (prev && isOnline(o) && perSession(cur) > perSession(prev)) ach.push('Mais séries por treino')
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))

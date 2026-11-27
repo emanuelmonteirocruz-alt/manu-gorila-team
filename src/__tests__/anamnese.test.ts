@@ -342,3 +342,15 @@ describe('consultoria: semana com treino repetido (ABCDA)', () => {
     expect(new Set(expandWeek(wk, 5).map((x) => x.id)).size).toBe(5)
   })
 })
+
+describe('treinos executados informados pelo treinador', () => {
+  it('fez mais: repete na ordem; fez menos: sai primeiro a repetição', async () => {
+    const { expandWeek, adjustToExecuted } = await import('../data/reportData')
+    const s = (l: string): Session => ({ id: l, student_id: 'x', date: '2026-11-23', label: `Treino ${l}`, source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: [] })
+    const abcda = expandWeek(['A', 'B', 'C', 'D'].map(s), 5)
+    expect(adjustToExecuted(abcda, 4).map((x) => x.label)).toEqual(['Treino A', 'Treino B', 'Treino C', 'Treino D'])
+    expect(adjustToExecuted(abcda, 3).map((x) => x.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
+    expect(adjustToExecuted(['A', 'B', 'C', 'D'].map(s), 6).map((x) => x.label).slice(4)).toEqual(['Treino A', 'Treino B'])
+    expect(adjustToExecuted(abcda, null)).toHaveLength(5)
+  })
+})
