@@ -409,7 +409,8 @@ function scoreTile(d: jsPDF, x: number, y: number, w: number, h: number, label: 
   // neutral: PSE mais baixa com mais carga é adaptação, não piora — sem seta de queda
   else if (hasBefore && before > 0 && !neutral) deltaPill(d, x + 10, y + h - 22, ((after - before) / before) * 100, '')
   // barras verticais: antes (cinza) × depois (destaque)
-  const bx = x + w - 52, base = y + h - 14, hMax = h - 36
+  // placar largo (linha inteira): as barras ficam perto do número, não na ponta da direita
+  const bx = w > W * 0.7 ? x + 150 : x + w - 52, base = y + h - 14, hMax = h - 36
   const max = Math.max(before, after, 1)
   const hb = hasBefore ? Math.max(2, (before / max) * hMax) : 0
   const ha = Math.max(2, (after / max) * hMax)
