@@ -15,6 +15,8 @@ import { fmtBR } from '../../engine/metrics'
 import { SOURCE_LABEL } from '../format'
 import { ExerciseLine } from '../pages/History'
 import { SessionEditor } from './SessionEditor'
+import { CardioPanel } from './CardioPanel'
+import { cardioSummary } from '../../data/repo'
 
 const WEEKDAY = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -72,6 +74,8 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
   const [pdf, setPdf] = useState<{ doc: jsPDF; make: () => jsPDF; name: string } | null>(null)
   const [preview, setPreview] = useState(false)
   const [editing, setEditing] = useState(false)
+  // cardio do dia do treino: o PDF é refeito quando um cardio é registrado ou apagado
+  const cardioKey = useLiveQuery(async () => { const c = await cardioSummary(student.id, session.date, session.date); return `${c.sessions}-${c.kcal}` }, [student.id, session.date]) ?? ''
   const canvas = useRef<HTMLCanvasElement | null>(null)
   // o PDF fica pronto ao abrir o treino: o botão de enviar abre o WhatsApp na hora (sem espera)
   useEffect(() => {
@@ -86,7 +90,7 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       if (alive) setPdf({ doc: make(), make, name: `treino-${student.full_name.split(' ')[0].toLowerCase()}-${session.date}.pdf` })
     })()
     return () => { alive = false }
-  }, [student, session, pse])
+  }, [student, session, pse, cardioKey])
   useEffect(() => {
     if (preview && pdf && canvas.current) drawPreview(canvas.current, pdf.make)
   }, [preview, pdf])
@@ -102,6 +106,7 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
       </div>
       {preview && <canvas ref={canvas} className="pdf-preview" aria-label="Gráfico do treino" />}
       {session.muscle_groups.length > 0 && <div className="muted">{session.muscle_groups.map((g) => g.replace('Perna - ', '')).join(', ')}</div>}
+      <CardioPanel student={student} date={session.date} compact />
       {editing ? <SessionEditor session={session} pse={pse} onClose={() => setEditing(false)} /> : (<>
         {session.exercises.map((e) => <ExerciseLine key={e.id} e={e} />)}
         {!session.exercises.length && <div className="muted">Treino sem exercícios registrados.</div>}

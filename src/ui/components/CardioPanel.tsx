@@ -15,7 +15,9 @@ const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.'))
  */
 export function CardioPanel({ student: initial, date, compact }: { student: Student; date?: string; compact?: boolean }) {
   const student = useLiveQuery(() => db.students.get(initial.id), [initial.id]) ?? initial
-  const today = date ?? toISODate(new Date())
+  // de madrugada (antes das 4h) o cardio ainda é do dia anterior (aluno que treinou à noite)
+  const now = new Date()
+  const today = date ?? toISODate(now.getHours() < 4 ? new Date(now.getTime() - 5 * 3600 * 1000) : now)
   const [kind, setKind] = useState<CardioKind>('esteira')
   const [minutes, setMinutes] = useState('')
   const [speed, setSpeed] = useState('')
