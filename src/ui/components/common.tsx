@@ -105,7 +105,6 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             </select>
           </label>
         )}
-        {s.modality !== 'online' && <label className="f">Plano<input id="st-plan" value={s.plan_name ?? ''} onChange={(e) => set('plan_name', e.target.value)} /></label>}
         {s.modality === 'online' ? (
           <label className="f">Tipo / frequência do plano *
             <select id="st-period" value={s.plan_period ?? ''} onChange={(e) => {

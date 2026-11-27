@@ -52,6 +52,7 @@ export default function StudentDetail() {
           {tab !== 'ficha' && <CardioPanel student={student} />}
           {tab !== 'ficha' && <NutritionPanel student={student} />}
           {tab === 'ficha' && <div className="card"><StudentForm key={student.id + student.modality} initial={student} onDeleted={() => nav('/alunos')} /></div>}
+          {tab === 'ficha' && <NutritionPanel student={student} />}
           {tab === 'ficha' && (
             <div className="card grid">
               <b>Recomeçar a linha do tempo</b>
@@ -73,6 +74,7 @@ export default function StudentDetail() {
       {tab === 'ficha' && (
         <div className="grid">
           <div className="card"><StudentForm key={student.id + student.modality} initial={student} onDeleted={() => nav('/alunos')} /></div>
+          <NutritionPanel student={student} />
           <div className="card grid">
             <b>Recomeçar a linha do tempo</b>
             <div className="muted">Para quando o aluno volta depois de muito tempo: os treinos antigos deixam de entrar nos gráficos e comparações (não são apagados).</div>
