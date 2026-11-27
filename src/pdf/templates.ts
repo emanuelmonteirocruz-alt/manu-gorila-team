@@ -378,6 +378,7 @@ export interface MonthSide {
   agg: Aggregate
   lifts: Record<string, { name: string; kg: number; perSide: boolean }> // maior carga de cada exercício no mês
   phase?: Microcycle | null // fase da semana (Semana × Semana)
+  shock?: string[] // semana de choque: o que mudou, em linguagem de aluno
 }
 
 /** Um treino (A, B, C…) nas duas semanas comparadas. */
@@ -489,14 +490,21 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     : undefined
   if (isOnline(o)) best = undefined
   const regen = wk && after.phase === 'regenerativa'
+  const shock = wk && !regen && after.phase === 'choque' && after.shock ? after.shock : null
   const steady = !regen && !best && !proof && hasBefore && Math.abs(pct(a.validSets, b.validSets) ?? 0) < 5
-  fill(d, regen ? C.zone.regenerativa : best || proof ? C.heavy : steady ? C.zone.choque : C.zone.ordinaria)
+  fill(d, shock ? C.ink : regen ? C.zone.regenerativa : best || proof ? C.heavy : steady ? C.zone.choque : C.zone.ordinaria)
   d.roundedRect(PAGE.m, y, W, 66, 10, 10, 'F')
   if (regen) {
     // menos volume aqui é de propósito: o aluno não está destreinando, está recuperando para o próximo pico
     text(d, 'Semana regenerativa', PAGE.m + 16, y + 30, { size: 18, bold: true, c: C.zoneInk.regenerativa })
     text(d, 'Redução planejada de volume e esforço para o corpo recuperar e voltar mais forte.', PAGE.m + 16, y + 44, { size: 7.2, c: C.zoneInk.regenerativa })
     text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 16, y + 55, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
+  } else if (shock) {
+    // semana de choque: estímulo novo de propósito — diz o que mudou, sem nome de método
+    text(d, 'SEMANA DE CHOQUE', PAGE.m + 16, y + 22, { size: 7.5, bold: true, c: C.zone.choque })
+    text(d, 'Estímulo novo para o corpo voltar a evoluir', PAGE.m + 16, y + 38, { size: 13, bold: true, c: '#ffffff' })
+    const what = shock.length ? `o que mudou: ${shock.slice(0, 3).join(' · ')}` : 'mesmos exercícios, com variáveis novas de treino'
+    text(d, what, PAGE.m + 16, y + 53, { size: 7.2, c: '#D9E2EA' })
   } else if (proof) {
     const [lbl, sub, x, y2] = proof
     const isLvl = lbl === 'intensidade a mais'

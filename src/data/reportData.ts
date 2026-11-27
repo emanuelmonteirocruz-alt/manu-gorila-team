@@ -134,6 +134,14 @@ export async function buildWeeksCompare(student: Student, wkBefore: string, wkAf
   const pts = await weekPoints(student, [wkBefore, wkAfter])
   b.side.phase = pts[0]?.agg.sessions ? pts[0].verdict.final : null
   a.side.phase = pts[1]?.agg.sessions ? pts[1].verdict.final : null
+  // semana gerada como CHOQUE no Montar: o PDF diz "Semana de choque" e o que mudou (em linguagem de aluno)
+  const { shockPhrases } = await import('../consultoria/shockVariables')
+  for (const [side, p] of [[b.side, pts[0]], [a.side, pts[1]]] as const) {
+    if (p?.agg.sessions && p.ctx?.planned_microcycle === 'choque') {
+      side.phase = 'choque'
+      side.shock = shockPhrases(p.ctx.justification)
+    }
+  }
   return { before: b.side, after: a.side, perTraining }
 }
 

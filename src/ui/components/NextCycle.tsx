@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ClipboardCopy, MessageSquare, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { anamneseTemplateText, getAnamnese, latestNutrition, profileLookup, studentSessions } from '../../data/repo'
+import { anamneseTemplateText, getAnamnese, upsertWeekContext, latestNutrition, profileLookup, studentSessions } from '../../data/repo'
 import { nutritionLine } from './NutritionPanel'
 import { listWeeks, weekLabel } from '../../data/reportData'
 import { parseTemplate } from '../../consultoria/anamneseTemplate'
@@ -17,6 +17,7 @@ import TrainerNotes from './TrainerNotes'
 import { LEVELS, REFERENCES, levelFor } from '../../consultoria/levels'
 import { db, save } from '../../data/db'
 import { generateFirstWeek } from '../../consultoria/firstWeek'
+import { familiesOf } from '../../consultoria/shockVariables'
 
 const short = (g: string) => g.replace('Perna - ', '')
 
@@ -44,6 +45,8 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
   const [enfases, setEnfases] = useState<string[] | null>(null)
   const emph = enfases ?? suggested
   const [alerts, setAlerts] = useState(true)
+  // fase e famílias de método da semana gerada (vão para o PDF do aluno como "Semana de choque")
+  const [made, setMade] = useState<{ phase: Microcycle; families: string[] } | null>(null)
   const [text, setText] = useState('')
   const [copied, setCopied] = useState(false)
   const [summary, setSummary] = useState<string[]>([])
@@ -73,6 +76,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     const history = (await studentSessions(student)).filter((x) => x.date < base).slice(-40) // ~últimas semanas: o choque evita repetir variável
     const week = generateWeek({ base: sessions, phase, intensity, enfases: emph, triage, lookup, history, level: student.training_level })
     setText(weekToWhatsApp(week, alerts))
+    setMade({ phase, families: familiesOf(week.flatMap((t) => t.exercises.flatMap((e) => e.changes))) })
     const moved = week.filter((t) => t.movedFrom).map((t) => `${t.label}: era o ${t.movedFrom} (veio para a frente pela ênfase)`)
     setSummary([...moved, ...week.flatMap((t) => t.exercises.filter((e) => e.changes.length || e.alert).map((e) => `${t.label.replace('Treino ', '')} · ${e.names.join(' + ')}: ${[...e.changes, e.alert].filter(Boolean).join(', ')}`))])
     const miss = missingEmphasis(sessions, emph, lookup)
@@ -196,7 +200,8 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
           <div className="row stack-sm">
             <a className="btn" href={wa} target="_blank" rel="noreferrer"><Send size={16} strokeWidth={1.8} /> Enviar tudo junto</a>
             <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2500) } catch { /* sem permissão */ } }}><ClipboardCopy size={16} strokeWidth={1.8} /> {copied ? 'Copiado!' : 'Copiar tudo'}</button>
-            <button className="btn" onClick={() => {
+            <button className="btn" onClick={async () => {
+              if (made && !isNew) await upsertWeekContext(student.id, nextWk, { planned_microcycle: made.phase, ...(made.phase === 'choque' ? { justification: `choque:${made.families.join(',')}` } : {}) })
               try { sessionStorage.setItem('mgt_paste_prefill', text.replace(/^\((revisar|trocar)[^)]*\)?.*$/gm, '').replace(/\n{3,}/g, '\n\n')) } catch { /* sem armazenamento */ }
               nav(`/consultoria?aluno=${student.id}&semana=${nextWk}`)
             }}><MessageSquare size={16} strokeWidth={1.8} /> Salvar como semana de {fmtBR(nextWk).slice(0, 5)}</button>

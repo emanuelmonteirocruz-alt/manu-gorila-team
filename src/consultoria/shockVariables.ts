@@ -90,3 +90,29 @@ export function usedVariables(history: Session[]): Map<string, Map<string, numbe
   }
   return out
 }
+
+/** Famílias de método em linguagem de aluno (sem nome de método: drop, rest-pause… ficam só com o treinador). */
+export const FAMILY_FOR_STUDENT: Record<string, string> = {
+  tensao: 'cargas mais altas',
+  metabolico: 'séries estendidas no final',
+  alongado: 'execução mais lenta e controlada',
+  falha: 'séries até a falha',
+  volume: 'séries a mais',
+}
+
+/** Famílias usadas numa semana gerada, pelos textos de "o que mudou" de cada exercício. */
+export function familiesOf(changes: string[]): string[] {
+  const out: string[] = []
+  for (const c of changes) {
+    const v = SHOCK_VARIABLES.find((x) => x.change === c)
+    if (v && !out.includes(v.family)) out.push(v.family)
+  }
+  return out
+}
+
+/** Marca guardada no contexto da semana ("choque:tensao,falha") → frases para o aluno. */
+export function shockPhrases(justification?: string | null): string[] {
+  const m = /^choque:(.*)$/.exec(justification ?? '')
+  if (!m) return []
+  return m[1].split(',').map((f) => FAMILY_FOR_STUDENT[f.trim()]).filter(Boolean)
+}
