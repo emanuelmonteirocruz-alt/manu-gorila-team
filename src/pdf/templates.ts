@@ -520,11 +520,11 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     else if (best[0] === 'mais intensidade' && levelOf(b)) text(d, `nível de estímulo ${levelOf(b)} > ${levelOf(a)}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
     text(d, `${before.label} > ${after.label}`, PAGE.m + W - 16, y + 44, { size: 7.5, c: '#E6F4F2', align: 'right' })
   } else {
-    // nada subiu: "Nível mantido" (constância) ou "Semana de ajuste" — em tom calmo, nunca como queda
-    const title = steady ? 'Nível mantido' : hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês')
-    const sub = steady ? 'mesmo volume e intensidade: constância é o que sustenta a evolução' : hasBefore ? 'base para o próximo salto' : 'ponto de partida da sua evolução'
-    text(d, title, PAGE.m + 16, y + 36, { size: 20, bold: true, c: steady ? C.heavy : C.ink })
-    text(d, sub, PAGE.m + 16, y + 51, { size: 7.5, c: C.sub })
+    // nada subiu: "Periodização consistente" (constância) ou "Semana de ajuste" — em tom calmo, nunca como queda
+    const title = steady ? 'Periodização consistente' : hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês')
+    const sub = steady ? '' : hasBefore ? 'base para o próximo salto' : 'ponto de partida da sua evolução'
+    text(d, title, PAGE.m + 16, sub ? y + 36 : y + 40, { size: 20, bold: true, c: steady ? C.heavy : C.ink })
+    if (sub) text(d, sub, PAGE.m + 16, y + 51, { size: 7.5, c: C.sub })
   }
   y += 76
 

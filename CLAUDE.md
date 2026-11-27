@@ -18,7 +18,7 @@ O usuário escreve em português: responda em português, de forma curta.
 - Telas: `src/ui/pages/` e `src/ui/components/` (StudentTabs, NextCycle, CopyWeek, InPerson, CardioPanel, NutritionPanel, SessionEditor).
 
 ## Regras do produto (decididas pelo Emanuel)
-- PDFs **didáticos e vendedores**: o aluno precisa perceber a evolução. Pouco texto.
+- PDFs **técnicos, didáticos e clean**: o aluno precisa perceber a evolução pelo visual. O mínimo de texto, **sem frases motivacionais**.
 - **Nunca mostrar nome de método para o aluno** (drop, bi-set, rest-pause…). Métodos só aparecem para o treinador.
 - Não usar "superior/inferior"; nos grupos musculares, só o músculo principal.
 - **Repetições antes do kg** em tudo (ex.: 10 × 40 kg).
