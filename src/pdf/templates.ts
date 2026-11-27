@@ -474,7 +474,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   let best: [string, number] | undefined = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
   // CONSULTORIA: a manchete é uma PROVA que o aluno confere — "+10 séries pesadas" (até 10 reps) ou "+4 séries com técnica"
   const proof = isOnline(o) && hasBefore
-    ? ([['séries pesadas a mais', 'até 10 repetições', b.lowRepSets, a.lowRepSets], ['séries com técnica a mais', 'drop, bi-set, rest-pause…', b.advancedSets, a.advancedSets], ['séries de trabalho a mais', 'sem contar o aquecimento', b.validSets, a.validSets]] as [string, string, number, number][])
+    ? ([['séries pesadas a mais', 'até 10 repetições', b.lowRepSets, a.lowRepSets], ['séries com métodos de intensificação', 'drop, bi-set, rest-pause…', b.advancedSets, a.advancedSets], ['séries de trabalho a mais', 'sem contar o aquecimento', b.validSets, a.validSets]] as [string, string, number, number][])
       .find(([, , x, y2]) => y2 > x)
     : undefined
   if (isOnline(o)) best = undefined
@@ -527,7 +527,9 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) {
     scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
-    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Séries com técnica', b.advancedSets, a.advancedSets, (n) => fmtNum(n), hasBefore, first, rg, 'drop, bi-set, rest-pause…')
+    // métodos entram conforme a fase: nunca "0" assustando nem seta vermelha de queda
+    if (a.advancedSets || b.advancedSets) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Métodos de intensificação', b.advancedSets, a.advancedSets, (n) => `${fmtNum(n)}`, hasBefore, first, true, 'séries com drop, bi-set, rest-pause…')
+    else scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Músculos trabalhados', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, rg, 'grupos musculares na semana')
   }
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
   if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
