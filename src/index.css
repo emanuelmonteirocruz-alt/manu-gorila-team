@@ -419,3 +419,20 @@ textarea.voice-box:not(:placeholder-shown) { height: auto; min-height: 44px; ove
 /* avaliação do nutricionista */
 .nutri-file { justify-content: center; gap: 8px; cursor: pointer; }
 .nutri-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+/* abas da página do aluno */
+.tabs-bar { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 14px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tab-btn { flex: 0 0 auto; height: 44px; padding: 0 14px; border: 0; background: none; font-size: 15px; font-weight: 600; color: var(--sub); border-bottom: 3px solid transparent; cursor: pointer; }
+.tab-btn.on { color: var(--accent); border-bottom-color: var(--accent); }
+.summary-card { gap: 10px; }
+.chk-row { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.chk { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 600; }
+.chk.ok { color: var(--ok, #15803d); }
+.chk.no { color: var(--sub); }
+.week-actions .btn { gap: 6px; }
+.anam-mark { font-size: 12px; font-weight: 700; white-space: normal; line-height: 1.2; margin-bottom: 2px; }
+.anam-mark.ok { color: var(--ok, #15803d); }
+.anam-mark.warn { color: #b45309; }
+.anam-mark.no { color: var(--danger, #b91c1c); }
+@media (max-width: 760px) { .tab-btn { padding: 0 9px; font-size: 14px; } }
+.week-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.week-actions .btn { height: 38px; padding: 0 12px; font-size: 14px; }

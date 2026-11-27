@@ -51,7 +51,7 @@ export function SendWeek({ student }: { student: Student }) {
  * COPIAR A SEMANA PARA OUTROS ALUNOS (vários de uma vez): salva como a próxima semana de cada aluno escolhido,
  * avisa o que não combina com a anamnese de cada um e já mostra o envio por mensagem para cada aluno.
  */
-export function CopyWeek({ student }: { student: Student }) {
+export function CopyWeek({ student, fixedWeek, embedded }: { student: Student; fixedWeek?: string; embedded?: boolean }) {
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
   const others = (useStudents('online') ?? []).filter((s) => s.id !== student.id)
   const [wk, setWk] = useState('')
@@ -60,7 +60,7 @@ export function CopyWeek({ student }: { student: Student }) {
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<{ id: string; week: string; n: number }[]>([])
-  const week = wk || weeks[0]?.wk || ''
+  const week = fixedWeek || wk || weeks[0]?.wk || ''
   const { text, names } = useWeekText(student, week)
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const targets = others.filter((s) => sel.includes(s.id))
@@ -97,14 +97,15 @@ export function CopyWeek({ student }: { student: Student }) {
   }
 
   return (
-    <details className="card copy-week">
-      <summary style={{ cursor: 'pointer', fontWeight: 700 }}><Copy size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> Copiar treino para outros alunos</summary>
-      <div className="grid" style={{ marginTop: 10 }}>
-        <label className="f">Semana de {first(student)}
-          <select value={week} onChange={(e) => { setWk(e.target.value); setDone([]) }}>
-            {weeks.map((w) => <option key={w.wk} value={w.wk}>{weekLabel(w)}</option>)}
-          </select>
-        </label>
+    <Wrap embedded={embedded}>
+      <div className="grid" style={{ marginTop: embedded ? 0 : 10 }}>
+        {!fixedWeek && (
+          <label className="f">Semana de {first(student)}
+            <select value={week} onChange={(e) => { setWk(e.target.value); setDone([]) }}>
+              {weeks.map((w) => <option key={w.wk} value={w.wk}>{weekLabel(w)}</option>)}
+            </select>
+          </label>
+        )}
         <div className="grid" style={{ gap: 6 }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span className="muted" style={{ fontWeight: 600 }}>Para quais alunos ({sel.length} {sel.length === 1 ? 'escolhido' : 'escolhidos'})</span>
@@ -129,7 +130,7 @@ export function CopyWeek({ student }: { student: Student }) {
           )
         })}
 
-        <textarea className="code" readOnly value={text} style={{ minHeight: 120 }} />
+        {!embedded && <textarea className="code" readOnly value={text} style={{ minHeight: 120 }} />}
         <div className="row stack-sm">
           <button className="btn primary" disabled={!targets.length || !text || busy} onClick={doCopy}>
             {busy ? 'Salvando…' : targets.length ? `Salvar para ${targets.length} ${targets.length === 1 ? 'aluno' : 'alunos'}` : 'Escolha os alunos'}
@@ -155,6 +156,16 @@ export function CopyWeek({ student }: { student: Student }) {
           </div>
         )}
       </div>
+    </Wrap>
+  )
+}
+
+function Wrap({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <div className="copy-week">{children}</div>
+  return (
+    <details className="card copy-week">
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}><Copy size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> Copiar treino para outros alunos</summary>
+      {children}
     </details>
   )
 }

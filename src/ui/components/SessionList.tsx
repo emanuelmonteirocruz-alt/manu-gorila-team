@@ -24,26 +24,28 @@ const WEEKDAY = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
  * Treinos do aluno, mais recente primeiro. Tocar abre o treino (exercícios e séries)
  * com o PDF pronto para enviar pelo WhatsApp ou baixar — a qualquer momento depois da aula.
  */
-export function SessionList({ student, limit = 30, initialOpen = null }: { student: Student; limit?: number; initialOpen?: string | null }) {
+export function SessionList({ student, limit = 30, initialOpen = null, from, to, bare }: { student: Student; limit?: number; initialOpen?: string | null; from?: string; to?: string; bare?: boolean }) {
   const [open, setOpen] = useState<string | null>(initialOpen)
   const [all, setAll] = useState(false)
   const data = useLiveQuery(async () => {
-    const list = (await studentSessions(student)).reverse()
+    const list = (await studentSessions(student, from, to)).reverse()
     const ratings = (await db.ratings.toArray()).filter((r) => !r._deleted)
     const pseOf = (id: string) => {
       const rs = ratings.filter((r) => r.session_id === id)
       return (rs.find((r) => r.reported_by === 'student') ?? rs[0])?.pse ?? null
     }
     return list.map((s) => ({ s, pse: pseOf(s.id) }))
-  }, [student.id]) ?? []
+  }, [student.id, from, to]) ?? []
   const shown = all ? data : data.slice(0, limit)
   return (
-    <div className="card grid">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0 }}>Treinos feitos</h2>
-        <span className="muted">{data.length} {data.length === 1 ? 'treino' : 'treinos'}</span>
-      </div>
-      {!data.length && <div className="muted">Nenhum treino ainda. Os treinos encerrados no Presencial aparecem aqui.</div>}
+    <div className={bare ? 'grid' : 'card grid'}>
+      {!bare && (
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0 }}>Treinos feitos</h2>
+          <span className="muted">{data.length} {data.length === 1 ? 'treino' : 'treinos'}</span>
+        </div>
+      )}
+      {!data.length && !bare && <div className="muted">Nenhum treino ainda. Os treinos encerrados no Presencial aparecem aqui.</div>}
       <div className="session-list">
         {shown.map(({ s, pse }) => {
           const valid = s.exercises.reduce((a, e) => a + e.valid_sets, 0)

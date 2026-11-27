@@ -61,7 +61,7 @@ const addWeeks = (wk: string, n: number) => {
  * Barra de contexto da consultoria: periodicidade (troca rápida), semanas enviadas, próxima troca
  * e o atalho principal "Colar semana de dd/mm" (abre o colar já com o aluno e a semana).
  */
-export function ConsultancyBar({ student, showPaste = true }: { student: Student; showPaste?: boolean }) {
+export function ConsultancyBar({ student, showPaste = true, hideName = false }: { student: Student; showPaste?: boolean; hideName?: boolean }) {
   const st = changeStatus(student)
   const pastedAll = usePastedWeeks()
   const pasted = pastedAll[student.id]
@@ -70,13 +70,13 @@ export function ConsultancyBar({ student, showPaste = true }: { student: Student
   return (
     <div className={`card grid consult-bar ${st ? `alert-${st.level}` : ''}`}>
       <div className="grid" style={{ gap: 8 }}>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        {!hideName && <div className="row" style={{ justifyContent: 'space-between' }}>
           <div style={{ minWidth: 0 }}>
             <b style={{ fontSize: 17 }}>{student.full_name}</b>
             <div className="muted">{student.plan_name || 'Consultoria Online'}{student.phone ? ` · ${student.phone}` : ''}</div>
           </div>
           {st && <span className={`tag ${st.level === 'proximo' ? 'warn' : 'danger'}`}><Bell size={12} /> {st.label}</span>}
-        </div>
+        </div>}
         <div className="chips">
           {(Object.keys(PERIOD_LABEL) as PlanPeriod[]).map((p) => (
             <button key={p} type="button" className={`chip sm ${student.plan_period === p ? 'on' : ''}`}

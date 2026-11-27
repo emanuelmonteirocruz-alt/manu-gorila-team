@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ChevronLeft, Link2, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
@@ -35,6 +36,15 @@ export default function InPerson() {
   const [groups, setGroups] = useState<string[]>([])
   const [session, setSession] = useState<Session | null>(null)
   const step = !student ? 1 : !label ? 2 : !session ? 3 : 4
+  // atalho "Iniciar treino" da ficha do aluno: /presencial?aluno=ID já abre na escolha do treino
+  const [qp] = useSearchParams()
+  const preset = useRef(false)
+  useEffect(() => {
+    const id = qp.get('aluno')
+    if (preset.current || !id || student || getActive()) return
+    preset.current = true
+    void db.students.get(id).then((st) => { if (st && !st._deleted) setStudent(st) })
+  }, [qp, student])
 
   // treinos presenciais abertos (sem PSE) dos últimos 3 dias: dá para continuar de onde parou
   const open = useLiveQuery(async () => {

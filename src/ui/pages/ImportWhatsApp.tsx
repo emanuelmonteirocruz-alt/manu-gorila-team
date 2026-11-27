@@ -3,7 +3,10 @@ import { BookOpen, ClipboardCopy, Download, History as HistoryIcon, Save, Send }
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { db, getKV, setKV } from '../../data/db'
-import { cardioSummary, importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
+import { anamneseTemplateText, cardioSummary, getAnamnese, importWhatsApp, resetTimeline, saveStudent, whatsappInWeeks } from '../../data/repo'
+import { parseTemplate } from '../../consultoria/anamneseTemplate'
+import { buildTriage } from '../../consultoria/triage'
+import { exerciseAlert } from '../../consultoria/generator'
 import { nextChangeAfter } from '../../domain/plan'
 import { effortMessage, itemPoints, techniquesOf, TECHNIQUES, ZONE_LABEL, zoneOf } from '../../engine/effortGuide'
 import { getBrand, type Brand } from '../../data/brand'
@@ -41,6 +44,13 @@ export default function ImportWhatsApp() {
   const student = useLiveQuery(() => (studentId ? db.students.get(studentId) : undefined), [studentId])
   const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
   const [msg, setMsg] = useState<string | null>(null)
+  // conferência com a anamnese do aluno: cada exercício lido ganha ✓ / revisar / não pode
+  const anamTriage = useLiveQuery(async () => {
+    if (!studentId) return null
+    const an = await getAnamnese(studentId)
+    if (!an || !Object.values(an.answers ?? {}).some((v) => v?.trim())) return null
+    return buildTriage(parseTemplate(await anamneseTemplateText()), an.answers)
+  }, [studentId])
   const today = toISODate(new Date())
   const headers = useMemo(() => hasWhatsAppHeaders(readText || raw), [readText, raw])
   // cada bloco colado (uma mensagem = A, B, C, D) vai para UMA semana. Padrão: mandado no domingo = semana seguinte.
@@ -200,6 +210,10 @@ export default function ImportWhatsApp() {
                     <div key={ti} className="wa-card">
                       <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}><b>{t.label}</b><span className="tag">desafio {Math.round(t.exercises.reduce((a, e) => a + itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }), 0))} pts</span></div>
                       <div className="set-sum">{valid} séries válidas{warm ? ` • ${warm} aquec. fora da conta` : ''}</div>
+                      {anamTriage && (() => {
+                        const bad = t.exercises.map((e) => exerciseAlert(e.names, anamTriage)).filter(Boolean).length
+                        return <div className={bad ? 'tag warn' : 'tag ok'} style={{ justifySelf: 'start' }}>{bad ? `${bad} ${bad === 1 ? 'exercício pede' : 'exercícios pedem'} atenção pela anamnese` : 'Tudo de acordo com a anamnese'}</div>
+                      })()}
                       <table className="t"><tbody>
                         {t.exercises.map((e, i) => (
                           <tr key={i}>
@@ -212,7 +226,7 @@ export default function ImportWhatsApp() {
                                 {techniquesOf({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet }).map((k) => <span key={k} className={`tag ${k === 'cadencia' ? '' : 'warn'}`}>{TECHNIQUES.find((t) => t.key === k)?.label}</span>)}
                               </div>
                             </td>
-                            <td className="wa-right">{e.validSets * e.names.length} válidas{e.warmupSets ? <div className="muted">{e.warmupSets * e.names.length} aquec.</div> : ''}<div className="muted">{itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })} pts</div></td>
+                            <td className="wa-right">{anamTriage && (() => { const al = exerciseAlert(e.names, anamTriage); return <div className={`anam-mark ${al ? (al.startsWith('trocar') ? 'no' : 'warn') : 'ok'}`}>{al ? (al.startsWith('trocar') ? '⛔ não pode' : `⚠ ${al}`) : '✓'}</div> })()}{e.validSets * e.names.length} válidas{e.warmupSets ? <div className="muted">{e.warmupSets * e.names.length} aquec.</div> : ''}<div className="muted">{itemPoints({ names: e.names, reps: e.reps, notes: e.notes, dropSet: e.dropSet })} pts</div></td>
                           </tr>
                         ))}
                       </tbody></table>
