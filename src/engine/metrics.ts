@@ -36,17 +36,6 @@ export function fmtBR(date: string): string {
 }
 
 // ---------- gasto calórico ----------
-/**
- * Custo base por série válida (~10 reps + ~2 min de descanso, ≈4–5 kcal/min) por perfil biomecânico.
- * Multiarticulares livres > multi em máquina > mono livre > mono máquina.
- */
-const BASE_KCAL_PER_SET = {
-  multiarticular: { livre: 10.0, maquina_cabo: 8.0 },
-  monoarticular: { livre: 6.0, maquina_cabo: 5.0 },
-} as const
-/** deslocamento médio (m) para estimar trabalho mecânico a partir da tonelagem */
-const DISPLACEMENT_M = { multiarticular: 0.45, monoarticular: 0.3 } as const
-const MUSCLE_EFFICIENCY = 0.22
 
 export function avgReps(ex: SessionExercise): number {
   if (!ex.reps.length) return 10
@@ -65,20 +54,37 @@ export function tonnage(ex: SessionExercise): number {
 }
 
 /**
- * Estimativa de kcal de um exercício.
- * - Sem carga (consultoria online): base biomecânica × fator de repetições.
- * - Com carga (presencial): soma o trabalho mecânico (tonelagem·g·deslocamento / eficiência),
- *   limitado a +150% do custo base para não explodir em máquinas com alavanca (Leg45).
+ * CALORIAS DA MUSCULAÇÃO — mesmo método do cardio: kcal = MET × peso (kg) × tempo (h).
+ * Fonte: Compendium of Physical Activities (Ainsworth et al., 2011; Herrmann et al., 2024):
+ *   treino resistido geral/moderado 3,5 MET · vigoroso 6,0 MET. Conferência: tabela de Harvard Health
+ *   (70 kg: musculação geral ≈ 3,7 kcal/min; vigorosa ≈ 7,4 kcal/min).
+ * Tempo de cada série = execução (~3 s por repetição) + descanso típico:
+ *   multiarticular 2 min (série pesada 2,5 min) · isolado/máquina 1,25 min · aquecimento 1 min a 3,5 MET.
+ * MET da série: multiarticular livre 6,0 · multiarticular em máquina 5,0 · isolado 4,0 (série pesada +0,5).
+ * Peso: o do aluno (ficha, nutricionista ou anamnese); sem peso, 70 kg.
  */
-export function exerciseKcal(ex: SessionExercise, p?: ExerciseProfile): number {
-  const mech = p?.mechanic ?? 'monoarticular'
-  const impl = p?.implement ?? 'maquina_cabo'
-  const repFactor = Math.min(1.6, Math.max(0.6, avgReps(ex) / 10))
-  const base = BASE_KCAL_PER_SET[mech][impl] * repFactor * ex.valid_sets
-  const t = tonnage(ex)
-  if (!t) return base
-  const workKcal = (t * 9.81 * DISPLACEMENT_M[mech]) / 4184 / MUSCLE_EFFICIENCY
-  return base + Math.min(workKcal * 0.5, base * 1.5)
+const WEIGHTS = new Map<string, number>()
+/** Registra o peso do aluno para o cálculo de calorias (chamado ao carregar os treinos dele). */
+export function setStudentWeight(studentId: string, kg: number | null | undefined) {
+  if (kg && kg > 20) WEIGHTS.set(studentId, kg)
+}
+export const DEFAULT_KCAL_WEIGHT = 70
+
+export function exerciseKcal(ex: SessionExercise, p?: ExerciseProfile, weightKg = DEFAULT_KCAL_WEIGHT): number {
+  const multi = p?.mechanic === 'multiarticular'
+  const free = p?.implement === 'livre'
+  const reps = avgReps(ex)
+  const exec = (Math.min(reps, 25) * 3) / 60 // min de execução
+  let kcal = 0
+  for (let i = 0; i < ex.valid_sets; i++) {
+    const r = ex.reps[i] ?? ex.reps[ex.reps.length - 1]
+    const heavy = !!r && (r.heavy ?? (r.min >= 4 && r.max <= 8))
+    const rest = multi ? (heavy ? 2.5 : 2) : 1.25
+    const met = (multi ? (free ? 6 : 5) : 4) + (heavy ? 0.5 : 0)
+    kcal += met * weightKg * ((exec + rest) / 60)
+  }
+  kcal += ex.warmup_sets * 3.5 * weightKg * (1 / 60)
+  return kcal
 }
 
 // ---------- agregados por sessão / semana ----------
@@ -139,7 +145,7 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
       if (MARKER_RE.test(ex.notes ?? '') || MARKER_RE.test(ex.display_name)) a.markedSets += ex.valid_sets
       else a.markedSets += fails
       if (ex.superset_group != null || ex.drop_set) a.techniqueSets += ex.valid_sets
-      a.kcal += exerciseKcal(ex, p)
+      a.kcal += exerciseKcal(ex, p, WEIGHTS.get(s.student_id) ?? DEFAULT_KCAL_WEIGHT)
       const ch = exerciseChallenge(ex)
       a.challengePoints += ch.points
       a.lowRepSets += ch.lowRep

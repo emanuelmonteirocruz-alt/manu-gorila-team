@@ -114,7 +114,7 @@ function focusSection(d: jsPDF, y: number, a: Aggregate, prev?: Aggregate, maxRo
   y += 36
   // consultoria sem "antes": uma barra só, a legenda não acrescenta nada (economiza espaço)
   if (prev) legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }] : [{ c: C.volume, l: 'Séries agora' }, { c: C.grid, l: 'Antes' }, { c: C.heavy, l: 'Pesadas' }])
-  else if (!VOLUME_ONLY) legend(d, PAGE.m, y, [{ c: C.volume, l: 'Volume efetivo de treino' }, { c: C.heavy, l: 'Pesadas' }])
+  else if (!VOLUME_ONLY) legend(d, PAGE.m, y, [{ c: C.volume, l: 'Séries de trabalho' }, { c: C.heavy, l: 'Pesadas' }])
   else y -= 8
   // muitos músculos: linhas mais baixas para caber acima do quadro de calorias (≈58 pt no rodapé)
   const rh = Math.max(9.5, Math.min(15, (BOTTOM - 60 - (y + 12)) / Math.max(rows.length, 1)))
@@ -165,8 +165,11 @@ function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Agg
   d.roundedRect(PAGE.m, y, 4, 84, 2, 2, 'F')
   text(d, title.toUpperCase(), PAGE.m + 14, y + 16, { size: 6.5, bold: true, c: C.sub })
   text(d, String(a.validSets), PAGE.m + 14, y + 48, { size: 32, bold: true, c: C.ink })
-  text(d, 'volume efetivo de treino', PAGE.m + 14, y + 60, { size: 7, c: C.sub })
-  deltaPill(d, PAGE.m + 14, y + 64, pct(a.validSets, prev?.validSets))
+  text(d, 'séries de trabalho', PAGE.m + 14, y + 60, { size: 7.5, bold: true, c: C.ink })
+  text(d, 'sem contar o aquecimento', PAGE.m + 14, y + 69, { size: 6, c: C.sub })
+  // variação ao lado do número (embaixo fica a explicação das séries)
+  d.setFont('helvetica', 'bold'); d.setFontSize(32)
+  deltaPill(d, PAGE.m + 14 + d.getTextWidth(String(a.validSets)) + 6, y + 30, pct(a.validSets, prev?.validSets))
   const rx = PAGE.m + W - 12
   if (isOnline(o)) {
     // volume: séries por treino (vários treinos) ou grupos trabalhados (um treino)
@@ -272,7 +275,7 @@ function hRows(d: jsPDF, y: number, rows: HRow[], rowH = 28, rightLabel = 'Quilo
   const markW = rows.some((r) => r.mark) ? Math.max(56, downW) : 0 // coluna fixa da evolução ("+9% carga" / selo da regenerativa)
   const barW = W - labelW - rightW - 18 - markW - (VOLUME_ONLY && markW ? 36 : 0) // espaço do "76 séries" depois da barra
   const max = Math.max(...rows.map((r) => r.valid), 1)
-  legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Volume efetivo de treino' }, { c: C.sub, l: rightLabel }] : [{ c: C.volume, l: 'Volume efetivo' }, { c: C.heavy, l: 'Pesadas' }, { c: C.sub, l: rightLabel }])
+  legend(d, PAGE.m, y, VOLUME_ONLY ? [{ c: C.volume, l: 'Séries de trabalho' }, { c: C.sub, l: rightLabel }] : [{ c: C.volume, l: 'Séries de trabalho' }, { c: C.heavy, l: 'Pesadas' }, { c: C.sub, l: rightLabel }])
   chartSeal(d, PAGE.m + W, y)
   y += 10
   const bh = Math.max(4, Math.min(9, (rowH - 10) / 2))
@@ -436,7 +439,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   // 2) quatro placares grandes
   const first = wk ? 'primeira semana' : 'primeiro mês'
   const tw = (W - 10) / 2, th = 92
-  scoreTile(d, PAGE.m, y, tw, th, 'Volume efetivo de treino', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
+  scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o) && levelOf(a) != null) scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Nível de estímulo', levelOf(b) ?? 0, levelOf(a)!, (n) => String(Math.round(n)), hasBefore && levelOf(b) != null, first)
@@ -696,7 +699,7 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   const list = session.exercises.filter((e) => e.valid_sets > 0).slice(0, o.showEmphasis ? 7 : 10)
   const maxSets = Math.max(...list.map((e) => e.valid_sets), 1)
   const labelW = 124, rightW = 62, barW = W - labelW - rightW - 40
-  legend(d, PAGE.m, y + 4, isOnline(o) ? [{ c: C.heavy, l: 'Volume efetivo de treino' }] : [{ c: C.volume, l: 'Volume efetivo' }, { c: C.heavy, l: 'Séries pesadas' }, { c: C.sub, l: 'Maior carga · quilos levantados' }])
+  legend(d, PAGE.m, y + 4, isOnline(o) ? [{ c: C.heavy, l: 'Séries de trabalho' }] : [{ c: C.volume, l: 'Séries de trabalho' }, { c: C.heavy, l: 'Séries pesadas' }, { c: C.sub, l: 'Maior carga · quilos levantados' }])
   chartSeal(d, PAGE.m + W, y + 4)
   y += 14
   for (const e of list) {

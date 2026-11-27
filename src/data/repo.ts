@@ -3,7 +3,7 @@
  */
 import { db, getKV, LOCAL_TRAINER_ID, nowISO, save, softDelete, uid } from './db'
 import type { Anamnese, CardioEntry, NutritionEntry, ExerciseProfile, Session, SessionExercise, SleepQuality, Student, WeekContext } from '../domain/types'
-import { aggregateSessions, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
+import { aggregateSessions, setStudentWeight, addDays, toISODate, computeHourlyRate, weekStart, weekVerdict } from '../engine/metrics'
 import { resolveProfiles } from '../engine/classifier'
 import type { ParsedExerciseLine } from '../engine/prescription'
 import type { ParsedWeek } from '../parser/whatsapp'
@@ -61,6 +61,7 @@ export async function studentSessions(student: Student, from?: string, to?: stri
   if (student.timeline_reset_at) list = list.filter((s) => s.created_at >= student.timeline_reset_at!)
   if (from) list = list.filter((s) => s.date >= from)
   if (to) list = list.filter((s) => s.date <= to)
+  setStudentWeight(student.id, student.weight_kg ?? (await studentWeight(student)))
   return list.sort((a, b) => (a.date + a.label).localeCompare(b.date + b.label))
 }
 

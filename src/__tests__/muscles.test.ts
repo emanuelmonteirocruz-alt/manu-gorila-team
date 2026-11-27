@@ -68,3 +68,21 @@ describe('o que o aluno treinou (resumo da semana) = músculo principal', () => 
     expect(Object.keys(peito.primaryGroups!)).toEqual(['Peito'])
   })
 })
+
+describe('calorias da musculação (MET × peso × tempo)', () => {
+  it('treino de 20 séries fica entre musculação geral e vigorosa (Compendium / Harvard)', async () => {
+    const { aggregateSessions, setStudentWeight } = await import('../engine/metrics')
+    const { SEED_PROFILES, normalizeKey } = await import('../engine/exerciseSeed')
+    const lookup = (k: string) => SEED_PROFILES.find((p) => p.key === k || p.aliases.includes(k))
+    const ex = (name: string, reps: number) => ({ id: name, position: 0, exercise_key: normalizeKey(name), display_name: name, valid_sets: 4, warmup_sets: 0, heavy_sets: 0, reps: [0, 1, 2, 3].map(() => ({ min: reps, max: reps })), drop_set: false })
+    const s = { id: 'k', student_id: 'aluna70', date: '2026-11-27', label: 'A', source: 'presencial' as const, muscle_groups: [], created_at: '', updated_at: '', exercises: [ex('Agachamento livre', 10), ex('Leg press', 10), ex('Cadeira extensora', 12), ex('Mesa flexora', 12), ex('Abdutora', 15)] }
+    setStudentWeight('aluna70', 70)
+    const a = aggregateSessions([s], lookup)
+    // ~40 min de treino: entre 3,7 e 7,4 kcal/min para 70 kg
+    expect(a.kcal).toBeGreaterThan(40 * 3.7)
+    expect(a.kcal).toBeLessThan(40 * 7.4)
+    setStudentWeight('aluna90', 90)
+    const b = aggregateSessions([{ ...s, student_id: 'aluna90' }], lookup)
+    expect(b.kcal / a.kcal).toBeCloseTo(90 / 70, 2) // mais peso, mais gasto
+  })
+})
