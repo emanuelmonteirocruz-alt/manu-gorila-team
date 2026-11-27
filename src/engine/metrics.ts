@@ -141,6 +141,8 @@ export interface Aggregate {
   byGroup: Record<string, { valid: number; heavy: number }>
   /** Séries pelo músculo PRINCIPAL de cada exercício (sem frações): "o que o aluno treinou" (supino = Peito, remada = Costas) */
   primaryGroups?: Record<string, number>
+  /** média de repetições por série de trabalho (menos reps = carga mais pesada) */
+  avgReps?: number
   /** duração do(s) treino(s) usada nas calorias (real no presencial; senão estimada) */
   minutes?: number
   realMinutes?: boolean
@@ -164,12 +166,14 @@ export type ProfileLookup = (key: string) => ExerciseProfile | undefined
 export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ratings: SessionRating[] = []): Aggregate {
   const a = emptyAggregate()
   const pses: number[] = []
+  let repSum = 0, repN = 0
   for (const s of sessions) {
     a.sessions++
     for (const ex of s.exercises) {
       const p = lookup(ex.exercise_key)
       a.validSets += ex.valid_sets
       a.heavySets += ex.heavy_sets
+      for (let i = 0; i < ex.valid_sets; i++) { const r = ex.reps[i] ?? ex.reps[ex.reps.length - 1]; if (r && !(r.failure && !r.min)) { repSum += (r.min + (r.max || r.min)) / 2; repN++ } }
       if (p?.mechanic === 'multiarticular') a.multiSets += ex.valid_sets
       else a.monoSets += ex.valid_sets
       if (p?.implement === 'livre') a.freeSets += ex.valid_sets
@@ -203,6 +207,7 @@ export function aggregateSessions(sessions: Session[], lookup: ProfileLookup, ra
     if (k.real) a.realMinutes = true
   }
   a.heavyPct = a.validSets ? (a.heavySets / a.validSets) * 100 : 0
+  a.avgReps = repN ? repSum / repN : undefined
   a.fatGrams = (a.kcal / KCAL_PER_KG_FAT) * 1000
   a.intensityPrescribed = intensityIndex(a)
   a.intensityReal = a.avgPse == null ? a.intensityPrescribed : Math.round(0.45 * a.avgPse * 10 + 0.55 * a.intensityPrescribed)
@@ -238,7 +243,8 @@ export function exerciseChallenge(ex: SessionExercise): { points: number; lowRep
     if (w >= 2) lowRep++
   }
   const advanced = ex.superset_group != null || ex.drop_set || ADVANCED_RE.test(ex.notes ?? '') || ADVANCED_RE.test(ex.display_name) ? ex.valid_sets : 0
-  return { points: points + advanced, lowRep, advanced }
+  // métodos (drop, bi-set…) não somam pontos: são ferramentas, não intensidade (contagem fica só para o treinador)
+  return { points, lowRep, advanced }
 }
 
 /** Nível do desafio por treino, com a 1ª semana do aluno = 100. */

@@ -86,7 +86,7 @@ const isOnline = (o: ReportOptions) => o.modality === 'online'
 const intensityOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? a.intensityPrescribed : a.intensityReal)
 const kgShort = (t: number) => (t > 0 ? `${fmtNum(t)} kg` : '—')
 // coluna da direita das barras: tonelagem no presencial; índice de intensidade na consultoria (sem kg)
-const rightOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? (o.challenge ? `desafio ${challengeLevel(a, o.challenge.baseSession) ?? '—'}` : `${a.sessions} ${a.sessions === 1 ? 'treino' : 'treinos'}`) : kgShort(a.tonnageKg))
+const rightOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? (o.challenge ? `${challengeLevel(a, o.challenge.baseSession) ?? '—'}` : `${a.sessions} ${a.sessions === 1 ? 'treino' : 'treinos'}`) : kgShort(a.tonnageKg))
 const rightLabelOf = (o: ReportOptions) => (isOnline(o) ? (o.challenge ? 'Nível de estímulo' : 'Treinos') : 'Quilos levantados')
 const BOTTOM = PAGE.h - 14
 
@@ -205,9 +205,9 @@ function heroCard(d: jsPDF, y: number, o: ReportOptions, a: Aggregate, prev: Agg
       text(d, String(multi ? perSession(a) : groupsCount(a)), cx, y + 48, { size: 28, bold: true, c: C.heavy, align: 'center' })
       text(d, multi ? 'média' : 'trabalhados', cx, y + 60, { size: 7, c: C.sub, align: 'center' })
     }
-    text(d, multi ? 'TREINOS' : 'SÉRIES POR GRUPO', rx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'right' })
-    text(d, String(multi ? a.sessions : groupsCount(a) ? Math.round(a.validSets / groupsCount(a)) : 0), rx, y + 46, { size: 24, bold: true, c: C.ink, align: 'right' })
-    text(d, multi ? `${groupsCount(a)} grupos musculares` : 'em média', rx, y + 58, { size: 7, c: C.sub, align: 'right' })
+    text(d, multi ? 'SÉRIES POR TREINO' : 'SÉRIES POR GRUPO', rx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'right' })
+    text(d, String(multi ? perSession(a) : groupsCount(a) ? Math.round(a.validSets / groupsCount(a)) : 0), rx, y + 46, { size: 24, bold: true, c: C.ink, align: 'right' })
+    text(d, 'em média', rx, y + 58, { size: 7, c: C.sub, align: 'right' })
   } else {
     effortRing(d, PAGE.m + 178, y + 38, 22, a, pse)
     text(d, 'QUILOS LEVANTADOS', rx, y + 16, { size: 6.5, bold: true, c: C.sub, align: 'right' })
@@ -365,7 +365,7 @@ function profileSection(d: jsPDF, y: number, a: Aggregate): number {
 /** Fecha a página: perfil (se couber) e o card de calorias logo após o conteúdo. */
 function finish(d: jsPDF, y: number, a: Aggregate, sessions: number, withProfile = true) {
   const musclesH = 22 + Math.min(5, trainedGroups(a).length) * 13
-  if (withProfile && y + musclesH + 64 + (CARDIO ? 44 : 0) <= BOTTOM) y = profileSection(d, y + 4, a)
+  if (withProfile && !VOLUME_ONLY && y + musclesH + 64 + (CARDIO ? 44 : 0) <= BOTTOM) y = profileSection(d, y + 4, a)
   kcalCard(d, Math.min(y + 6, BOTTOM - (CARDIO ? 96 : 52)), a.kcal, a.minutes, a.realMinutes, sessions)
 }
 
@@ -473,8 +473,14 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   }
   let best: [string, number] | undefined = cands.filter(([, v]) => v > 0).sort((x, z) => z[1] - x[1])[0]
   // CONSULTORIA: a manchete é uma PROVA que o aluno confere — "+10 séries pesadas" (até 10 reps) ou "+4 séries com técnica"
-  const proof = isOnline(o) && hasBefore
-    ? ([['séries pesadas a mais', 'até 10 repetições', b.lowRepSets, a.lowRepSets], ['séries de trabalho a mais', 'sem contar o aquecimento', b.validSets, a.validSets]] as [string, string, number, number][])
+  const monthLevel = !wk && isOnline(o) && hasBefore && levelOf(b) && levelOf(a) ? pct(levelOf(a)!, levelOf(b)!) : null
+  const proof = monthLevel != null && monthLevel > 0
+    ? (['intensidade a mais', 'nível de estímulo médio por treino', levelOf(b)!, levelOf(a)!] as [string, string, number, number])
+    : isOnline(o) && hasBefore
+    ? ([['séries pesadas a mais', 'até 10 repetições', b.lowRepSets, a.lowRepSets],
+        // carga mais pesada: a média de reps por série caiu (ex.: 10 → 8) — conta como "+2"
+        ['carga mais pesada', 'repetições a menos por série', a.avgReps != null && b.avgReps != null && b.avgReps - a.avgReps >= 1 ? 0 : 1, a.avgReps != null && b.avgReps != null && b.avgReps - a.avgReps >= 1 ? Math.round(b.avgReps - a.avgReps) : 0],
+        ['séries de trabalho a mais', 'sem contar o aquecimento', b.validSets, a.validSets]] as [string, string, number, number][])
       .find(([, , x, y2]) => y2 > x)
     : undefined
   if (isOnline(o)) best = undefined
@@ -488,10 +494,12 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     text(d, 'Não é perda de treino: é parte da periodização.', PAGE.m + 16, y + 55, { size: 7.2, bold: true, c: C.zoneInk.regenerativa })
   } else if (proof) {
     const [lbl, sub, x, y2] = proof
-    text(d, `+${fmtNum(y2 - x)}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
+    const isLvl = lbl === 'intensidade a mais'
+    text(d, isLvl ? `+${Math.round(monthLevel!)}%` : lbl === 'carga mais pesada' ? `-${fmtNum(y2)} reps` : `+${fmtNum(y2 - x)}`, PAGE.m + 16, y + 45, { size: lbl === 'carga mais pesada' ? 30 : 36, bold: true, c: '#ffffff' })
     text(d, lbl.toUpperCase(), PAGE.m + W - 16, y + 26, { size: 9, bold: true, c: '#ffffff', align: 'right' })
-    text(d, `${sub} · ${before.label}: ${fmtNum(x)} > ${after.label}: ${fmtNum(y2)}`, PAGE.m + W - 16, y + 40, { size: 7, c: '#E6F4F2', align: 'right' })
-    text(d, 'mais intensidade no treino', PAGE.m + W - 16, y + 53, { size: 7, bold: true, c: '#E6F4F2', align: 'right' })
+    const isReps = lbl === 'carga mais pesada'
+    text(d, isReps ? `média de ${fmtNum(Math.round(b.avgReps!))} > ${fmtNum(Math.round(a.avgReps!))} repetições por série` : `${sub} · ${before.label}: ${fmtNum(x)} > ${after.label}: ${fmtNum(y2)}`, PAGE.m + W - 16, y + 40, { size: 7, c: '#E6F4F2', align: 'right' })
+    text(d, isLvl ? 'sua intensidade evoluiu de um mês para o outro' : 'mais intensidade no treino', PAGE.m + W - 16, y + 53, { size: 7, bold: true, c: '#E6F4F2', align: 'right' })
   } else if (best) {
     const isPts = best[0] === 'pontos de intensidade'
     text(d, `+${Math.round(best[1])}${isPts ? '' : '%'}`, PAGE.m + 16, y + 45, { size: 36, bold: true, c: '#ffffff' })
@@ -526,9 +534,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg, `cada treino teve ~${perSession(a)} séries`)
   else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
   if (isOnline(o)) {
-    scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
     // métodos (drop, bi-set…) não entram no PDF do aluno: são ferramentas, não prova de intensidade (só o treinador vê a contagem)
-    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Músculos trabalhados', groupsCount(b), groupsCount(a), (n) => fmtNum(n), hasBefore, first, rg, 'grupos musculares na semana')
+    scoreTile(d, PAGE.m, y + th + 10, W, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
   }
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
   if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
@@ -658,10 +665,10 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
     return {
       ...acc,
       validSets: acc.validSets + w.agg.validSets, heavySets: acc.heavySets + w.agg.heavySets, tonnageKg: acc.tonnageKg + w.agg.tonnageKg,
-      kcal: acc.kcal + w.agg.kcal, fatGrams: acc.fatGrams + w.agg.fatGrams, sessions: acc.sessions + w.agg.sessions, byGroup: g, primaryGroups: pg,
+      kcal: acc.kcal + w.agg.kcal, fatGrams: acc.fatGrams + w.agg.fatGrams, sessions: acc.sessions + w.agg.sessions, byGroup: g, primaryGroups: pg, minutes: (acc.minutes ?? 0) + (w.agg.minutes ?? 0), realMinutes: acc.realMinutes || w.agg.realMinutes,
       challengePoints: acc.challengePoints + w.agg.challengePoints, lowRepSets: acc.lowRepSets + w.agg.lowRepSets, advancedSets: acc.advancedSets + w.agg.advancedSets,
     }
-  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {}, primaryGroups: {}, challengePoints: 0, lowRepSets: 0, advancedSets: 0 })
+  }, { ...weeks[0].agg, validSets: 0, heavySets: 0, tonnageKg: 0, kcal: 0, fatGrams: 0, sessions: 0, byGroup: {}, primaryGroups: {}, minutes: 0, realMinutes: false, challengePoints: 0, lowRepSets: 0, advancedSets: 0 })
   monthAgg.heavyPct = monthAgg.validSets ? (monthAgg.heavySets / monthAgg.validSets) * 100 : 0
   monthAgg.intensityPrescribed = Math.round(weeks.reduce((s, w) => s + w.agg.intensityPrescribed, 0) / weeks.length)
   monthAgg.intensityReal = Math.round(weeks.reduce((s, w) => s + w.agg.intensityReal, 0) / weeks.length)
@@ -673,6 +680,39 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
   const prs = lifts.filter((l) => l.points.length > 1 && l.points[l.points.length - 1].kg > l.points[0].kg).length
   if (prs) ach.unshift(`${prs} ${prs === 1 ? 'carga evoluiu' : 'cargas evoluíram'}`)
   y = badgeRow(d, PAGE.m, y, W, ach.slice(0, 4))
+
+  // CONSULTORIA: intensidade semana a semana (nível de estímulo), colorida pela fase — a evolução do protocolo
+  if (isOnline(o) && weeks.length > 1 && CH_BASE) {
+    const lv = weeks.map((w) => levelOf(w.agg))
+    const ok = lv.filter((v): v is number => v != null)
+    if (ok.length > 1) {
+      const h = 86
+      card(d, PAGE.m, y, W, h, '#FFFFFF')
+      text(d, 'INTENSIDADE SEMANA A SEMANA', PAGE.m + 12, y + 14, { size: 6.3, bold: true, c: C.sub })
+      // evolução: 1ª semana × última semana que não é regenerativa
+      const idx = weeks.map((w, i) => ({ w, i })).filter(({ w, i }) => lv[i] != null && w.verdict.final !== 'regenerativa')
+      const f = idx[0], l = idx[idx.length - 1]
+      if (f && l && f.i !== l.i) {
+        const g = Math.round(((lv[l.i]! - lv[f.i]!) / lv[f.i]!) * 100)
+        text(d, g > 0 ? `Sua intensidade evoluiu +${g}% no mês` : g === 0 ? 'Intensidade mantida no mês' : `Intensidade ${g}% no mês`, PAGE.m + W - 12, y + 14, { size: 8, bold: true, c: g > 0 ? C.heavy : C.sub, align: 'right' })
+      }
+      const box = { x: PAGE.m + 14, y: y + 24, w: W - 28, h: 36 }
+      const max = Math.max(...ok) * 1.15
+      lineSeries(d, box, lv, max, C.heavy)
+      const slot = box.w / weeks.length
+      weeks.forEach((w, i) => {
+        const cx = box.x + slot * i + slot / 2
+        if (lv[i] != null) {
+          const cy = box.y + box.h - (Math.min(lv[i]!, max) / max) * box.h
+          fill(d, C.zoneInk[w.verdict.final]); d.circle(cx, cy, 2.6, 'F')
+          text(d, String(lv[i]), cx, cy - 5, { size: 6.5, bold: true, c: C.ink, align: 'center' })
+        }
+        text(d, fmtBR(w.week).slice(0, 5), cx, y + h - 16, { size: 6, c: C.sub, align: 'center' })
+        text(d, PHASE_NAME[w.verdict.final].replace('Fase de c', 'C'), cx, y + h - 8, { size: 5.4, bold: true, c: C.zoneInk[w.verdict.final], align: 'center' })
+      })
+      y += h + 8
+    }
+  }
 
   const liftsShown = isOnline(o) ? [] : lifts.slice(0, o.showEmphasis ? 2 : 3)
   if (liftsShown.length) {
@@ -910,7 +950,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
       bg: n > 1 ? C.zone.choque : C.card,
       valid: agg.validSets,
       heavy: agg.heavySets,
-      right: isOnline(o) ? (levelOfTraining(s.label, agg) != null ? `desafio ${levelOfTraining(s.label, agg)}` : `${s.exercises.length} exercícios`) : kgShort(agg.tonnageKg),
+      right: isOnline(o) ? (levelOfTraining(s.label, agg) != null ? `${levelOfTraining(s.label, agg)}` : `${s.exercises.length} exercícios`) : kgShort(agg.tonnageKg),
       mark: evo(agg, prevSame),
     }
   }), rowH, isOnline(o) ? (CH_BASE ? 'Nível de estímulo' : 'Exercícios') : rightLabelOf(o))

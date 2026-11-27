@@ -13,11 +13,12 @@ describe('Nível do desafio', () => {
     expect(repWeight({ min: 8, max: 12 })).toBe(2) // meio = 10
     expect(repWeight({ min: 0, max: 0, failure: true })).toBe(2) // Máx sem reps
   })
-  it('técnicas avançadas valem +1 por série, todas iguais (drop, rest-pause, bi-set…)', () => {
+  it('métodos (drop, rest-pause, bi-set…) não somam pontos: só contam para o treinador', () => {
     expect(exerciseChallenge(ex(3, 12)).points).toBe(3)
-    expect(exerciseChallenge(ex(3, 12, 12, { drop_set: true })).points).toBe(6)
-    expect(exerciseChallenge(ex(3, 12, 12, { superset_group: 1 })).points).toBe(6)
-    expect(exerciseChallenge(ex(3, 12, 12, { notes: 'Rest pause na última' })).points).toBe(6)
+    expect(exerciseChallenge(ex(3, 12, 12, { drop_set: true })).points).toBe(3)
+    expect(exerciseChallenge(ex(3, 12, 12, { drop_set: true })).advanced).toBe(3)
+    expect(exerciseChallenge(ex(3, 12, 12, { superset_group: 1 })).points).toBe(3)
+    expect(exerciseChallenge(ex(3, 12, 12, { notes: 'Rest pause na última' })).advanced).toBe(3)
   })
   it('1ª semana = 100; mais séries, reps mais baixas ou técnicas sobem o nível', () => {
     const base = 30 // pontos por treino na 1ª semana
