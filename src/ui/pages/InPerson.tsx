@@ -605,7 +605,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                         <div key={i} className={`set-row ${x.warmup ? 'is-warmup' : ''}`}>
                           <span className="set-n">
                             {x.warmup ? `Aquec. ${warmIndex}` : `Série ${(joins ? last.valid_sets : 0) + workIndex}`}
-                            {!x.warmup && <button type="button" className={`drop-chip ${x.drop ? 'on' : ''}`} aria-pressed={!!x.drop} title="Drop-set nesta série: alta intensidade (3 quedas de 20% na carga)" onClick={() => put({ drop: !x.drop })}>{x.drop ? 'drop · alta intensidade' : 'drop'}</button>}
+                            {!x.warmup && <button type="button" className={`drop-chip ${x.drop ? 'on' : ''}`} aria-pressed={!!x.drop} title="Drop-set nesta série: alta intensidade (3 quedas de 20% na carga)" onClick={() => put({ drop: !x.drop })}>drop</button>}
                           </span>
                           <label className="f"><span>reps</span>
                             <input key={repsLabel(x)} defaultValue={repsLabel(x)} placeholder="10 ou Máx" onBlur={(e) => put(parseRepsInput(e.target.value))} />
@@ -680,7 +680,7 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
                     const kg = e.loads?.[i] ?? e.load_kg
                     const reps = !r ? '' : r.failure ? 'Máx' : r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`
                     const dr = dropsOf(e.notes)[i + 1]
-                    return <span key={i} className={`tag ${dr !== undefined ? 'drop-tag' : r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) && dr === undefined ? ' · pesada' : ''}{dr !== undefined ? ' · drop (alta intensidade)' : ''}</span>
+                    return <span key={i} className={`tag ${dr !== undefined ? 'drop-tag' : r && isHeavy(r) ? 'warn' : ''}`}>S{i + 1} · {reps ? `${reps} × ` : ''}{kg != null ? `${kgFmt(kg)} ${unit}` : '—'}{r && isHeavy(r) && dr === undefined ? ' · pesada' : ''}{dr !== undefined ? ' · drop' : ''}</span>
                   })}
                 </div>}
               </div>
