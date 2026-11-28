@@ -26,3 +26,4 @@ O usuário escreve em português: responda em português, de forma curta.
 - Nomes das fases: "Fase de consolidação", "Base e controle técnico", "Pico de estímulo". Semana regenerativa deve ficar evidente ("redução planejada de volume"), sem a frase "não é perda de treino".
 - Manter o termo "mais intensidade".
 - **Pergunte antes de mudar o layout** ou propor algo grande, com exemplos de opções.
+- **Mudança visual (PDF, gráfico, tela): gere a prévia, mande a imagem e só suba depois do ok do Emanuel.**
