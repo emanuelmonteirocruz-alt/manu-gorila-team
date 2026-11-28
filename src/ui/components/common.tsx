@@ -7,14 +7,14 @@ import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemp
 import { buildTriage } from '../../consultoria/triage'
 import { NutritionUpload } from './NutritionPanel'
 import type { NutritionData } from '../../nutrition/extract'
-import { anamneseTemplateText, saveNutrition, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
+import { anamneseTemplateText, copyWeekTo, saveNutrition, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
 import { changeStatus } from '../../domain/plan'
 import { titleCase } from '../format'
 import {
   DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, SLEEP_LABEL, type SleepQuality, type DietPhase, type Microcycle, type Modality, type Student, type WeekContext,
 } from '../../domain/types'
 import { addDays, computeHourlyRate, fmtBR, toISODate } from '../../engine/metrics'
-import { PERIOD_LABEL, suggestNextChange, type PlanPeriod } from '../../domain/plan'
+import { PERIOD_LABEL, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
 
 export function MicroTag({ m, blocked }: { m?: Microcycle | null; blocked?: boolean }) {
   if (!m) return <span className="tag">—</span>
@@ -46,6 +46,7 @@ export function StudentSelect({ value, onChange, modality, placeholder = 'Seleci
 
 export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { initial: Student; onSaved?: (s: Student, anamnese?: boolean) => void; onDeleted?: () => void; withAnamnese?: boolean }) {
   const [anamText, setAnamText] = useState('') // cadastro novo de consultoria: já cola a anamnese
+  const [weekText, setWeekText] = useState('') // cadastro novo de consultoria: já cola o 1º treino do WhatsApp
   const [nutri, setNutri] = useState<{ file: File | null; data: NutritionData; raw: string }>({ file: null, data: { weight_kg: null, height_m: null, age: null, body_fat: null, lean_mass_kg: null }, raw: '' })
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const trainerName = useLiveQuery(() => getKV('trainer_name', 'Emanuel Monteiro'), []) ?? 'Emanuel Monteiro'
@@ -82,6 +83,7 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             const answers = answersFromPasted(anamText, parseTemplate(tplText), trainerName)
             if (Object.keys(answers).length) { await saveAnamnese(saved.id, answers, anamText.trim()); anam = true }
           }
+          if (withAnamnese && cur.modality === 'online' && weekText.trim()) await copyWeekTo(saved, weekText, nextWeekToPaste(saved.plan_period, null))
           if (withAnamnese && nutri.file) await saveNutrition({ student_id: saved.id, date: toISODate(new Date()), ...nutri.data, raw_text: nutri.raw.slice(0, 20000) || null, notes: null }, nutri.file, nutri.file.name)
           setStatus('Alterações salvas com sucesso!')
           onSaved?.(saved, anam)
@@ -156,6 +158,12 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
           <textarea className="code" style={{ minHeight: 120 }} value={anamText} onChange={(e) => setAnamText(e.target.value)}
             placeholder="Cole aqui a resposta do aluno no WhatsApp (pelo número ou respondendo por cima das perguntas). Ao salvar, o app lê e abre o resumo, as restrições e os lembretes." />
           {anamText.trim() && <span className={anamFound ? 'tag ok' : 'tag warn'} style={{ alignSelf: 'start' }}>{anamFound ? `${anamFound} respostas encontradas` : 'Nenhuma resposta reconhecida ainda'}</span>}
+        </label>
+      )}
+      {withAnamnese && s.modality === 'online' && (
+        <label className="f">1º treino do WhatsApp (opcional)
+          <textarea className="code" style={{ minHeight: 120 }} value={weekText} onChange={(e) => setWeekText(e.target.value)}
+            placeholder={'Cole aqui o treino que você mandou no WhatsApp (Treino A, Treino B…). Ao salvar, ele entra como a semana de ' + fmtBR(nextWeekToPaste(s.plan_period, null)).slice(0, 5) + '.'} />
         </label>
       )}
       {withAnamnese && (

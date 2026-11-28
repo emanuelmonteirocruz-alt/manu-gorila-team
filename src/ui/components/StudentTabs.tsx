@@ -25,8 +25,6 @@ function Check1({ ok, label }: { ok: boolean; label: string }) {
 
 /** RESUMO da consultoria: situação do aluno numa olhada e o próximo passo. */
 export function ConsultSummary({ student, goAluno }: { student: Student; goAluno: () => void }) {
-  const pasted = usePastedWeeks()[student.id]
-  const { next } = consultState(student, pasted)
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const anam = useLiveQuery(() => getAnamnese(student.id), [student.id])
@@ -56,12 +54,16 @@ export function ConsultSummary({ student, goAluno }: { student: Student; goAluno
       </div>
       {attention.length > 0 && <div className="alert warn"><span><b>Atenção (anamnese):</b> {attention.join(' · ')}</span></div>}
       <div className="muted"><b>Nível:</b> {level.label} · <b>Ênfase:</b> {emph.length ? emph.map(short).join(', ') : 'não definida'}</div>
-      <div className="row stack-sm">
-        <Link className="btn primary big" to={`/consultoria?aluno=${student.id}&semana=${next}`}><MessageSquare size={16} strokeWidth={1.8} /> Colar semana de {fmtBR(next).slice(0, 5)}</Link>
-        {!triage && <button className="btn big" onClick={goAluno}><MessageSquare size={16} strokeWidth={1.8} /> Colar anamnese</button>}
-      </div>
+      {!triage && <div><button className="btn" onClick={goAluno}><MessageSquare size={16} strokeWidth={1.8} /> Colar anamnese</button></div>}
     </div>
   )
+}
+
+/** Botão "Colar treino do WhatsApp" para a próxima semana do aluno (Treinos e Montar). */
+export function PasteWeekButton({ student, big = true }: { student: Student; big?: boolean }) {
+  const pasted = usePastedWeeks()[student.id]
+  const { next } = consultState(student, pasted)
+  return <Link className={`btn primary ${big ? 'big' : ''}`} to={`/consultoria?aluno=${student.id}&semana=${next}`}><MessageSquare size={16} strokeWidth={1.8} /> Colar treino do WhatsApp (semana de {fmtBR(next).slice(0, 5)})</Link>
 }
 
 /** TREINOS da consultoria: uma linha por semana, com enviar por mensagem, copiar para outros alunos e PDF. */
@@ -69,9 +71,10 @@ export function WeeksPanel({ student }: { student: Student }) {
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
   const [open, setOpen] = useState<string | null>(null)
   const [panel, setPanel] = useState<'send' | 'copy' | null>(null)
-  if (!weeks.length) return <div className="card muted">Nenhuma semana colada ainda. Cole a semana no botão do Resumo ou monte em Montar.</div>
+  if (!weeks.length) return <div className="grid"><div className="row stack-sm"><PasteWeekButton student={student} /></div><div className="card muted">Nenhum treino cadastrado ainda. Cole o treino do WhatsApp acima ou gere em Montar.</div></div>
   return (
     <div className="grid">
+      <div className="row stack-sm"><PasteWeekButton student={student} /></div>
       {weeks.map((w, i) => {
         const isOpen = open === w.wk || (open == null && i === 0)
         return (

@@ -14,7 +14,7 @@ import { WeeklyTable } from '../components/WeeklyTable'
 import { SessionList } from '../components/SessionList'
 import { FocusCheck } from '../components/FocusCheck'
 import { AnamnesePanel } from '../components/AnamnesePanel'
-import { ConsultSummary, PresencialSummary, ReportsMenu, WeeksPanel } from '../components/StudentTabs'
+import { ConsultSummary, PasteWeekButton, PresencialSummary, ReportsMenu, WeeksPanel } from '../components/StudentTabs'
 
 type Tab = 'resumo' | 'treinos' | 'montar' | 'evolucao' | 'aluno'
 
@@ -35,14 +35,17 @@ export default function StudentDetail() {
   const nav = useNavigate()
   const student = useLiveQuery(() => db.students.get(id!), [id])
   const [params, setParams] = useSearchParams()
-  const [tab, setTab] = useState<Tab>(tabFrom(params.get('aba'), params.get('treino')))
+  const [tab0, setTab] = useState<Tab>(tabFrom(params.get('aba'), params.get('treino')))
+  const [build, setBuild] = useState<'ia' | 'colar'>('ia') // Montar: gerar pela IA ou colar do WhatsApp
   const [openSession, setOpenSession] = useState<string | null>(params.get('treino'))
   if (!student) return <div className="muted">Carregando…</div>
   const online = student.modality === 'online'
+  // consultoria: a ficha (antiga aba Aluno) agora fica no Resumo
+  const tab: Tab = online && tab0 === 'aluno' ? 'resumo' : tab0
   // a aba fica no endereço: ao voltar de um relatório, a página reabre na mesma aba
   const go = (t: Tab) => { setTab(t); setParams((p) => { const n = new URLSearchParams(p); n.set('aba', t); n.delete('treino'); return n }, { replace: true }); window.scrollTo({ top: 0 }) }
   const tabs: [Tab, string][] = online
-    ? [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['montar', 'Montar'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]
+    ? [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['montar', 'Montar'], ['evolucao', 'Evolução']]
     : [['resumo', 'Resumo'], ['treinos', 'Treinos'], ['evolucao', 'Evolução'], ['aluno', 'Aluno']]
   const inactiveCard = (
     <div className="card grid">
@@ -76,7 +79,15 @@ export default function StudentDetail() {
       {tab === 'resumo' && (
         <div className="grid">
           {online
-            ? <><ConsultSummary student={student} goAluno={() => go('aluno')} /><ConsultancyBar student={student} showPaste={false} hideName /></>
+            ? <>
+                <ConsultSummary student={student} goAluno={() => document.getElementById('anamnese-panel')?.scrollIntoView({ behavior: 'smooth' })} />
+                <ConsultancyBar student={student} showPaste={false} hideName />
+                <div id="anamnese-panel"><AnamnesePanel student={student} onGoCycle={() => go('montar')} /></div>
+                <NutritionPanel student={student} />
+                <div className="card"><StudentForm key={student.id + student.modality + String(student.archived)} initial={student} onDeleted={() => nav('/alunos')} /></div>
+                {inactiveCard}
+                {resetCard}
+              </>
             : <PresencialSummary student={student} goTreinos={(sid) => { setOpenSession(sid ?? null); go('treinos') }} />}
         </div>
       )}
@@ -85,11 +96,23 @@ export default function StudentDetail() {
 
       {tab === 'montar' && online && (
         <div className="grid">
-          <NextCycle student={student} onOpenAnamnese={() => go('aluno')} />
-          <details className="card">
-            <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Gerador antigo (tempo disponível e IA)</summary>
-            <div style={{ marginTop: 10 }}><Copilot student={student} /></div>
-          </details>
+          <div className="chips build-choice">
+            <button type="button" className={`chip ${build === 'ia' ? 'on' : ''}`} onClick={() => setBuild('ia')}>Gerar pela IA</button>
+            <button type="button" className={`chip ${build === 'colar' ? 'on' : ''}`} onClick={() => setBuild('colar')}>Colar do WhatsApp</button>
+          </div>
+          {build === 'colar' ? (
+            <div className="card grid">
+              <b>Colar o treino que você montou no WhatsApp</b>
+              <div className="muted">Cole o texto (Treino A, Treino B…). O app lê, confere com a anamnese e salva como a próxima semana.</div>
+              <div className="row stack-sm"><PasteWeekButton student={student} /></div>
+            </div>
+          ) : (<>
+            <NextCycle student={student} onOpenAnamnese={() => go('resumo')} />
+            <details className="card">
+              <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Gerador antigo (tempo disponível e IA)</summary>
+              <div style={{ marginTop: 10 }}><Copilot student={student} /></div>
+            </details>
+          </>)}
         </div>
       )}
 
@@ -103,9 +126,8 @@ export default function StudentDetail() {
         </div>
       )}
 
-      {tab === 'aluno' && (
+      {tab === 'aluno' && !online && (
         <div className="grid">
-          {online && <AnamnesePanel student={student} onGoCycle={() => go('montar')} />}
           <NutritionPanel student={student} />
           <div className="card"><StudentForm key={student.id + student.modality + String(student.archived)} initial={student} onDeleted={() => nav('/alunos')} /></div>
           {inactiveCard}
