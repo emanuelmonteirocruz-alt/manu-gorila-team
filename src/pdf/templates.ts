@@ -609,7 +609,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     iconFlame(d, PAGE.m + 18, y + 27, 14, C.heavy)
     text(d, wk ? 'GASTO NA SEMANA' : 'GASTO NO MÊS', PAGE.m + 32, y + 20, { size: 6.3, bold: true, c: C.sub })
     text(d, `${fmtNum(after.agg.kcal)} kcal`, PAGE.m + 32, y + 37, { size: 15, bold: true, c: C.ink })
-    if (hasBefore) text(d, `${before.label}: ${fmtNum(before.agg.kcal)} kcal`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
+    // Mês × mês: total real do mês, sem o do mês anterior (meses com nº de semanas diferente enganam)
+    if (hasBefore && !norm) text(d, `${before.label}: ${fmtNum(before.agg.kcal)} kcal`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
     if (a.sessions > 1) {
       text(d, `${fmtNum(a.kcal / a.sessions)} kcal`, PAGE.m + W - 12, y + 30, { size: 11, bold: true, c: C.ink, align: 'right' })
       text(d, 'média de calorias por treino', PAGE.m + W - 12, y + 41, { size: 6, c: C.sub, align: 'right' })
