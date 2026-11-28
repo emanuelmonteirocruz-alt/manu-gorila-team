@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { waLink, waNumber, waProblem } from '../../domain/whatsapp'
+import { waLink, waProblem } from '../../domain/whatsapp'
 import { Check, MessageCircle, UserX } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -110,7 +110,6 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const now = new Date()
   const dow = now.getDay() // 5 sexta, 6 sábado, 0 domingo
   const { done, mark } = useDone('mgt_followup_feedback')
-  const [opened, setOpened] = useState<string[]>([]) // abriu o WhatsApp, falta confirmar que enviou
   const wk = feedbackWeek(now)
   const early = ![5, 6, 0].includes(dow) // seg a qui: a lista aparece, mas o melhor dia é sexta
   const due = students.filter((s) => s.modality === 'online')
@@ -126,8 +125,9 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
           {late(s) > 0 && <div style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>troca atrasada {late(s)} {late(s) === 1 ? 'dia' : 'dias'}</div>}
           <PhoneWarn phone={s.phone} />
         </Link>
-        <SendControls phone={s.phone} studentId={s.id} text={c.text} sent={sent} pending={opened.includes(c.key)}
-          onOpen={() => setOpened((o) => [...o, c.key])} onConfirm={() => { mark(c.key); setOpened((o) => o.filter((k) => k !== c.key)) }} onCancel={() => setOpened((o) => o.filter((k) => k !== c.key))} />
+        <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
+          <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(s.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(c.key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Reenviar' : 'Enviar'}</a>
+        </span>
       </div>
     )
   }
@@ -154,25 +154,6 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   )
 }
 
-/**
- * Botões de envio: abrir o WhatsApp NÃO marca como enviado. Ao voltar, você confirma "Enviei"
- * (ou "Não enviei" se abriu a conversa errada). Número sem DDD: o botão leva para corrigir na ficha.
- */
-function SendControls({ phone, studentId, text, sent, pending, sendLabel = 'Enviar', onOpen, onConfirm, onCancel }: { phone?: string | null; studentId: string; text: string; sent: boolean; pending: boolean; sendLabel?: string; onOpen: () => void; onConfirm: () => void; onCancel: () => void }) {
-  const ok = !!waNumber(phone)
-  return (
-    <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
-      {!ok ? <Link className="btn sm" to={`/alunos/${studentId}?aba=resumo`}>Corrigir número</Link>
-        : pending ? (<>
-          <span className="muted" style={{ fontSize: 12 }}>Enviou?</span>
-          <button className="btn sm primary" onClick={onConfirm}><Check size={15} /> Enviei</button>
-          <button className="btn sm" onClick={onCancel}>Não</button>
-        </>)
-        : <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(phone, text)} target="_blank" rel="noreferrer" onClick={onOpen}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Reenviar' : sendLabel}</a>}
-    </span>
-  )
-}
-
 const GROUPS = [['semanal', 'Semanais'], ['quinzenal', 'Quinzenais'], ['mensal', 'Mensais']] as const
 /** Dias de atraso da troca de treino (0 = em dia). */
 const late = (s: Student) => (s.next_change_date ? Math.max(0, daysBetween(s.next_change_date, toISODate(new Date()))) : 0)
@@ -187,7 +168,6 @@ export function PhoneWarn({ phone }: { phone?: string | null }) {
 /** CHECK-IN no perfil do aluno (consultoria): mandar a qualquer dia; marca como enviado no ciclo (o Painel também vê). */
 export function StudentFeedback({ student }: { student: Student }) {
   const { done, mark } = useDone('mgt_followup_feedback')
-  const [pending, setPending] = useState(false)
   const c = checkinOf(student, feedbackWeek())
   const key = c.key
   const sent = done.includes(key)
@@ -196,8 +176,7 @@ export function StudentFeedback({ student }: { student: Student }) {
     <div className="card grid">
       <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>{c.full ? `Check-in completo ${w.title}` : 'Check-in rápido da semana'}</b> {sent ? <span className="tag ok">{c.full ? 'enviado neste ciclo' : 'enviado nesta semana'}</span> : <span className="muted">ainda não enviado{student.next_change_date ? ` · troca ${fmtBR(student.next_change_date).slice(0, 5)}` : ''}</span>}</span>
-        <SendControls phone={student.phone} studentId={student.id} text={c.text} sent={sent} pending={pending} sendLabel="Enviar check-in"
-          onOpen={() => setPending(true)} onConfirm={() => { mark(key); setPending(false) }} onCancel={() => setPending(false)} />
+        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
       </div>
       <PhoneWarn phone={student.phone} />
       <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos e se algo incomodou. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}</div>
