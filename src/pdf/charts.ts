@@ -9,7 +9,7 @@ import { CanvasDoc, lastPageCount } from './canvasDoc'
 /** faixa da assinatura do treinador no fim da página (somada à altura, para não apertar o conteúdo) */
 export const SIG_H = 50
 /** treinador responsável (assina os PDFs) */
-export const TRAINER = { name: 'Emanuel Monteiro', title: 'Personal Trainer', cref: 'CREF 037945-G/MG' }
+export const TRAINER = { name: 'Emanuel Monteiro', title: 'Treinador', cref: 'CREF 037945-G/MG' }
 export const PAGE = { w: 360, h: 640 + SIG_H, m: 20 }
 
 // Paleta dos relatórios (clean): fundo branco, grafite e azul petróleo da marca
