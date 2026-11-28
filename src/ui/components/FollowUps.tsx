@@ -90,7 +90,8 @@ function feedbackWeek(now = new Date()) {
   return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
 }
 /** Ciclo do aluno: o check-in vale uma vez por ciclo (até a próxima troca de treino). */
-const cycleKey = (s: Student, wk: string) => `${s.id}:${s.next_change_date ?? wk}`
+// um check-in por semana (aluno com troca atrasada continua recebendo toda semana)
+const cycleKey = (s: Student, wk: string) => `${s.id}:f:${wk}`
 /** Está no fim do ciclo? Troca de treino até o domingo da semana seguinte (semanal: toda semana). */
 const dueNow = (s: Student, wk: string) => !s.next_change_date || s.next_change_date <= addDays(wk, 13)
 /** Qual check-in vale nesta semana: completo no fim do ciclo (semanal sempre), rápido no meio do ciclo. */
@@ -109,8 +110,8 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const now = new Date()
   const dow = now.getDay() // 5 sexta, 6 sábado, 0 domingo
   const { done, mark } = useDone('mgt_followup_feedback')
-  if (![5, 6, 0].includes(dow)) return null
   const wk = feedbackWeek(now)
+  const early = ![5, 6, 0].includes(dow) // seg a qui: a lista aparece, mas o melhor dia é sexta
   const due = students.filter((s) => s.modality === 'online')
   const list = due.filter((s) => !done.includes(checkinOf(s, wk).key))
   const sentList = due.filter((s) => done.includes(checkinOf(s, wk).key))
@@ -121,6 +122,7 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
       <div key={s.id} className="li" style={sent ? { opacity: 0.6 } : undefined}>
         <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b>
           <div className="muted">{c.label}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}</div>
+          {late(s) > 0 && <div style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>troca atrasada {late(s)} {late(s) === 1 ? 'dia' : 'dias'}</div>}
           <PhoneWarn phone={s.phone} />
         </Link>
         <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
@@ -131,9 +133,17 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   }
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Check-in dos alunos</h2><span className="muted">{sentList.length} de {due.length} enviados</span></div>
+      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Check-in dos alunos {early && <span className="muted" style={{ fontWeight: 500 }}>· envio na sexta</span>}</h2><span className="muted">{sentList.length} de {due.length} enviados</span></div>
       {!list.length && <div className="empty"><Check size={15} /> Todos os check-ins desta semana foram enviados.</div>}
-      <div className="list-compact">{list.map((s) => row(s, false))}</div>
+      {GROUPS.map(([p, title]) => {
+        const g = list.filter((s) => (s.plan_period ?? 'semanal') === p).sort((a, b) => late(b) - late(a))
+        return g.length ? (
+          <div key={p} style={{ marginTop: 8 }}>
+            <div className="muted" style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.04em' }}>{title} ({g.length})</div>
+            <div className="list-compact">{g.map((s) => row(s, false))}</div>
+          </div>
+        ) : null
+      })}
       {sentList.length > 0 && (
         <details style={{ marginTop: 6 }}>
           <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Já enviados ({sentList.length}): reenviar se não abriu a conversa</summary>
@@ -143,6 +153,10 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
     </div>
   )
 }
+
+const GROUPS = [['semanal', 'Semanais'], ['quinzenal', 'Quinzenais'], ['mensal', 'Mensais']] as const
+/** Dias de atraso da troca de treino (0 = em dia). */
+const late = (s: Student) => (s.next_change_date ? Math.max(0, daysBetween(s.next_change_date, toISODate(new Date()))) : 0)
 
 /** Aviso quando o telefone da ficha não forma um número de WhatsApp (o WhatsApp abriria "Enviar para…"). */
 export function PhoneWarn({ phone }: { phone?: string | null }) {
