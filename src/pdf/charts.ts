@@ -151,9 +151,9 @@ export function setSealName(full?: string) {
 export function signature(d: jsPDF) {
   const cx = PAGE.w / 2, lineY = PAGE.h - 22
   // a assinatura cruza o traço, como feita à caneta
-  const sh = 34, sw = sh * SIGNATURE_RATIO
+  const sh = 48, sw = sh * SIGNATURE_RATIO
   try {
-    d.addImage(SIGNATURE_PNG, 'PNG', cx - sw / 2, lineY - sh + 4, sw, sh, undefined, 'FAST')
+    d.addImage(SIGNATURE_PNG, 'PNG', cx - sw / 2, lineY - sh + 2, sw, sh, undefined, 'FAST')
   } catch {
     /* sem imagem: fica só o traço */
   }
