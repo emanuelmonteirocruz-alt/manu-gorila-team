@@ -5,9 +5,11 @@ import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
 import { fmtBR } from '../../engine/metrics'
 import { deleteStudent } from '../../data/repo'
 import { ChangeBadge, ConfirmButton, PayBadge, useStudents } from '../components/common'
-import { consultState, usePastedWeeks, WeekStrip } from '../components/ConsultancyBar'
+import { consultState, usePastedWeeks } from '../components/ConsultancyBar'
 
 /** Aba Consultoria: todos os alunos online, com as semanas enviadas, a próxima a colar e atalhos. */
+const PAY: Record<string, string> = { em_dia: 'Em dia', pendente: 'Pendente', atrasado: 'Atrasado' }
+
 export default function Consultancy() {
   const students = useStudents('online')
   const pasted = usePastedWeeks()
@@ -35,13 +37,18 @@ export default function Consultancy() {
               <span className="row" style={{ gap: 6 }}><Link to={`/alunos/${s.id}`} className="tile-name">{s.full_name}</Link><PayBadge student={s} /></span>
               {st ? <ChangeBadge student={s} /> : <span className={`tag ${c.covered ? 'regenerativa' : 'warn'}`}>{c.covered ? 'semana enviada' : 'sem treino desta semana'}</span>}
             </div>
-            <div className="consult-meta">
-              <span><small>Plano</small>{s.plan_period ? PERIOD_LABEL[s.plan_period] : '—'}</span>
-              <span><small>Próxima troca</small>{s.next_change_date ? fmtBR(s.next_change_date).slice(0, 5) : '—'}</span>
-              <span><small>Vencimento</small>{s.due_date ? fmtBR(s.due_date).slice(0, 5) : s.due_day ? `dia ${s.due_day}` : '—'}</span>
-              <span><small>Última semana</small>{c.last ? fmtBR(c.last).slice(0, 5) : '—'}</span>
+            <div className="consult-blocks">
+              <div className="consult-block">
+                <small>Treino · {s.plan_period ? PERIOD_LABEL[s.plan_period] : 'plano não definido'}</small>
+                <div>Último enviado: <b>{c.last ? `semana de ${fmtBR(c.last).slice(0, 5)}` : 'nenhum ainda'}</b></div>
+                <div>Próximo: <b>{s.next_change_date ? `até ${fmtBR(s.next_change_date).slice(0, 5)}` : 'sem data'}</b>{st ? <span className={st.level === 'vencido' ? 'late-txt' : 'muted'}> ({st.label})</span> : null}</div>
+              </div>
+              <div className="consult-block">
+                <small>Pagamento</small>
+                <div>Vence: <b>{s.due_date ? fmtBR(s.due_date).slice(0, 5) : s.due_day ? `dia ${s.due_day}` : '—'}</b></div>
+                <div className={s.payment_status === 'atrasado' ? 'late-txt' : s.payment_status === 'pendente' ? 'warn-txt' : 'ok-txt'}><b>{PAY[s.payment_status]}</b></div>
+              </div>
             </div>
-            <WeekStrip pasted={pasted[s.id]} next={c.next} span={c.span} />
             <Link className="btn primary big wide" to={`/consultoria?aluno=${s.id}&semana=${c.next}`}>
               <MessageSquare size={18} strokeWidth={1.8} /> Colar semana de {fmtBR(c.next).slice(0, 5)}
             </Link>
