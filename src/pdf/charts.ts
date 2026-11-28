@@ -7,7 +7,7 @@ import { jsPDF } from 'jspdf'
 import { CanvasDoc, lastPageCount } from './canvasDoc'
 
 /** faixa da assinatura do treinador no fim da página (somada à altura, para não apertar o conteúdo) */
-export const SIG_H = 50
+export const SIG_H = 58
 /** treinador responsável (assina os PDFs) */
 export const TRAINER = { name: 'Emanuel Monteiro', title: 'Treinador', cref: 'CREF 037945-G/MG' }
 export const PAGE = { w: 360, h: 640 + SIG_H, m: 20 }
@@ -150,9 +150,10 @@ export function setSealName(full?: string) {
 /** Assinatura do treinador no fim da página, como numa prescrição: assinatura, traço, nome e CREF. */
 export function signature(d: jsPDF) {
   const cx = PAGE.w / 2, lineY = PAGE.h - 22
-  const sw = 104, sh = sw / SIGNATURE_RATIO
+  // a assinatura cruza o traço, como feita à caneta
+  const sh = 48, sw = sh * SIGNATURE_RATIO
   try {
-    d.addImage(SIGNATURE_PNG, 'PNG', cx - sw / 2, lineY - sh + 1, sw, sh, undefined, 'FAST')
+    d.addImage(SIGNATURE_PNG, 'PNG', cx - sw / 2, lineY - sh + 2, sw, sh, undefined, 'FAST')
   } catch {
     /* sem imagem: fica só o traço */
   }
