@@ -30,3 +30,10 @@ createRoot(document.getElementById('root')!).render(
     </Router>
   </StrictMode>,
 )
+
+// tira a tela de abertura assim que o app desenhou a primeira tela
+requestAnimationFrame(() => {
+  const sp = document.getElementById('splash')
+  if (!sp) return
+  setTimeout(() => { sp.style.opacity = '0'; setTimeout(() => sp.remove(), 400) }, 250)
+})

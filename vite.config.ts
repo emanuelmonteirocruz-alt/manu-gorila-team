@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
           description: 'Gestão técnica, financeira e analítica — Emanuel Monteiro · Manu Team',
           lang: 'pt-BR',
           theme_color: '#F8FAFC',
-          background_color: '#F8FAFC',
+          background_color: '#000000', // abertura do Android: fundo preto se funde com o ícone preto (tela cheia da marca)
           display: 'standalone',
           orientation: 'any', // rotação livre; layout otimizado para paisagem (tablet)
           start_url: '/',

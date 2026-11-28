@@ -18,6 +18,10 @@
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" /></noscript>
   </head>
   <body>
+    <!-- abertura em tela cheia: fundo preto e a logo grande (some quando o app carrega) -->
+    <div id="splash" style="position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity .35s ease">
+      <img src="/pwa-512.png" alt="Manu Team" style="width:min(72vw,58vh);height:auto;max-width:620px" />
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
