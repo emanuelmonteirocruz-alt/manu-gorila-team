@@ -121,10 +121,10 @@ export async function buildWeeksCompare(student: Student, wkBefore: string, wkAf
   }
   const b = await side(wkBefore, executed.before)
   const a = await side(wkAfter, executed.after)
-  // treino a treino pela letra (se repetir na semana, soma as vezes)
-  const labels = [...new Set([...b.list, ...a.list].map((s) => s.label))].sort()
+  // treino a treino: consultoria compara cada treino novo com o da semana anterior de MESMO FOCO (músculos
+  // principais), porque a divisão pode mudar (ABCD → ABC); presencial segue pela letra
   const times = (l: Session[], label: string) => l.filter((s) => s.label === label).length
-  const perTraining: PerTraining[] = labels.map((label) => ({
+  const perTraining: PerTraining[] = student.modality === 'online' ? matchByFocus(b.list, a.list, lookup, ratings) : [...new Set([...b.list, ...a.list].map((s) => s.label))].sort().map((label) => ({
     label: Math.max(times(b.list, label), times(a.list, label)) > 1 ? `${label} ×${Math.max(times(b.list, label), times(a.list, label))}` : label,
     before: b.list.some((s) => s.label === label) ? aggregateSessions(b.list.filter((s) => s.label === label), lookup, ratings) : undefined,
     after: a.list.some((s) => s.label === label) ? aggregateSessions(a.list.filter((s) => s.label === label), lookup, ratings) : undefined,
@@ -322,4 +322,33 @@ export async function plannedCount(student: Student, from: string, to: string): 
   const byWeek = new Map<string, Session[]>()
   for (const x of raw) byWeek.set(weekStart(x.date), [...(byWeek.get(weekStart(x.date)) ?? []), x])
   return [...byWeek.values()].reduce((a, w) => a + expandWeek(w, days).length, 0)
+}
+
+/** Músculos principais de um treino pelas séries ("Posterior e glúteo", "Peito, costas e ombro"). */
+export function focusOf(agg: Aggregate): { name: string; share: Record<string, number> } {
+  const g = agg.primaryGroups ?? {}
+  const total = Object.values(g).reduce((x, y) => x + y, 0) || 1
+  const share = Object.fromEntries(Object.entries(g).map(([k, v]) => [k, v / total]))
+  const top = Object.entries(share).filter(([, v]) => v >= 0.15).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k]) => k.replace('Perna - ', '').toLowerCase())
+  const name = top.length <= 1 ? top.join('') : `${top.slice(0, -1).join(', ')} e ${top[top.length - 1]}`
+  return { name: name ? name[0].toUpperCase() + name.slice(1) : '', share }
+}
+
+/** Casa cada treino da semana nova com o treino da anterior que tem mais músculos em comum. */
+function matchByFocus(before: Session[], after: Session[], lookup: Parameters<typeof aggregateSessions>[1], ratings: Parameters<typeof aggregateSessions>[2]): PerTraining[] {
+  const byLabel = (l: Session[]) => [...new Set(l.map((s) => s.label))].sort().map((label) => {
+    const list = l.filter((s) => s.label === label)
+    const agg = aggregateSessions(list, lookup, ratings)
+    return { label, n: list.length, agg, f: focusOf(agg) }
+  })
+  const B = byLabel(before), A = byLabel(after)
+  const used = new Set<string>()
+  const overlap = (x: Record<string, number>, y: Record<string, number>) => Object.keys(x).reduce((s2, k) => s2 + Math.min(x[k], y[k] ?? 0), 0)
+  const rows: PerTraining[] = A.map((a) => {
+    const cands = B.filter((b) => !used.has(b.label)).map((b) => ({ b, sc: overlap(a.f.share, b.f.share) + (b.label === a.label ? 0.05 : 0) })).sort((x, y) => y.sc - x.sc)
+    const best = cands[0] && cands[0].sc >= 0.3 ? cands[0].b : undefined
+    if (best) used.add(best.label)
+    return { label: a.n > 1 ? `${a.label} ×${a.n}` : a.label, focus: a.f.name, after: a.agg, before: best?.agg, beforeLabel: best && best.label !== a.label ? best.label : undefined }
+  })
+  return rows
 }

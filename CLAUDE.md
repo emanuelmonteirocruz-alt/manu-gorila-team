@@ -22,7 +22,7 @@ O usuário escreve em português: responda em português, de forma curta.
 - **Nunca mostrar nome de método para o aluno** (drop, bi-set, rest-pause…). Métodos só aparecem para o treinador.
 - Não usar "superior/inferior"; nos grupos musculares, só o músculo principal.
 - **Repetições antes do kg** em tudo (ex.: 10 × 40 kg).
-- Consultoria: sem comparação ou lista de músculos nos PDFs; sem gramas de gordura; sem "equivalente em caminhada".
+- Consultoria: sem comparação ou lista de músculos nos PDFs (exceção: no "Treino a treino" do Semana × Semana, cada treino leva o nome dos músculos principais e é comparado com o treino da semana anterior de mesmo foco); sem gramas de gordura; sem "equivalente em caminhada".
 - Nomes das fases: "Fase de consolidação", "Base e controle técnico", "Pico de estímulo". Semana regenerativa deve ficar evidente ("redução planejada de volume"), sem a frase "não é perda de treino".
 - Manter o termo "mais intensidade".
 - **Pergunte antes de mudar o layout** ou propor algo grande, com exemplos de opções.

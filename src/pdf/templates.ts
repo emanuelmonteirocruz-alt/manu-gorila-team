@@ -388,6 +388,8 @@ export interface PerTraining {
   label: string
   before?: Aggregate
   after?: Aggregate
+  focus?: string // músculos principais do treino ("Posterior e glúteo") — consultoria
+  beforeLabel?: string // treino da semana anterior com o mesmo foco, quando a letra mudou ("Treino B")
 }
 
 /** Nomes do "antes" e do "depois" nos placares: as datas das semanas (ou os meses) em vez de antes/depois. */
@@ -643,11 +645,16 @@ function perTrainingSection(d: jsPDF, y: number, rows: PerTraining[], o: ReportO
     else if (b && a) {
       const ds = as - bs, dh = a.heavySets - b.heavySets
       const dt = !isOnline(o) && b.tonnageKg ? pct(a.tonnageKg, b.tonnageKg)! : 0
+      const dl = a.lowRepSets - b.lowRepSets
       if (ds > 0) pill = `+${ds} ${ds === 1 ? "série" : "séries"}`
       else if (dh > 0 && !isOnline(o)) pill = `+${dh} ${dh === 1 ? "pesada" : "pesadas"}`
+      else if (dl > 0 && isOnline(o)) pill = `+${dl} ${dl === 1 ? "série pesada" : "séries pesadas"}`
       else if (dt >= 1) pill = `+${Math.round(dt)}% carga`
     }
-    pairRow(d, y, r.label, bs, as, max, b ? `${bs} séries` : '—', a ? `${as} séries` : '—', pill, 62, th)
+    // consultoria: o treino é comparado com o da semana anterior de MESMO FOCO (a letra pode ter mudado)
+    const withFocus = list.some((x) => x.focus)
+    pairRow(d, y, r.label, bs, as, max, b ? `${r.beforeLabel ? `${r.beforeLabel}: ` : ''}${bs} séries` : '—', a ? `${as} séries` : '—', pill, withFocus ? 104 : 62, th)
+    if (r.focus) text(d, r.focus, PAGE.m, y + 2 + th + 10, { size: 6, c: C.sub })
     y += rowH
   }
   return y
