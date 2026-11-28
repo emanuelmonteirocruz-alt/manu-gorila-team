@@ -30,3 +30,10 @@ test('rápido no meio do ciclo, completo antes da troca', () => {
   expect(checkinOf(st('semanal', '2026-12-20'), '2026-11-23').full).toBe(true)
   expect(checkinOf(st('quinzenal', '2026-12-13'), '2026-11-23').text).toContain('Passando para saber')
 })
+
+import { migrateFeedbackKeys } from '../ui/components/FollowUps'
+test('marcações antigas de check-in continuam valendo', () => {
+  const m = migrateFeedbackKeys(['abc:2026-11-22', 'def:2026-11-23', 'ghi:f:2026-11-23'])
+  expect(m).toContain('abc:f:2026-11-23'); expect(m).toContain('def:q:2026-11-23'); expect(m).toContain('ghi:f:2026-11-23')
+  expect(m.some((k) => k === 'abc:2026-11-22')).toBe(false)
+})

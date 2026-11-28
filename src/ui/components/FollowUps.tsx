@@ -13,8 +13,31 @@ const first = (s: Student) => titleCase(s.full_name).split(' ')[0]
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000)
 
 /** "Feito" guardado no aparelho (por chave): some da lista até a situação mudar. */
+/**
+ * Marcações de check-in feitas antes do formato atual ("aluno:data da troca" ou "aluno:semana", todas da
+ * semana de 23/11/2026) viram "enviado na semana de 23/11" — assim ninguém que já recebeu volta para a lista.
+ */
+export function migrateFeedbackKeys(list: string[]): string[] {
+  const out = new Set<string>()
+  for (const k of list) {
+    if (/:(f|q):\d{4}-\d{2}-\d{2}$/.test(k)) { out.add(k); continue }
+    const id = k.split(':')[0]
+    if (!id) continue
+    out.add(`${id}:f:2026-11-23`); out.add(`${id}:q:2026-11-23`)
+  }
+  return [...out]
+}
+
 function useDone(prefix: string) {
-  const read = () => { try { return JSON.parse(localStorage.getItem(prefix) ?? '[]') as string[] } catch { return [] } }
+  const read = () => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(prefix) ?? '[]') as string[]
+      if (prefix !== 'mgt_followup_feedback') return raw
+      const m = migrateFeedbackKeys(raw)
+      if (m.length !== raw.length || m.some((k, i) => k !== raw[i])) localStorage.setItem(prefix, JSON.stringify(m))
+      return m
+    } catch { return [] }
+  }
   const [done, setDone] = useState<string[]>(read)
   const mark = (k: string) => { const n = [...new Set([...done, k])]; setDone(n); try { localStorage.setItem(prefix, JSON.stringify(n.slice(-300))) } catch { /* sem armazenamento */ } }
   return { done, mark }
