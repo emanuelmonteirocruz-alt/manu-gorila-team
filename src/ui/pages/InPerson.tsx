@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { waLink, waNumber } from '../../domain/whatsapp'
-import { Check, ChevronLeft, Link2, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
+import { Play, UserRound, Check, ChevronLeft, Link2, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { db, nowISO, save, uid } from '../../data/db'
 import { deleteSession, getCheckin, getWeekContext, lastLoads, previousBests, treinoDoDiaExtras, type LastLoad, profileLookup, saveRating, studentSessions, upsertWeekContext } from '../../data/repo'
 import { resolveProfiles } from '../../engine/classifier'
@@ -33,6 +33,8 @@ const LABELS = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Tre
 export default function InPerson() {
   const students = useStudents('presencial')
   const [student, setStudent] = useState<Student | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null) // aluno tocado: escolher Começar treino ou Perfil
+  const nav = useNavigate()
   const [label, setLabel] = useState<string | null>(null)
   const [groups, setGroups] = useState<string[]>([])
   const [session, setSession] = useState<Session | null>(null)
@@ -130,7 +132,15 @@ export default function InPerson() {
       {step === 1 && (
         <div className="big-tiles">
           {students.map((s) => (
-            <button key={s.id} className="tile" onClick={() => setStudent(s)}>{s.full_name}{s.payment_status === 'atrasado' && <small className="pay-late-text">Mensalidade atrasada</small>}<small>{[s.weekly_frequency ? `${s.weekly_frequency}x/sem` : ''].filter(Boolean).join(' · ') || 'Presencial'}</small></button>
+            <div key={s.id} className={`tile ${menuFor === s.id ? 'open' : ''}`} role="button" tabIndex={0} onClick={() => setMenuFor(menuFor === s.id ? null : s.id)}>
+              {s.full_name}{s.payment_status === 'atrasado' && <small className="pay-late-text">Mensalidade atrasada</small>}<small>{[s.weekly_frequency ? `${s.weekly_frequency}x/sem` : ''].filter(Boolean).join(' · ') || 'Presencial'}</small>
+              {menuFor === s.id && (
+                <div className="tile-menu" onClick={(e) => e.stopPropagation()}>
+                  <button className="btn primary" onClick={() => { setMenuFor(null); setStudent(s) }}><Play size={16} strokeWidth={1.8} /> Começar treino</button>
+                  <button className="btn" onClick={() => nav(`/alunos/${s.id}`)}><UserRound size={16} strokeWidth={1.8} /> Perfil</button>
+                </div>
+              )}
+            </div>
           ))}
           {!students.length && <div className="muted">Cadastre alunos com modalidade Presencial.</div>}
         </div>

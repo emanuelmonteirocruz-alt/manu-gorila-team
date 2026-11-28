@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, Check, Trash2 } from 'lucide-react'
+import { Bell, Check, Search, Trash2, X } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { changeStatus, dueOverdue, paidUpdate, PERIOD_LABEL } from '../../domain/plan'
 import type { Student } from '../../domain/types'
@@ -21,7 +21,11 @@ export default function Students() {
   const [filter, setFilter] = useState<'todos' | 'online' | 'presencial' | 'vencer'>((params.get('filtro') as 'vencer') ?? 'todos')
   const inactive = useLiveQuery(async () => (await db.students.toArray()).filter((s) => !s._deleted && s.archived).sort((a, b) => a.full_name.localeCompare(b.full_name)), []) ?? []
   const due = students.filter((s) => changeStatus(s))
-  const shown = students.filter((s) => filter === 'todos' || (filter === 'vencer' ? changeStatus(s) : s.modality === filter))
+  const [q, setQ] = useState('')
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const qn = norm(q.trim()), qd = q.replace(/\D/g, '')
+  const shown = students.filter((s) => (filter === 'todos' || (filter === 'vencer' ? changeStatus(s) : s.modality === filter))
+    && (!qn || norm(s.full_name).includes(qn) || (qd.length >= 3 && (s.phone ?? '').replace(/\D/g, '').includes(qd))))
   const nav = useNavigate()
   const [showInactive, setShowInactive] = useState(false)
   return (
@@ -31,6 +35,11 @@ export default function Students() {
         <button className="btn primary big" onClick={() => setCreating((c) => !c)}>{creating ? 'Fechar' : '+ Novo aluno'}</button>
       </div>
       {creating && <div className="card" style={{ marginBottom: 14 }}><StudentForm initial={newStudent(params0.get('novo') === 'online' ? { modality: 'online' } : params0.get('novo') === 'presencial' ? { modality: 'presencial' } : {})} withAnamnese onSaved={(s, anam) => nav(`/alunos/${s.id}${anam ? '?aba=anamnese' : ''}`)} /></div>}
+      <label className="search-box" style={{ marginBottom: 10 }}>
+        <Search size={16} strokeWidth={1.8} />
+        <input type="text" placeholder="Buscar aluno pelo nome ou telefone" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" />
+        {q && <button type="button" className="btn icon" aria-label="Limpar busca" onClick={() => setQ('')}><X size={15} /></button>}
+      </label>
       <div className="chips" style={{ marginBottom: 12 }}>
         {([['todos', 'Todos'], ['online', 'Consultoria'], ['presencial', 'Presencial']] as const).map(([k, l]) => (
           <button key={k} className={`chip sm ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>
