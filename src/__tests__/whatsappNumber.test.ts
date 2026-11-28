@@ -37,3 +37,9 @@ test('marcações antigas de check-in continuam valendo', () => {
   expect(m).toContain('abc:f:2026-11-23'); expect(m).toContain('def:q:2026-11-23'); expect(m).toContain('ghi:f:2026-11-23')
   expect(m.some((k) => k === 'abc:2026-11-22')).toBe(false)
 })
+
+test('check-in pergunta do cardio', () => {
+  const st = { id: 'x', full_name: 'Lia', plan_period: 'mensal', next_change_date: '2026-12-20' } as Student
+  expect(feedbackMsg(st)).toContain('Fez cardio? Quantas vezes e quantos minutos?')
+  expect(checkinOf(st, '2026-11-23').text).toContain('Fez cardio?')
+})

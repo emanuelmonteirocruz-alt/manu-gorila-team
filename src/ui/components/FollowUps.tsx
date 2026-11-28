@@ -125,12 +125,12 @@ const wordsOf = (s: Student) => PERIOD_WORDS[s.plan_period ?? 'semanal'] ?? PERI
 
 export function feedbackMsg(s: Student): string {
   const w = wordsOf(s)
-  return `Oi, ${first(s)}! Tudo certo? Hora do check-in ${w.title}:\n1) Quantos treinos você conseguiu fazer ${w.when}?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Tem algo que você quer que eu ajuste ${w.next}?`
+  return `Oi, ${first(s)}! Tudo certo? Hora do check-in ${w.title}:\n1) Quantos treinos você conseguiu fazer ${w.when}?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Fez cardio? Quantas vezes e quantos minutos?\n5) Tem algo que você quer que eu ajuste ${w.next}?`
 }
 
 /** Check-in rápido (meio do ciclo de quinzenais e mensais): só acompanhar a semana. */
 export function quickMsg(s: Student): string {
-  return `Oi, ${first(s)}! Tudo certo? Passando para saber da sua semana:\n1) Quantos treinos você conseguiu fazer?\n2) Algum exercício incomodou ou ficou difícil?`
+  return `Oi, ${first(s)}! Tudo certo? Passando para saber da sua semana:\n1) Quantos treinos você conseguiu fazer?\n2) Algum exercício incomodou ou ficou difícil?\n3) Fez cardio? Quantas vezes e quantos minutos?`
 }
 
 /** Semana do retorno (domingo ainda conta como a semana que terminou). */
@@ -227,7 +227,7 @@ export function StudentFeedback({ student }: { student: Student }) {
         <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
       </div>
       <PhoneWarn phone={student.phone} />
-      <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos e se algo incomodou. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}</div>
+      <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade, cardio e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos, se algo incomodou e cardio. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}</div>
     </div>
   )
 }
