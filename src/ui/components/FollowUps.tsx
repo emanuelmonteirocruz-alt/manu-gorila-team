@@ -76,11 +76,11 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const dow = now.getDay() // 5 sexta, 6 sábado, 0 domingo
   const { done, mark } = useDone('mgt_followup_feedback')
   if (![5, 6, 0].includes(dow)) return null
-  const wk = weekStart(addDays(toISODate(now), dow === 0 ? -1 : 0))
+  const wk = feedbackWeek(now)
   const list = students.filter((s) => s.modality === 'online' && !done.includes(`${s.id}:${wk}`))
   const sent = students.filter((s) => s.modality === 'online').length - list.length
   if (!list.length && !sent) return null
-  const msg = (s: Student) => `Oi, ${first(s)}! Retorno da semana:\n1) Quantos treinos você fez?\n2) Esforço da semana de 0 a 10?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Peso de hoje (se tiver)?`
+  const msg = feedbackMsg
   return (
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Retorno da semana</h2><span className="muted">{sent} de {sent + list.length} enviados</span></div>
@@ -96,6 +96,28 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Semana do retorno (domingo ainda conta como a semana que terminou). */
+function feedbackWeek(now = new Date()) {
+  return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
+}
+const feedbackMsg = (s: Student) => `Oi, ${first(s)}! Retorno da semana:\n1) Quantos treinos você fez?\n2) Esforço da semana de 0 a 10?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Peso de hoje (se tiver)?`
+
+/** RETORNO DA SEMANA no perfil do aluno (consultoria): mandar a pergunta a qualquer dia; marca como enviado na semana (o Painel também vê). */
+export function StudentFeedback({ student }: { student: Student }) {
+  const { done, mark } = useDone('mgt_followup_feedback')
+  const key = `${student.id}:${feedbackWeek()}`
+  const sent = done.includes(key)
+  return (
+    <div className="card grid">
+      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>Retorno da semana</b> {sent ? <span className="tag ok">enviado nesta semana</span> : <span className="muted">ainda não enviado</span>}</span>
+        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, feedbackMsg(student))} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar retorno'}</a>
+      </div>
+      <div className="muted">Pergunta: treinos feitos, esforço de 0 a 10, dor ou dificuldade e peso.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
     </div>
   )
 }

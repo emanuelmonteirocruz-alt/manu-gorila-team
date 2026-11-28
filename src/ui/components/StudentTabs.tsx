@@ -24,7 +24,7 @@ function Check1({ ok, label }: { ok: boolean; label: string }) {
 }
 
 /** RESUMO da consultoria: situação do aluno numa olhada e o próximo passo. */
-export function ConsultSummary({ student, goAluno }: { student: Student; goAluno: () => void }) {
+export function ConsultSummary({ student }: { student: Student; goAluno?: () => void }) {
   const weeks = useLiveQuery(() => listWeeks(student), [student.id]) ?? []
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
   const anam = useLiveQuery(() => getAnamnese(student.id), [student.id])
@@ -54,7 +54,6 @@ export function ConsultSummary({ student, goAluno }: { student: Student; goAluno
       </div>
       {attention.length > 0 && <div className="alert warn"><span><b>Atenção (anamnese):</b> {attention.join(' · ')}</span></div>}
       <div className="muted"><b>Nível:</b> {level.label} · <b>Ênfase:</b> {emph.length ? emph.map(short).join(', ') : 'não definida'}</div>
-      {!triage && <div><button className="btn" onClick={goAluno}><MessageSquare size={16} strokeWidth={1.8} /> Colar anamnese</button></div>}
     </div>
   )
 }

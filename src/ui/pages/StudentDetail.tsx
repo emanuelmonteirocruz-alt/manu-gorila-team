@@ -10,6 +10,7 @@ import { CardioPanel } from '../components/CardioPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
 import { ChangeBadge, ConfirmButton, PayBadge, StudentForm } from '../components/common'
 import { ConsultancyBar } from '../components/ConsultancyBar'
+import { StudentFeedback } from '../components/FollowUps'
 import { WeeklyTable } from '../components/WeeklyTable'
 import { SessionList } from '../components/SessionList'
 import { FocusCheck } from '../components/FocusCheck'
@@ -82,6 +83,7 @@ export default function StudentDetail() {
             ? <>
                 <ConsultSummary student={student} goAluno={() => document.getElementById('anamnese-panel')?.scrollIntoView({ behavior: 'smooth' })} />
                 <ConsultancyBar student={student} showPaste={false} hideName />
+                <StudentFeedback student={student} />
                 <div id="anamnese-panel"><AnamnesePanel student={student} onGoCycle={() => go('montar')} /></div>
                 <NutritionPanel student={student} />
                 <div className="card"><StudentForm key={student.id + student.modality + String(student.archived)} initial={student} onDeleted={() => nav('/alunos')} /></div>
