@@ -54,3 +54,25 @@ export function recentWeeks(ref: string, n = 4): string[] {
   const wk = mondayOf(ref)
   return Array.from({ length: n }, (_, i) => addDays(wk, -7 * (n - 1 - i)))
 }
+
+// ---------- pagamento ----------
+/** Mesma data no mês seguinte (31/01 → 28/02; mantém o dia quando existe). */
+export function nextMonthSameDay(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1
+  const last = new Date(ny, nm, 0).getDate()
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`
+}
+
+/** "Pagou": vencimento vai para o mesmo dia do mês seguinte e o status fica Em dia. */
+export function paidUpdate(s: Pick<Student, 'due_date' | 'due_day'>, today = toISODate(new Date())): { due_date: string; payment_status: 'em_dia' } {
+  let base = s.due_date ?? null
+  if (!base && s.due_day) base = `${today.slice(0, 8)}${String(Math.min(s.due_day, 28)).padStart(2, '0')}`
+  if (!base) base = today
+  return { due_date: nextMonthSameDay(base), payment_status: 'em_dia' }
+}
+
+/** Vencimento já passou mas o status está "Em dia" (provável esquecimento de marcar). */
+export function dueOverdue(s: Pick<Student, 'due_date' | 'payment_status'>, today = toISODate(new Date())): boolean {
+  return !!s.due_date && s.due_date < today && s.payment_status === 'em_dia'
+}

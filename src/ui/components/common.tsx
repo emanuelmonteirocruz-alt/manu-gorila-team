@@ -15,7 +15,7 @@ import {
 } from '../../domain/types'
 import { addDays, computeHourlyRate, fmtBR, toISODate } from '../../engine/metrics'
 import { waProblem } from '../../domain/whatsapp'
-import { PERIOD_LABEL, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
+import { PERIOD_LABEL, dueOverdue, paidUpdate, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
 
 export function MicroTag({ m, blocked }: { m?: Microcycle | null; blocked?: boolean }) {
   if (!m) return <span className="tag">—</span>
@@ -146,7 +146,16 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             <span className="muted">{s.hourly_rate_manual ? 'Editado manualmente' : 'Calculado: plano ÷ sessões no mês'}</span>
           </label>
         )}
-        <label className="f">Data de vencimento<input id="st-due" type="date" value={s.due_date ?? ''} onChange={(e) => set('due_date', e.target.value || null)} /></label>
+        <label className="f">Data de vencimento<input id="st-due" type="date" value={s.due_date ?? ''} onChange={(e) => set('due_date', e.target.value || null)} />
+          {dueOverdue(s) && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--danger)' }}>O vencimento passou e o status está "Em dia": confira se ele pagou.</span>}
+          {onDeleted && (s.due_date || s.due_day) && (
+            <button type="button" className="btn sm" style={{ justifySelf: 'start' }} onClick={async () => {
+              const upd = { ...latest.current, ...paidUpdate(latest.current) }
+              setS(upd); await saveStudent(upd)
+              setStatus(`Alterações salvas com sucesso! Pagamento registrado: próximo vencimento ${fmtBR(upd.due_date)}.`)
+            }}>Pagou: próximo vencimento {fmtBR(paidUpdate(s).due_date)}</button>
+          )}
+        </label>
         {s.modality === 'online' && (
           <label className="f">Data de troca de treino
             <input id="st-change" type="date" value={s.next_change_date ?? ''} onChange={(e) => set('next_change_date', e.target.value || null)} />

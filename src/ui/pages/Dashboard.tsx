@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { db } from '../../data/db'
 import { divergenceAlert, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { useStudents } from '../components/common'
-import { changeStatus } from '../../domain/plan'
+import { changeStatus, dueOverdue } from '../../domain/plan'
 import { SOURCE_LABEL, titleCase } from '../format'
 import { MissingStudents, WeeklyFeedback } from '../components/FollowUps'
 
@@ -21,6 +21,7 @@ export default function Dashboard() {
   const day = today.getDate()
   const changes = students.flatMap((s) => { const st = changeStatus(s); return st ? [{ s, st }] : [] }).sort((a, b) => a.st.days - b.st.days)
   const late = students.filter((s) => s.payment_status === 'atrasado') // mensalidade atrasada (vermelho)
+  const overdue = students.filter((s) => dueOverdue(s)) // venceu e o status ainda diz Em dia
   const dueSoon = students.filter((s) => s.due_day && ((s.due_day - day + 31) % 31) <= 3)
   const data = useLiveQuery(async () => {
     const ratings = await db.ratings.toArray()
@@ -50,6 +51,15 @@ export default function Dashboard() {
           <div>
             <b>Mensalidade atrasada</b>{' · '}
             {late.map((s, i) => <span key={s.id}>{i ? ' · ' : ''}<Link to={`/alunos/${s.id}?aba=ficha`}>{titleCase(s.full_name)}</Link></span>)}
+          </div>
+        </div>
+      )}
+      {overdue.length > 0 && (
+        <div className="alert warn" style={{ marginBottom: 14 }}>
+          <Wallet size={16} strokeWidth={1.8} />
+          <div>
+            <b>Vencimento passou</b> (confira se pagou){' · '}
+            {overdue.map((s, i) => <span key={s.id}>{i ? ' · ' : ''}<Link to={`/alunos/${s.id}?aba=aluno`}>{titleCase(s.full_name)}</Link> ({fmtBR(s.due_date!).slice(0, 5)})</span>)}
           </div>
         </div>
       )}

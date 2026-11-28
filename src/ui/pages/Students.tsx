@@ -1,13 +1,17 @@
 import { useState } from 'react'
-import { Bell, Trash2 } from 'lucide-react'
+import { Bell, Check, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
-import { fmtBR } from '../../engine/metrics'
+import { changeStatus, dueOverdue, paidUpdate, PERIOD_LABEL } from '../../domain/plan'
+import type { Student } from '../../domain/types'
+import { addDays, fmtBR, toISODate } from '../../engine/metrics'
 import { deleteStudent, newStudent } from '../../data/repo'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, save } from '../../data/db'
 import { titleCase } from '../format'
 import { ChangeBadge, ConfirmButton, StudentForm, useStudents } from '../components/common'
+
+/** "Pagou" aparece para quem tem pagamento pendente, atrasado, vencido ou vencendo em até 7 dias. */
+const showPaid = (s: Student) => s.payment_status !== 'em_dia' || dueOverdue(s) || (!!s.due_date && s.due_date <= addDays(toISODate(new Date()), 7))
 
 export default function Students() {
   const students = useStudents()
@@ -71,12 +75,13 @@ export default function Students() {
                 <td><b>{s.full_name}</b> <ChangeBadge student={s} /></td>
                 <td>{s.modality === 'online' ? 'Consultoria' : 'Presencial'}</td>
                 <td>{s.modality === 'online' ? (s.plan_period ? PERIOD_LABEL[s.plan_period] : '—') : s.weekly_frequency ? `${s.weekly_frequency}x/semana` : '—'}</td>
-                <td>{s.due_date ? fmtBR(s.due_date) : s.due_day ? `dia ${s.due_day}` : '—'}</td>
+                <td>{s.due_date ? <span className={dueOverdue(s) ? 'late-txt' : ''}>{fmtBR(s.due_date)}{dueOverdue(s) ? ' · venceu' : ''}</span> : s.due_day ? `dia ${s.due_day}` : '—'}</td>
                 <td>{s.modality === 'online' ? (s.next_change_date ? fmtBR(s.next_change_date) : '—') : ''}</td>
                 <td>{s.plan_value ? `R$ ${s.plan_value.toFixed(2).replace(".", ",")}` : '—'}</td>
                 <td>{s.modality === 'presencial' ? (s.hourly_rate ? `R$ ${s.hourly_rate.toFixed(2).replace(".", ",")}` : '—') : ''}</td>
                 <td><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'pay-late' : 'warn'}`}>{s.payment_status === 'atrasado' ? 'Atrasado' : s.payment_status.replace('_', ' ')}</span></td>
-                <td onClick={(e) => e.stopPropagation()}>
+                <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                  {showPaid(s) && <button className="btn sm" style={{ marginRight: 6 }} title="Vencimento vai para o mês seguinte e o status fica Em dia" onClick={() => save(db.students, { ...s, ...paidUpdate(s) })}><Check size={14} /> Pagou</button>}
                   <ConfirmButton label={<Trash2 size={16} strokeWidth={1.8} />} confirmLabel="Deseja realmente excluir este aluno?" className="btn danger trash-btn" onConfirm={() => deleteStudent(s.id)} />
                 </td>
               </tr>
