@@ -6,6 +6,7 @@ import { divergenceAlert, fmtBR, toISODate, weekStart } from '../../engine/metri
 import { useStudents } from '../components/common'
 import { changeStatus } from '../../domain/plan'
 import { SOURCE_LABEL, titleCase } from '../format'
+import { MissingStudents, WeeklyFeedback } from '../components/FollowUps'
 
 const PAY_LABEL: Record<string, { l: string; c: string }> = {
   em_dia: { l: 'Em dia', c: 'ok' },
@@ -63,6 +64,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <WeeklyFeedback students={students} />
+      <MissingStudents students={students} />
 
       <div className="grid cols-2">
         <div className="card">
