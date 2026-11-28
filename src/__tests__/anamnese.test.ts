@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ANAMNESE_TEMPLATE, answersFromPasted, parseTemplate } from '../consultoria/anamneseTemplate'
-import { buildTriage } from '../consultoria/triage'
+import { TRAINER_NOTES_KEY, buildTriage } from '../consultoria/triage'
 import { remindersFor } from '../consultoria/reminders'
 import { generateWeek, weekToWhatsApp } from '../consultoria/generator'
 import { parsePrescriptionBlock } from '../engine/prescription'
@@ -353,4 +353,10 @@ describe('treinos executados informados pelo treinador', () => {
     expect(adjustToExecuted(['A', 'B', 'C', 'D'].map(s), 6).map((x) => x.label).slice(4)).toEqual(['Treino A', 'Treino B'])
     expect(adjustToExecuted(abcda, null)).toHaveLength(5)
   })
+})
+
+it('terapia hormonal nas observações do treinador', () => {
+  expect(buildTriage([], { [TRAINER_NOTES_KEY]: 'Em transição, inibindo hormônios masculinos' }).hormonal).toBe(true)
+  expect(buildTriage([], { [TRAINER_NOTES_KEY]: 'Usa espironolactona e estradiol' }).hormonal).toBe(true)
+  expect(buildTriage([], { [TRAINER_NOTES_KEY]: 'Sente dor no ombro' }).hormonal).toBe(false)
 })

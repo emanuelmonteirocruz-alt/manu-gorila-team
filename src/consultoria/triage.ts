@@ -36,6 +36,7 @@ export interface Triage {
   ciclo: string | null
   observacoes: string[]
   glp1: boolean // Monjaro/Ozempic & cia: o gerador segura a densidade e as técnicas
+  hormonal: boolean // terapia hormonal (bloqueio de testosterona / estrogênio): recuperação e ganho de força menores, atenção aos ossos
   notasTreinador: string | null // "Observações do treinador" (texto livre, entra na montagem)
 }
 
@@ -86,6 +87,8 @@ const CONDITIONS: [RegExp, string][] = [
 
 /** Chave das "Observações do treinador" dentro das respostas da anamnese (sincroniza junto). */
 export const TRAINER_NOTES_KEY = '_obs_treinador'
+/** Terapia hormonal que reduz testosterona (transição de gênero, antiandrogênicos, estrogênio). */
+export const HORMONAL_RE = /(inib|bloque|supri|reduz|corta)\w*.{0,25}(testosterona|hormonio)|antiandrog|espironolact|ciproteron|bicalutamid|estradiol|estrogen|terapia hormonal|hormoniza|transicao (de genero|sexual|hormonal)|mulher trans|transgener/
 export const GLP1_RE = /monjaro|mounjaro|tirzepatid|ozempic|wegovy|semaglutid|saxenda|liraglutid|glp ?1/
 const MEDS_RE = /monjaro|mounjaro|tirzepatid|ozempic|wegovy|semaglutid|saxenda|liraglutid|glp ?1|isotretino|roacutan|minoxidil|paroxetin|sertralin|fluoxetin|escitalopram|antidepress|anticoncepc|insulin|metformin|losartan|enalapril|anlodipin|propranolol|atenolol|remedio|medicament|toma |tomando|usa |usando/
 
@@ -99,7 +102,7 @@ export function buildTriage(sections: TemplateSection[], answers: Record<string,
     objetivo: null, objetivoTipo: null, postura: false, perfil: { idade: null, altura: null, peso: null }, diasTexto: null, atividade: null,
     dificuldades: [], evitarExercicios: [], medicamentos: [],
     enfases: [], restricoes: [], condicoes: [], preferencias: [], naoGosta: [],
-    dias: null, tempoMin: null, local: null, experiencia: null, dieta: null, sono: null, ciclo: null, observacoes: [], glp1: false, notasTreinador: null,
+    dias: null, tempoMin: null, local: null, experiencia: null, dieta: null, sono: null, ciclo: null, observacoes: [], glp1: false, hormonal: false, notasTreinador: null,
   }
   const byField = (f: string) => sections.flatMap((s) => s.questions).filter((q) => q.field === f).map((q) => (answers[q.id] ?? '').trim()).filter((a) => a && !NONE.test(n(a)))
 
@@ -175,6 +178,7 @@ export function buildTriage(sections: TemplateSection[], answers: Record<string,
     }
   }
   t.glp1 = t.medicamentos.some((m) => GLP1_RE.test(n(m)))
+  t.hormonal = HORMONAL_RE.test(n([obs, ...t.medicamentos, ...t.observacoes].join(' \n ')))
   return t
 }
 

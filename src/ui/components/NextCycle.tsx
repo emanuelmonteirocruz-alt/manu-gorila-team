@@ -66,6 +66,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
       setText(weekToWhatsApp(week, alerts))
       setSummary([])
       setNotice([
+        ...(triage?.hormonal ? ['Terapia hormonal nas observações: volume moderado, progressão gradual e exercícios com carga em pé pela saúde dos ossos. Acompanhe junto com o médico.'] : []),
         ...(triage?.glp1 ? ['Monjaro/Ozempic nas observações ou na anamnese: volume moderado, foco em força e progressão de carga para preservar massa magra; vá ajustando pela resposta dela.'] : []),
         ...(!triage ? ['Sem anamnese salva: montei só pelos dias, tempo e ênfase escolhidos.'] : []),
       ])
@@ -83,6 +84,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     const miss = missingEmphasis(sessions, emph, lookup)
     setNotice([
       ...(miss.length ? [`${miss.map(short).join(' e ')} não aparece${miss.length > 1 ? 'm' : ''} em nenhum exercício da semana de referência: inclua um exercício no texto antes de mandar.`] : []),
+      ...(triage?.hormonal ? ['Terapia hormonal (bloqueio de testosterona/estrogênio): recuperação e ganho de força menores. O rascunho segurou as técnicas; mantenha volume moderado, progressão de carga gradual e exercícios com carga em pé (agachamento, levantamentos) pela saúde dos ossos. Acompanhe junto com o médico.'] : []),
       ...(triage?.glp1 ? ['Monjaro/Ozempic: o rascunho segurou as técnicas (no máximo uma variável por treino, sem FST-7, falha ou parciais). Volume moderado e foco em força para preservar massa magra.'] : []),
     ])
   }

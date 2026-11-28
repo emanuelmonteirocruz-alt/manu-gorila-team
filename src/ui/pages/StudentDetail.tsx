@@ -15,6 +15,7 @@ import { WeeklyTable } from '../components/WeeklyTable'
 import { SessionList } from '../components/SessionList'
 import { FocusCheck } from '../components/FocusCheck'
 import { AnamnesePanel } from '../components/AnamnesePanel'
+import TrainerNotes from '../components/TrainerNotes'
 import { ConsultSummary, PasteWeekButton, PresencialSummary, ReportsMenu, WeeksPanel } from '../components/StudentTabs'
 
 type Tab = 'resumo' | 'treinos' | 'montar' | 'evolucao' | 'aluno'
@@ -90,7 +91,7 @@ export default function StudentDetail() {
                 {inactiveCard}
                 {resetCard}
               </>
-            : <PresencialSummary student={student} goTreinos={(sid) => { setOpenSession(sid ?? null); go('treinos') }} />}
+            : <><PresencialSummary student={student} goTreinos={(sid) => { setOpenSession(sid ?? null); go('treinos') }} /><TrainerNotes student={student} /></>}
         </div>
       )}
 

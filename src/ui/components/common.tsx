@@ -4,10 +4,10 @@ import { AlertCircle, Bell, Check, Lock } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { db, getKV } from '../../data/db'
 import { answersFromPasted, parseTemplate } from '../../consultoria/anamneseTemplate'
-import { buildTriage } from '../../consultoria/triage'
+import { TRAINER_NOTES_KEY, buildTriage } from '../../consultoria/triage'
 import { NutritionUpload } from './NutritionPanel'
 import type { NutritionData } from '../../nutrition/extract'
-import { anamneseTemplateText, copyWeekTo, saveNutrition, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
+import { anamneseTemplateText, copyWeekTo, getAnamnese, saveNutrition, clearCheckin, deleteStudent, getCheckin, getWeekContext, saveAnamnese, saveCheckin, saveStudent, upsertWeekContext } from '../../data/repo'
 import { changeStatus } from '../../domain/plan'
 import { titleCase } from '../format'
 import {
@@ -46,6 +46,7 @@ export function StudentSelect({ value, onChange, modality, placeholder = 'Seleci
 
 export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { initial: Student; onSaved?: (s: Student, anamnese?: boolean) => void; onDeleted?: () => void; withAnamnese?: boolean }) {
   const [anamText, setAnamText] = useState('') // cadastro novo de consultoria: já cola a anamnese
+  const [notes, setNotes] = useState('') // cadastro novo: observações do treinador (casos específicos)
   const [weekText, setWeekText] = useState('') // cadastro novo de consultoria: já cola o 1º treino do WhatsApp
   const [nutri, setNutri] = useState<{ file: File | null; data: NutritionData; raw: string }>({ file: null, data: { weight_kg: null, height_m: null, age: null, body_fat: null, lean_mass_kg: null }, raw: '' })
   const tplText = useLiveQuery(anamneseTemplateText, []) ?? ''
@@ -82,6 +83,10 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
           if (withAnamnese && cur.modality === 'online' && anamText.trim()) {
             const answers = answersFromPasted(anamText, parseTemplate(tplText), trainerName)
             if (Object.keys(answers).length) { await saveAnamnese(saved.id, answers, anamText.trim()); anam = true }
+          }
+          if (withAnamnese && notes.trim()) {
+            const cur2 = await getAnamnese(saved.id)
+            await saveAnamnese(saved.id, { ...(cur2?.answers ?? {}), [TRAINER_NOTES_KEY]: notes.trim() })
           }
           if (withAnamnese && cur.modality === 'online' && weekText.trim()) await copyWeekTo(saved, weekText, nextWeekToPaste(saved.plan_period, null))
           if (withAnamnese && nutri.file) await saveNutrition({ student_id: saved.id, date: toISODate(new Date()), ...nutri.data, raw_text: nutri.raw.slice(0, 20000) || null, notes: null }, nutri.file, nutri.file.name)
@@ -158,6 +163,12 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
           <textarea className="code" style={{ minHeight: 120 }} value={anamText} onChange={(e) => setAnamText(e.target.value)}
             placeholder="Cole aqui a resposta do aluno no WhatsApp (pelo número ou respondendo por cima das perguntas). Ao salvar, o app lê e abre o resumo, as restrições e os lembretes." />
           {anamText.trim() && <span className={anamFound ? 'tag ok' : 'tag warn'} style={{ alignSelf: 'start' }}>{anamFound ? `${anamFound} respostas encontradas` : 'Nenhuma resposta reconhecida ainda'}</span>}
+        </label>
+      )}
+      {withAnamnese && (
+        <label className="f">Observações do treinador (opcional)
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Casos específicos que pedem mais atenção: remédios, condições, dores, terapia hormonal, rotina… Só você vê; entra na montagem dos treinos." />
         </label>
       )}
       {withAnamnese && s.modality === 'online' && (

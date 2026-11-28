@@ -88,7 +88,7 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
     // sem posição fixa, só variáveis do nível do aluno e no máximo UMA por família de método em cada treino
     const shock = new Map<number, ShockVariable>()
     const extraSet = new Set<number>()
-    const glp1 = !!inp.triage?.glp1 // Monjaro/Ozempic: uma variável por treino, sem as mais extenuantes
+    const glp1 = !!inp.triage?.glp1 || !!inp.triage?.hormonal // Monjaro/Ozempic ou terapia hormonal: uma variável por treino, sem as mais extenuantes
     const assign = (howMany: number, allowed: string[]) => {
       const pool = meta.map((_, i) => i).filter((i) => meta[i].single)
       const families = new Set<string>()

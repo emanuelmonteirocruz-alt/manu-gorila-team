@@ -6,7 +6,7 @@ import { anamneseTemplateText, getAnamnese, lastLoads, latestNutrition, studentS
 import { listWeeks, weekLabel } from '../../data/reportData'
 import { usePastedWeeks, consultState } from './ConsultancyBar'
 import { parseTemplate } from '../../consultoria/anamneseTemplate'
-import { buildTriage } from '../../consultoria/triage'
+import { TRAINER_NOTES_KEY, buildTriage } from '../../consultoria/triage'
 import { levelFor } from '../../consultoria/levels'
 import { sessionsToWhatsApp } from '../../consultoria/generator'
 import { changeStatus } from '../../domain/plan'
@@ -30,6 +30,8 @@ export function ConsultSummary({ student }: { student: Student; goAluno?: () => 
   const anam = useLiveQuery(() => getAnamnese(student.id), [student.id])
   const nutri = useLiveQuery(() => latestNutrition(student.id), [student.id])
   const triage = useMemo(() => (anam && Object.values(anam.answers ?? {}).some((v) => v?.trim()) ? buildTriage(parseTemplate(tplText), anam.answers) : null), [anam, tplText])
+  // anamnese respondida = respostas além das observações do treinador
+  const answered = !!anam && Object.entries(anam.answers ?? {}).some(([k, v]) => k !== TRAINER_NOTES_KEY && v?.trim())
   const st = changeStatus(student)
   const level = levelFor(student.training_level, triage?.experiencia)
   const emph = student.emphasis?.length ? student.emphasis : triage?.enfases ?? []
@@ -38,6 +40,7 @@ export function ConsultSummary({ student }: { student: Student; goAluno?: () => 
     ...triage.restricoes.map((r) => r.label.toLowerCase()),
     ...triage.condicoes.map((c) => COND[c] ?? c),
     triage.glp1 ? 'Monjaro/Ozempic' : '',
+    triage.hormonal ? 'terapia hormonal' : '',
   ].filter(Boolean) : []
   const days = student.next_change_date ? Math.round((new Date(student.next_change_date + 'T12:00:00').getTime() - new Date(toISODate(new Date()) + 'T12:00:00').getTime()) / 86400000) : null
 
@@ -48,11 +51,11 @@ export function ConsultSummary({ student }: { student: Student; goAluno?: () => 
         {st && <span className={`tag ${st.level === 'proximo' ? 'warn' : 'danger'}`}>{st.label}</span>}
       </div>
       <div className="chk-row">
-        <Check1 ok={!!triage} label="Anamnese" />
+        <Check1 ok={answered} label="Anamnese" />
         <Check1 ok={weeks.length > 0} label={weeks.length ? `Semana ${fmtBR(weeks[0].wk).slice(0, 5)} colada` : 'Nenhuma semana colada'} />
         <Check1 ok={!!nutri} label="Nutricionista" />
       </div>
-      {attention.length > 0 && <div className="alert warn"><span><b>Atenção (anamnese):</b> {attention.join(' · ')}</span></div>}
+      {attention.length > 0 && <div className="alert warn"><span><b>Atenção:</b> {attention.join(' · ')}</span></div>}
       <div className="muted"><b>Nível:</b> {level.label} · <b>Ênfase:</b> {emph.length ? emph.map(short).join(', ') : 'não definida'}</div>
     </div>
   )
