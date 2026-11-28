@@ -379,6 +379,7 @@ export interface MonthSide {
   agg: Aggregate
   lifts: Record<string, { name: string; kg: number; perSide: boolean }> // maior carga de cada exercício no mês
   phase?: Microcycle | null // fase da semana (Semana × Semana)
+  weeks?: number // semanas com treino no mês (Mês × mês compara a média por semana)
   shock?: string[] // semana de choque: o que mudou, em linguagem de aluno
 }
 
@@ -466,7 +467,15 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   const wk = !!weeks
   if (wk) header(d, 'Semana × Semana', `semana de ${before.label}  >  semana de ${after.label}`, nm(o))
   else header(d, 'Antes × Depois', `${before.label}  >  ${after.label}`, nm(o))
-  const b = before.agg, a = after.agg
+  // Mês × mês: compara a MÉDIA POR SEMANA (mês com 1 semana de treino × mês com 4 não vira "+373%")
+  const norm = !wk && !!before.weeks && !!after.weeks
+  const per = (x: Aggregate, n: number): Aggregate => (n <= 1 ? x : {
+    ...x, validSets: x.validSets / n, heavySets: x.heavySets / n, multiSets: x.multiSets / n, monoSets: x.monoSets / n, freeSets: x.freeSets / n, machineSets: x.machineSets / n,
+    tonnageKg: x.tonnageKg / n, kcal: x.kcal / n, sessions: x.sessions / n, lowRepSets: x.lowRepSets / n, advancedSets: x.advancedSets / n, techniqueSets: x.techniqueSets / n,
+    failureSets: x.failureSets / n, markedSets: x.markedSets / n, challengePoints: x.challengePoints / n, minutes: x.minutes != null ? x.minutes / n : x.minutes,
+  })
+  const b = norm ? per(before.agg, before.weeks!) : before.agg, a = norm ? per(after.agg, after.weeks!) : after.agg
+  const pwHint = norm ? 'média por semana' : undefined
   const hasBefore = b.validSets > 0
   BEFORE_LBL = before.label; AFTER_LBL = after.label
   let y = 92
@@ -518,7 +527,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     text(d, isPts ? 'MAIS INTENSIDADE' : best[0].toUpperCase(), PAGE.m + W - 16, y + 30, { size: 9, bold: true, c: '#ffffff', align: 'right' })
     if (isPts) text(d, `pontos (0 a 100): ${Math.round(intensityOf(b, o))} > ${Math.round(intensityOf(a, o))}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
     else if (best[0] === 'mais intensidade' && levelOf(b)) text(d, `nível de estímulo ${levelOf(b)} > ${levelOf(a)}`, PAGE.m + W - 16, y + 56, { size: 6.5, c: '#E6F4F2', align: 'right' })
-    text(d, `${before.label} > ${after.label}`, PAGE.m + W - 16, y + 44, { size: 7.5, c: '#E6F4F2', align: 'right' })
+    text(d, `${before.label} > ${after.label}${norm ? ' · média por semana' : ''}`, PAGE.m + W - 16, y + 44, { size: 7.5, c: '#E6F4F2', align: 'right' })
   } else {
     // nada subiu: "Periodização consistente" (constância) ou "Semana de ajuste" — em tom calmo, nunca como queda
     const title = steady ? 'Periodização consistente' : hasBefore ? (wk ? 'Semana de ajuste' : 'Mês de ajuste') : (wk ? 'Primeira semana' : 'Primeiro mês')
@@ -543,16 +552,16 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   const first = wk ? 'primeira semana' : 'primeiro mês'
   const tw = (W - 10) / 2, th = wk && (before.phase || after.phase) && o.showEmphasis ? 80 : 92 // com a faixa das fases, placares mais baixos para caber o gasto
   const rg = !!regen // regenerativa: placares neutros (sem pílula de queda)
-  scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg)
+  scoreTile(d, PAGE.m, y, tw, th, 'Séries de trabalho', b.validSets, a.validSets, (n) => fmtNum(n), hasBefore, first, rg, pwHint)
   if (isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Média de séries por treino', perSession(b), perSession(a), (n) => fmtNum(n), hasBefore, first, rg)
-  else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first)
+  else scoreTile(d, PAGE.m + tw + 10, y, tw, th, 'Séries pesadas', b.heavySets, a.heavySets, (n) => fmtNum(n), hasBefore, first, false, pwHint)
   if (isOnline(o)) {
     // métodos (drop, bi-set…) não entram no PDF do aluno: são ferramentas, não prova de intensidade (só o treinador vê a contagem)
-    scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, 'até 10 repetições')
-    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, wk ? 'Gasto na semana' : 'Gasto no mês', b.kcal, a.kcal, (n) => `${fmtNum(n)} kcal`, hasBefore, first, rg, a.sessions > 1 ? `~${fmtNum(a.kcal / a.sessions)} kcal por treino` : undefined)
+    scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Séries pesadas', b.lowRepSets, a.lowRepSets, (n) => fmtNum(n), hasBefore, first, rg, norm ? 'até 10 repetições · média por semana' : 'até 10 repetições')
+    scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, wk ? 'Gasto na semana' : norm ? 'Gasto por semana' : 'Gasto no mês', b.kcal, a.kcal, (n) => `${fmtNum(n)} kcal`, hasBefore, first, rg, a.sessions > 1 ? `~${fmtNum(a.kcal / a.sessions)} kcal por treino` : undefined)
   }
   else scoreTile(d, PAGE.m, y + th + 10, tw, th, 'Esforço médio (PSE)', b.avgPse ?? 0, a.avgPse ?? 0, (n) => (n ? `${fmtNum(n, 1)}/10` : '—'), hasBefore && b.avgPse != null, first, true)
-  if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first)
+  if (!isOnline(o)) scoreTile(d, PAGE.m + tw + 10, y + th + 10, tw, th, 'Quilos levantados', b.tonnageKg, a.tonnageKg, (n) => (n >= 10000 ? `${fmtNum(n / 1000, 1)} t` : `${fmtNum(n)} kg`), hasBefore, first, false, pwHint)
   y += th * 2 + 22
 
   // consultoria: os placares já mostram as provas (séries pesadas e com técnica); os selos ficam só no Mês × mês
@@ -599,8 +608,8 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
     card(d, PAGE.m, y + 4, W, 48, C.card)
     iconFlame(d, PAGE.m + 18, y + 27, 14, C.heavy)
     text(d, wk ? 'GASTO NA SEMANA' : 'GASTO NO MÊS', PAGE.m + 32, y + 20, { size: 6.3, bold: true, c: C.sub })
-    text(d, `${fmtNum(a.kcal)} kcal`, PAGE.m + 32, y + 37, { size: 15, bold: true, c: C.ink })
-    if (hasBefore) text(d, `${before.label}: ${fmtNum(b.kcal)} kcal`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
+    text(d, `${fmtNum(after.agg.kcal)} kcal`, PAGE.m + 32, y + 37, { size: 15, bold: true, c: C.ink })
+    if (hasBefore) text(d, `${before.label}: ${fmtNum(before.agg.kcal)} kcal`, PAGE.m + 140, y + 37, { size: 7.5, c: C.sub })
     if (a.sessions > 1) {
       text(d, `${fmtNum(a.kcal / a.sessions)} kcal`, PAGE.m + W - 12, y + 30, { size: 11, bold: true, c: C.ink, align: 'right' })
       text(d, 'média de calorias por treino', PAGE.m + W - 12, y + 41, { size: 6, c: C.sub, align: 'right' })

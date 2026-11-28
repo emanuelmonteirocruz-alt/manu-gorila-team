@@ -39,7 +39,7 @@ export async function buildBeforeAfter(student: Student, ymAfter: string, execut
       const kg = peakOf(e)
       if (kg > (lifts[e.exercise_key]?.kg ?? 0)) lifts[e.exercise_key] = { name: e.display_name, kg, perSide: !!e.per_side }
     }
-    return { label: r.label, agg: aggregateSessions(list, lookup, ratings), lifts }
+    return { label: r.label, agg: aggregateSessions(list, lookup, ratings), lifts, weeks: byWeek.size }
   }
   return { before: await side(prevMonth(ymAfter), executed.before), after: await side(ymAfter, executed.after) }
 }
