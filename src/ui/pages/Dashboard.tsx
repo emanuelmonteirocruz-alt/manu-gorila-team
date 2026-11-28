@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Activity, AlertCircle, Bell, CircleCheck, FileText, MessageSquare, Dumbbell, Wallet } from 'lucide-react'
+import { Activity, AlertCircle, UserPlus, Bell, CircleCheck, FileText, MessageSquare, Dumbbell, Wallet } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { db } from '../../data/db'
 import { divergenceAlert, fmtBR, toISODate, weekStart } from '../../engine/metrics'
@@ -40,6 +40,7 @@ export default function Dashboard() {
         <div className="row">
           <Link className="btn primary" to="/presencial"><Dumbbell size={16} strokeWidth={1.8} /> Iniciar treino presencial</Link>
           <Link className="btn" to="/consultoria"><MessageSquare size={16} strokeWidth={1.8} /> Colar treinos do WhatsApp</Link>
+          <Link className="btn" to="/alunos?novo=1"><UserPlus size={16} strokeWidth={1.8} /> Novo aluno</Link>
         </div>
       </div>
 
