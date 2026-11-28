@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { waLink, waNumber } from '../../domain/whatsapp'
 import { ChevronDown, ChevronRight, Download, FileText, Pencil, Send, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { jsPDF } from 'jspdf'
@@ -96,8 +97,8 @@ function SessionDetail({ student, session, pse }: { student: Student; session: S
   useEffect(() => {
     if (preview && pdf && canvas.current) drawPreview(canvas.current, pdf.make)
   }, [preview, pdf])
-  const phone = (student.phone ?? '').replace(/\D/g, '')
-  const wa = phone ? `https://wa.me/${phone.length <= 11 ? '55' + phone : phone}` : ''
+  const phone = waNumber(student.phone)
+  const wa = phone ? waLink(phone) : ''
   return (
     <div className="session-body grid">
       <div className="row stack-sm">

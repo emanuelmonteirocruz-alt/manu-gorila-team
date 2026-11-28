@@ -6,7 +6,7 @@ O usuário escreve em português: responda em português, de forma curta.
 ## Stack e fluxo
 - React 19 + TypeScript + Vite + Dexie (IndexedDB, offline-first) + Supabase (sync e storage). Deploy automático na Vercel (manu-gorila-team.vercel.app) a cada push.
 - Branch `main`. **Pode dar commit e push depois de cada mudança** (já autorizado).
-- Antes de subir: `npx tsc --noEmit -p .`, `npx vitest run` e `npm run build`.
+- Antes de subir: `npx tsc -b` (o `tsc --noEmit -p .` não confere o app), `npx vitest run` e `npm run build`.
 - Migrações do Supabase em `supabase/` (numeradas; também somadas em `supabase/setup_completo.sql`). O token de gerenciamento antigo não vale mais: não peça nem guarde tokens.
 - Nunca colocar dados reais de alunos (nome, saúde, telefone) no repositório: testes e simulações com dados inventados.
 

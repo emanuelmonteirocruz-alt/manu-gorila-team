@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { waLink } from '../../domain/whatsapp'
 import { BookOpen, ClipboardCopy, Download, History as HistoryIcon, Save, Send } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -279,8 +280,7 @@ function repsText(reps: { min: number; max: number; failure?: boolean }[]): stri
 
 /** Mensagem pronta para o aluno: que esforço cada faixa e cada técnica do treino pedem. */
 function EffortGuideBox({ text, phone, copied, onCopied }: { text: string; phone?: string; copied: boolean; onCopied: () => void }) {
-  const digits = (phone ?? '').replace(/\D/g, '')
-  const wa = `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(text)}`
+  const wa = waLink(phone, text)
   return (
     <div className="card grid">
       <b>Orientação de esforço para o aluno</b>

@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { waLink, waNumber } from '../../domain/whatsapp'
 import { Check, ClipboardCopy, MessageSquare, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -86,8 +87,7 @@ export default function NextCycle({ student, onOpenAnamnese }: { student: Studen
     ])
   }
   const toggle = (g: string) => setEnfases(emph.includes(g) ? emph.filter((x) => x !== g) : [...emph, g])
-  const digits = (student.phone ?? '').replace(/\D/g, '')
-  const wa = `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(text)}`
+  const wa = waLink(student.phone, text)
   const nextWk = nextWeekToPaste(student.plan_period, weeks[0]?.wk ?? null)
   const COND: Record<string, string> = { hipertensao: 'pressão alta', diabetes: 'diabetes', gestante: 'gestante', labirintite: 'labirintite', cirurgia: 'cirurgia', asma: 'asma', endometriose: 'endometriose', hernia: 'hérnia', cardiaco: 'condição cardíaca' }
 
@@ -222,8 +222,8 @@ export function SendByTraining({ text, phone }: { text: string; phone: string })
   const [copied, setCopied] = useState('')
   useEffect(() => setSent({}), [msgs.length])
   if (!msgs.length) return null
-  const digits = phone.replace(/\D/g, '')
-  const waOf = (t: string) => `https://wa.me/${digits ? (digits.length <= 11 ? '55' + digits : digits) : ''}?text=${encodeURIComponent(t)}`
+  const digits = waNumber(phone)
+  const waOf = (t: string) => waLink(phone, t)
   const mark = (label: string) => setSent((s) => ({ ...s, [label]: true }))
   const next = msgs.find((m) => !sent[m.label])
   return (

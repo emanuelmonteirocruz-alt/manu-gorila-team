@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { waLink, waNumber } from '../../domain/whatsapp'
 import { Check, ChevronLeft, Link2, PencilLine, Circle, CircleDot, Download, Droplet, Flame, Mic, Send, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -493,8 +494,8 @@ function LiveSession({ student, session, previous, onChange, onDone }: {
   const upd = (k: string, patch: Partial<Draft>) => setDrafts((d) => d.map((x) => (x.key === k ? { ...x, ...patch } : x)))
 
   if (result) {
-    const phone = (student.phone ?? '').replace(/\D/g, '')
-    const wa = phone ? `https://wa.me/${phone.length <= 11 ? '55' + phone : phone}` : ''
+    const phone = waNumber(student.phone)
+    const wa = phone ? waLink(phone) : ''
     return (
       <div className="card grid" style={{ maxWidth: 720 }}>
         <h1>Sessão encerrada</h1>

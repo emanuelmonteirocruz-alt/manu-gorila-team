@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { waLink } from '../../domain/whatsapp'
 import { Check, MessageCircle, UserX } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -9,10 +10,6 @@ import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
 import { titleCase } from '../format'
 
 const first = (s: Student) => titleCase(s.full_name).split(' ')[0]
-const waLink = (phone: string | null | undefined, text: string) => {
-  const d = (phone ?? '').replace(/\D/g, '')
-  return `https://wa.me/${d ? (d.length <= 11 ? '55' + d : d) : ''}?text=${encodeURIComponent(text)}`
-}
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000)
 
 /** "Feito" guardado no aparelho (por chave): some da lista até a situação mudar. */
