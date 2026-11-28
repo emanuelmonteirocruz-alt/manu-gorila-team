@@ -2,10 +2,15 @@
  * Primitivas de gráfico VETORIAL para jsPDF (linhas, retângulos e texto — sem rasterização).
  * Página em proporção de celular (9:16) para leitura direta no WhatsApp.
  */
+import { SIGNATURE_PNG, SIGNATURE_RATIO } from './signature'
 import { jsPDF } from 'jspdf'
 import { CanvasDoc, lastPageCount } from './canvasDoc'
 
-export const PAGE = { w: 360, h: 640, m: 20 }
+/** faixa da assinatura do treinador no fim da página (somada à altura, para não apertar o conteúdo) */
+export const SIG_H = 50
+/** treinador responsável (assina os PDFs) */
+export const TRAINER = { name: 'Emanuel Monteiro', title: 'Personal Trainer', cref: 'CREF 037945-G/MG' }
+export const PAGE = { w: 360, h: 640 + SIG_H, m: 20 }
 
 // Paleta dos relatórios (clean): fundo branco, grafite e azul petróleo da marca
 export const C = {
@@ -125,7 +130,36 @@ export const brandName = () => (brand?.name || 'Manu Team')
 export function chartSeal(d: jsPDF, xRight: number, yTop: number) {
   const s = 11
   logoOrEmblem(d, xRight - s, yTop - s + 2, s)
-  text(d, brandName().toUpperCase(), xRight - s - 4, yTop - 1.5, { size: 5.6, bold: true, c: '#94A3B8', align: 'right' })
+  const brandTxt = brandName().toUpperCase()
+  text(d, brandTxt, xRight - s - 4, yTop - 1.5, { size: 5.6, bold: true, c: '#94A3B8', align: 'right' })
+  // nome do aluno antes da marca: o gráfico é do treino DELE, não um modelo genérico
+  if (sealName) {
+    d.setFont('helvetica', 'bold'); d.setFontSize(5.6)
+    const bw = d.getTextWidth(brandTxt)
+    text(d, `${sealName.toUpperCase()}  ·`, xRight - s - 4 - bw - 3, yTop - 1.5, { size: 5.6, bold: true, c: C.ink, align: 'right' })
+  }
+}
+
+/** Nome do aluno no selo dos gráficos (primeiro + último nome); undefined = sem nome. */
+let sealName: string | undefined
+export function setSealName(full?: string) {
+  const p = (full ?? '').trim().split(/\s+/).filter(Boolean)
+  sealName = p.length ? (p.length > 1 ? `${p[0]} ${p[p.length - 1]}` : p[0]) : undefined
+}
+
+/** Assinatura do treinador no fim da página, como numa prescrição: assinatura, traço, nome e CREF. */
+export function signature(d: jsPDF) {
+  const cx = PAGE.w / 2, lineY = PAGE.h - 22
+  const sw = 104, sh = sw / SIGNATURE_RATIO
+  try {
+    d.addImage(SIGNATURE_PNG, 'PNG', cx - sw / 2, lineY - sh + 1, sw, sh, undefined, 'FAST')
+  } catch {
+    /* sem imagem: fica só o traço */
+  }
+  stroke(d, '#94A3B8'); d.setLineWidth(0.6)
+  d.line(cx - 70, lineY, cx + 70, lineY)
+  text(d, TRAINER.name, cx, lineY + 8, { size: 6.8, bold: true, c: C.ink, align: 'center' })
+  text(d, `${TRAINER.title} · ${TRAINER.cref}`, cx, lineY + 15, { size: 5.6, c: C.sub, align: 'center' })
 }
 
 export function header(d: jsPDF, title: string, subtitle: string, studentName?: string) {

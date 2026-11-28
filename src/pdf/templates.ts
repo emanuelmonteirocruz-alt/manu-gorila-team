@@ -10,7 +10,7 @@ import { DIET_LABEL, type Microcycle, type Session, type WeekContext } from '../
 import { aggregateSessions, challengeLevel, fmtBR, fmtNum, type Aggregate, type ProfileLookup, type WeekVerdict } from '../engine/metrics'
 import {
   C, PAGE, applyBrand, badgeRow, card, chartSeal, deltaPill, fill, header, iconFlame, iconTrend, legend, lineSeries,
-  muscleRanking, newDoc, ring, seal, sectionTitle, text, type MuscleRow, type PdfBrand,
+  muscleRanking, newDoc, ring, seal, sectionTitle, setSealName, signature, SIG_H, text, type MuscleRow, type PdfBrand,
 } from './charts'
 
 export interface WeekPoint {
@@ -64,6 +64,7 @@ function start(o: ReportOptions): jsPDF {
   CH_LABEL = o.challenge?.byLabel ?? {}
   CARDIO = o.cardio && o.cardio.sessions > 0 ? o.cardio : null
   BEFORE_LBL = 'antes'; AFTER_LBL = 'depois'
+  setSealName(nm(o))
   return newDoc()
 }
 // grupos realmente trabalhados (músculo auxiliar com pouca fração não conta como "grupo do treino")
@@ -88,7 +89,7 @@ const kgShort = (t: number) => (t > 0 ? `${fmtNum(t)} kg` : '—')
 // coluna da direita das barras: tonelagem no presencial; índice de intensidade na consultoria (sem kg)
 const rightOf = (a: Aggregate, o: ReportOptions) => (isOnline(o) ? (o.challenge ? `${challengeLevel(a, o.challenge.baseSession) ?? '—'}` : `${a.sessions} ${a.sessions === 1 ? 'treino' : 'treinos'}`) : kgShort(a.tonnageKg))
 const rightLabelOf = (o: ReportOptions) => (isOnline(o) ? (o.challenge ? 'Nível de estímulo' : 'Treinos') : 'Quilos levantados')
-const BOTTOM = PAGE.h - 14
+const BOTTOM = PAGE.h - 14 - SIG_H // o fim da página é da assinatura
 
 /** Grupamentos ordenados por volume + intensidade (base do "Foco muscular"). */
 function musclesOf(a: Aggregate, prev?: Aggregate): MuscleRow[] {
@@ -605,6 +606,7 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
       text(d, 'média de calorias por treino', PAGE.m + W - 12, y + 41, { size: 6, c: C.sub, align: 'right' })
     }
   }
+  signature(d)
   return d
 }
 
@@ -783,6 +785,7 @@ export function templateC(month: string, lifts: KeyLift[], weeks: WeekPoint[], o
     y = sy + 46
   }
   finish(d, y, monthAgg, monthAgg.sessions, !o.showEmphasis)
+  signature(d)
   return d
 }
 
@@ -896,6 +899,7 @@ export function templateD(session: Session, lookup: ProfileLookup, pse: number |
   }
   if (o.showEmphasis) y = focusSection(d, y + 4, a, undefined, 4)
   finish(d, y, a, 1, !o.showEmphasis)
+  signature(d)
   return d
 }
 
@@ -972,6 +976,7 @@ export function templateE(weekStartDate: string, items: WeekSession[], cur: Aggr
 
   if (o.showEmphasis) y = focusSection(d, y + 2, cur, prev?.validSets ? prev : undefined)
   finish(d, y, cur, items.length, !o.showEmphasis)
+  signature(d)
   return d
 }
 
@@ -1135,6 +1140,7 @@ export function templateL(mode: 'semana' | 'mes', weeks: string[], rows: LoadRow
     y += rowH
   }
   if (y + 14 <= BOTTOM) text(d, 'Melhor série de trabalho de cada exercício (aquecimento fora).', PAGE.m, y + 6, { size: 5.8, c: '#94A3B8' })
+  signature(d)
   return d
 }
 const addDaysISO = (iso: string, n: number) => {
