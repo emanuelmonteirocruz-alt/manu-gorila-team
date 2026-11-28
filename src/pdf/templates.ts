@@ -515,7 +515,14 @@ export function templateA(before: MonthSide, after: MonthSide, o: ReportOptions,
   } else if (shock) {
     // semana de choque: estímulo novo de propósito — diz o que mudou, sem nome de método
     text(d, PHASE_NAME.choque, PAGE.m + 16, shock.length ? y + 34 : y + 40, { size: 18, bold: true, c: '#ffffff' })
-    if (shock.length) text(d, `o que mudou: ${shock.slice(0, 3).join(' · ')}`, PAGE.m + 16, y + 50, { size: 7.2, c: '#D9E2EA' })
+    if (shock.length) text(d, `o que mudou: ${shock.slice(0, 2).join(' · ')}`, PAGE.m + 16, y + 50, { size: 7.2, c: '#D9E2EA' })
+    // a prova da semana à direita ("+12 séries de trabalho a mais"), só o número, sem frase
+    if (proof) {
+      const [lbl, , x, y2] = proof
+      const big = lbl === 'intensidade a mais' ? `+${Math.round(monthLevel!)}%` : lbl === 'carga mais pesada' ? `-${fmtNum(y2)} reps` : `+${fmtNum(y2 - x)}`
+      text(d, big, PAGE.m + W - 16, y + 38, { size: 28, bold: true, c: '#5EEAD4', align: 'right' })
+      text(d, lbl.toUpperCase(), PAGE.m + W - 16, y + 52, { size: 6.5, bold: true, c: '#D9E2EA', align: 'right' })
+    }
   } else if (proof) {
     const [lbl, sub, x, y2] = proof
     const isLvl = lbl === 'intensidade a mais'
