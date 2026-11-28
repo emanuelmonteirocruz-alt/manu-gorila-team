@@ -27,6 +27,10 @@
         <img src="/splash-landscape.webp" alt="" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:cover;object-position:50% 45%;display:block" />
       </picture>
     </div>
+    <script>
+      // gorila só ao abrir o app: ao atualizar a página (ou o app se atualizar sozinho) a abertura não aparece de novo
+      try { if (sessionStorage.getItem('mgt_splash')) document.getElementById('splash').remove(); else sessionStorage.setItem('mgt_splash', '1') } catch (e) { /* sem armazenamento: mostra normalmente */ }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
