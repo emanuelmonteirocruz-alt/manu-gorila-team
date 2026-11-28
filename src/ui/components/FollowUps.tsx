@@ -67,9 +67,31 @@ export function MissingStudents({ students }: { students: Student[] }) {
   )
 }
 
+/** Palavras do check-in conforme o plano do aluno (semanal, quinzenal, mensal). */
+const PERIOD_WORDS = {
+  semanal: { title: 'da semana', when: 'nesta semana', next: 'na próxima semana' },
+  quinzenal: { title: 'da quinzena', when: 'nessas duas semanas', next: 'no próximo treino' },
+  mensal: { title: 'do mês', when: 'neste mês', next: 'no próximo treino' },
+} as const
+const wordsOf = (s: Student) => PERIOD_WORDS[s.plan_period ?? 'semanal'] ?? PERIOD_WORDS.semanal
+
+export function feedbackMsg(s: Student): string {
+  const w = wordsOf(s)
+  return `Oi, ${first(s)}! Tudo certo? Hora do check-in ${w.title}:\n1) Quantos treinos você conseguiu fazer ${w.when}?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Tem algo que você quer que eu ajuste ${w.next}?`
+}
+
+/** Semana do retorno (domingo ainda conta como a semana que terminou). */
+function feedbackWeek(now = new Date()) {
+  return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
+}
+/** Ciclo do aluno: o check-in vale uma vez por ciclo (até a próxima troca de treino). */
+const cycleKey = (s: Student, wk: string) => `${s.id}:${s.next_change_date ?? wk}`
+/** Está no fim do ciclo? Troca de treino até o domingo da semana seguinte (semanal: toda semana). */
+const dueNow = (s: Student, wk: string) => !s.next_change_date || s.next_change_date <= addDays(wk, 13)
+
 /**
- * RETORNO DA SEMANA (consultoria): de sexta a domingo, lista dos alunos para mandar a pergunta da semana.
- * Manual por enquanto; depois vira disparo automático toda sexta.
+ * RETORNO (consultoria): de sexta a domingo, lista quem está no fim do ciclo
+ * (semanal toda semana; quinzenal e mensal na semana antes da troca). Manual por enquanto.
  */
 export function WeeklyFeedback({ students }: { students: Student[] }) {
   const now = new Date()
@@ -77,20 +99,20 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const { done, mark } = useDone('mgt_followup_feedback')
   if (![5, 6, 0].includes(dow)) return null
   const wk = feedbackWeek(now)
-  const list = students.filter((s) => s.modality === 'online' && !done.includes(`${s.id}:${wk}`))
-  const sent = students.filter((s) => s.modality === 'online').length - list.length
-  if (!list.length && !sent) return null
-  const msg = feedbackMsg
+  const due = students.filter((s) => s.modality === 'online' && dueNow(s, wk))
+  const list = due.filter((s) => !done.includes(cycleKey(s, wk)))
+  const sent = due.length - list.length
+  if (!due.length) return null
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Retorno da semana</h2><span className="muted">{sent} de {sent + list.length} enviados</span></div>
-      {!list.length ? <div className="empty"><Check size={15} /> Todos os alunos da consultoria receberam.</div> : (
+      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Check-in dos alunos</h2><span className="muted">{sent} de {due.length} enviados</span></div>
+      {!list.length ? <div className="empty"><Check size={15} /> Todos os check-ins desta semana foram enviados.</div> : (
         <div className="list-compact">
           {list.map((s) => (
             <div key={s.id} className="li">
-              <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b>{!s.phone && <div className="muted">sem telefone na ficha</div>}</Link>
+              <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b><div className="muted">check-in {wordsOf(s).title}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}{!s.phone ? ' · sem telefone na ficha' : ''}</div></Link>
               <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
-                <a className="btn sm primary" href={waLink(s.phone, msg(s))} target="_blank" rel="noreferrer" onClick={() => mark(`${s.id}:${wk}`)}><MessageCircle size={15} strokeWidth={1.8} /> Enviar</a>
+                <a className="btn sm primary" href={waLink(s.phone, feedbackMsg(s))} target="_blank" rel="noreferrer" onClick={() => mark(cycleKey(s, wk))}><MessageCircle size={15} strokeWidth={1.8} /> Enviar</a>
               </span>
             </div>
           ))}
@@ -100,24 +122,19 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   )
 }
 
-/** Semana do retorno (domingo ainda conta como a semana que terminou). */
-function feedbackWeek(now = new Date()) {
-  return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
-}
-const feedbackMsg = (s: Student) => `Oi, ${first(s)}! Tudo certo? Hora do check-in da semana:\n1) Quantos treinos você conseguiu fazer?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Tem algo que você quer que eu ajuste na próxima semana?`
-
-/** RETORNO DA SEMANA no perfil do aluno (consultoria): mandar a pergunta a qualquer dia; marca como enviado na semana (o Painel também vê). */
+/** CHECK-IN no perfil do aluno (consultoria): mandar a qualquer dia; marca como enviado no ciclo (o Painel também vê). */
 export function StudentFeedback({ student }: { student: Student }) {
   const { done, mark } = useDone('mgt_followup_feedback')
-  const key = `${student.id}:${feedbackWeek()}`
+  const key = cycleKey(student, feedbackWeek())
   const sent = done.includes(key)
+  const w = wordsOf(student)
   return (
     <div className="card grid">
       <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>Retorno da semana</b> {sent ? <span className="tag ok">enviado nesta semana</span> : <span className="muted">ainda não enviado</span>}</span>
-        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, feedbackMsg(student))} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar retorno'}</a>
+        <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>Check-in {w.title}</b> {sent ? <span className="tag ok">enviado neste ciclo</span> : <span className="muted">ainda não enviado{student.next_change_date ? ` · troca ${fmtBR(student.next_change_date).slice(0, 5)}` : ''}</span>}</span>
+        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, feedbackMsg(student))} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
       </div>
-      <div className="muted">Check-in: treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
+      <div className="muted">Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar {w.next}.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
     </div>
   )
 }
