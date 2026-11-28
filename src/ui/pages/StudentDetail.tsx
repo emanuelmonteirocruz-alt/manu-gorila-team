@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { db, save } from '../../data/db'
 import { resetTimeline } from '../../data/repo'
-import Copilot from '../components/Copilot'
 import NextCycle from '../components/NextCycle'
 import { CardioPanel } from '../components/CardioPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
@@ -38,7 +37,7 @@ export default function StudentDetail() {
   const student = useLiveQuery(() => db.students.get(id!), [id])
   const [params, setParams] = useSearchParams()
   const [tab0, setTab] = useState<Tab>(tabFrom(params.get('aba'), params.get('treino')))
-  const [build, setBuild] = useState<'ia' | 'colar'>('ia') // Montar: gerar pela IA ou colar do WhatsApp
+  const [build, setBuild] = useState<'ia' | 'colar'>('ia') // Montar: gerar automático ou colar do WhatsApp
   const [openSession, setOpenSession] = useState<string | null>(params.get('treino'))
   if (!student) return <div className="muted">Carregando…</div>
   const online = student.modality === 'online'
@@ -100,7 +99,7 @@ export default function StudentDetail() {
       {tab === 'montar' && online && (
         <div className="grid">
           <div className="chips build-choice">
-            <button type="button" className={`chip ${build === 'ia' ? 'on' : ''}`} onClick={() => setBuild('ia')}>Gerar pela IA</button>
+            <button type="button" className={`chip ${build === 'ia' ? 'on' : ''}`} onClick={() => setBuild('ia')}>Gerar automático</button>
             <button type="button" className={`chip ${build === 'colar' ? 'on' : ''}`} onClick={() => setBuild('colar')}>Colar do WhatsApp</button>
           </div>
           {build === 'colar' ? (
@@ -111,10 +110,6 @@ export default function StudentDetail() {
             </div>
           ) : (<>
             <NextCycle student={student} onOpenAnamnese={() => go('resumo')} />
-            <details className="card">
-              <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Gerador antigo (tempo disponível e IA)</summary>
-              <div style={{ marginTop: 10 }}><Copilot student={student} /></div>
-            </details>
           </>)}
         </div>
       )}

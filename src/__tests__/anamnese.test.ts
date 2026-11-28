@@ -92,7 +92,7 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
   }]
   it('choque: estímulo novo na ênfase, sem posição fixa, e o texto volta a ser lido pelo Colar WhatsApp', () => {
     for (let seed = 1; seed <= 30; seed++) {
-      const week = generateWeek({ base, phase: 'choque', intensity: 0, enfases: ['Glúteo'], lookup, seed })
+      const week = generateWeek({ vary: false,  base, phase: 'choque', intensity: 0, enfases: ['Glúteo'], lookup, seed })
       const txt = weekToWhatsApp(week)
       expect(txt.startsWith('*Treino A*')).toBe(true)
       const { exercises, ignored } = parsePrescriptionBlock(splitTrainingBlocks(txt, false)[0])
@@ -102,7 +102,7 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
     }
   })
   it('regenerativa: -1 série, 12–15 reps, sem técnicas', () => {
-    const week = generateWeek({ base: [{ ...base[0], exercises: [{ ...ex('Leg45', 4, 8), notes: 'Drop set · carga alta' }] }], phase: 'regenerativa', intensity: 0, enfases: [], lookup })
+    const week = generateWeek({ vary: false,  base: [{ ...base[0], exercises: [{ ...ex('Leg45', 4, 8), notes: 'Drop set · carga alta' }] }], phase: 'regenerativa', intensity: 0, enfases: [], lookup })
     const [e] = parsePrescriptionBlock(splitTrainingBlocks(weekToWhatsApp(week), false)[0]).exercises
     expect(e.validSets).toBe(3)
     expect(e.reps[0]).toEqual({ min: 12, max: 15 })
@@ -110,7 +110,7 @@ describe('rascunho da semana no padrão do WhatsApp', () => {
   })
   it('restrição de joelho marca o búlgaro para revisão; exercício que o aluno não pode fazer pede troca', () => {
     const t = buildTriage(sections, { [q('dores')]: 'dor no joelho', [q('nao_consegue')]: 'Elevação pélvica' })
-    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: [], triage: t, lookup })
+    const week = generateWeek({ vary: false,  base, phase: 'ordinaria', intensity: 0, enfases: [], triage: t, lookup })
     expect(week[0].exercises.find((e) => e.names[0] === 'Agachamento búlgaro')?.alert).toMatch(/joelho/)
     expect(weekToWhatsApp(week, true)).toMatch(/\(revisar \(joelho\)\)/)
     expect(week[0].exercises.find((e) => e.names[0] === 'Elevação pélvica')?.alert).toBe('trocar: aluno não pode fazer')
@@ -127,7 +127,7 @@ describe('choque sem receita fixa', () => {
     exercises: [ex('Agachamento livre', 4, 0), ex('Leg press', 4, 1), ex('Elevação pélvica', 3, 2), ex('Cadeira extensora', 3, 3, 12), ex('Mesa flexora', 3, 4, 12), ex('Abdutora', 3, 5, 15)] }
   const enfases = ['Glúteo', 'Perna - Quadríceps']
   const plan = (seed: number, extra: Partial<Parameters<typeof generateWeek>[0]> = {}) =>
-    generateWeek({ base: [treino], phase: 'choque', intensity: 0, enfases, lookup, seed, ...extra })[0].exercises.map((e) => e.changes.filter((c) => c !== '+1 série (ênfase)').join(',') || '-')
+    generateWeek({ vary: false,  base: [treino], phase: 'choque', intensity: 0, enfases, lookup, seed, ...extra })[0].exercises.map((e) => e.changes.filter((c) => c !== '+1 série (ênfase)').join(',') || '-')
 
   it('varia de uma geração para outra: exercício, posição e variável', () => {
     const plans = new Set(Array.from({ length: 20 }, (_, i) => plan(i + 1).join('|')))
@@ -155,7 +155,7 @@ describe('choque sem receita fixa', () => {
   it('pirâmide do aluno não ganha série extra', () => {
     const e: SessionExercise = { ...ex('Mesa flexora', 4, 0), reps: [15, 15, 12, 10].map((r) => ({ min: r, max: r })) }
     for (let seed = 1; seed <= 20; seed++) {
-      const w = generateWeek({ base: [{ ...treino, exercises: [e] }], phase: 'choque', intensity: 0, enfases: ['Perna - Posterior'], lookup, seed })
+      const w = generateWeek({ vary: false,  base: [{ ...treino, exercises: [e] }], phase: 'choque', intensity: 0, enfases: ['Perna - Posterior'], lookup, seed })
       expect(w[0].exercises[0].changes).not.toContain('+1 série (ênfase)')
     }
   })
@@ -185,7 +185,7 @@ describe('ênfase manda na ordem e no volume', () => {
   ]
   it('glúteo + posterior: o treino de posterior vira o Treino A e a ênfase ganha +1 série', async () => {
     const { missingEmphasis } = await import('../consultoria/generator')
-    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: ['Glúteo', 'Perna - Posterior'], lookup, seed: 7 })
+    const week = generateWeek({ vary: false,  base, phase: 'ordinaria', intensity: 0, enfases: ['Glúteo', 'Perna - Posterior'], lookup, seed: 7 })
     expect(week.map((t) => t.label)).toEqual(['Treino A', 'Treino B', 'Treino C'])
     expect(week[0].exercises.map((e) => e.names[0])).toEqual(['Stiff', 'Elevação pélvica', 'Mesa flexora'])
     expect(week[0].movedFrom).toBe('Treino C')
@@ -197,7 +197,7 @@ describe('ênfase manda na ordem e no volume', () => {
     expect(missingEmphasis(base, ['Glúteo', 'Panturrilha'], lookup)).toEqual(['Panturrilha'])
   })
   it('sem ênfase a ordem da semana base fica igual', () => {
-    const week = generateWeek({ base, phase: 'ordinaria', intensity: 0, enfases: [], lookup })
+    const week = generateWeek({ vary: false,  base, phase: 'ordinaria', intensity: 0, enfases: [], lookup })
     expect(week.map((t) => t.exercises[0].names[0])).toEqual(['Supino reto', 'Puxada frontal', 'Stiff'])
   })
 })
@@ -245,7 +245,7 @@ describe('observações do treinador', () => {
     const ex = (name: string, i: number): SessionExercise => ({ id: name, position: i, exercise_key: normalizeKey(name), display_name: name, valid_sets: 3, warmup_sets: 0, heavy_sets: 0, reps: [10, 10, 10].map((r) => ({ min: r, max: r })), drop_set: false })
     const s: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '', exercises: ['Leg press', 'Cadeira extensora', 'Mesa flexora', 'Abdutora', 'Elevação pélvica'].map(ex) }
     for (let seed = 1; seed <= 20; seed++) {
-      const w = generateWeek({ base: [s], phase: 'choque', intensity: 0, enfases: ['Glúteo', 'Perna - Quadríceps'], triage: t, lookup, seed })
+      const w = generateWeek({ vary: false,  base: [s], phase: 'choque', intensity: 0, enfases: ['Glúteo', 'Perna - Quadríceps'], triage: t, lookup, seed })
       const vars = w[0].exercises.flatMap((e) => e.changes.filter((c) => c !== '+1 série (ênfase)'))
       expect(vars.length).toBeLessThanOrEqual(1)
       expect(vars.some((v) => /FST|falha|parciais/.test(v))).toBe(false)
@@ -276,7 +276,7 @@ describe('nível do aluno (consultoria)', () => {
   const treino: Session = { id: 's', student_id: 'x', date: '2026-11-23', label: 'Treino A', source: 'whatsapp', muscle_groups: [], created_at: '', updated_at: '',
     exercises: [ex('Agachamento livre', 4, 0), ex('Leg press', 4, 1), ex('Elevação pélvica', 3, 2), ex('Cadeira extensora', 3, 3, 12), ex('Mesa flexora', 3, 4, 12), ex('Abdutora', 3, 5, 15), ex('Panturrilha sentado', 3, 6, 15)] }
   const run = (level: string, phase: 'choque' | 'ordinaria' | 'regenerativa', seed: number) =>
-    generateWeek({ base: [treino], phase, intensity: 0, enfases: ['Glúteo'], lookup, seed, level: level as never })[0].exercises
+    generateWeek({ vary: false,  base: [treino], phase, intensity: 0, enfases: ['Glúteo'], lookup, seed, level: level as never })[0].exercises
   const vars = (exs: ReturnType<typeof run>) => exs.flatMap((e) => e.changes.filter((c) => !/série/.test(c)))
   it('atleta: 3 métodos no choque, um de cada família; adaptação: no máximo 1 e só simples', async () => {
     const { SHOCK_VARIABLES } = await import('../consultoria/shockVariables')
@@ -311,7 +311,7 @@ describe('nível do aluno (consultoria)', () => {
     expect(i[0].reps[0]).toEqual({ min: 12, max: 15 })
   })
   it('adaptação nunca desce abaixo de 10 reps, mesmo progredindo', () => {
-    const w = generateWeek({ base: [treino], phase: 'ordinaria', intensity: 1, enfases: [], lookup, seed: 1, level: 'adaptacao' })
+    const w = generateWeek({ vary: false,  base: [treino], phase: 'ordinaria', intensity: 1, enfases: [], lookup, seed: 1, level: 'adaptacao' })
     expect(w[0].exercises.every((e) => e.reps.every((r) => r.min >= 10))).toBe(true)
   })
 })

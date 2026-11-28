@@ -10,6 +10,7 @@ import type { Triage } from './triage'
 import { muscleShares } from '../engine/exerciseSeed'
 import { SHOCK_VARIABLES, pickWeighted, rng, usedVariables, type ShockVariable } from './shockVariables'
 import { levelFor, type LevelRule } from './levels'
+import { varyWeek } from './variation'
 import type { TrainingLevel } from '../domain/types'
 
 export type Intensity = -1 | 0 | 1
@@ -24,6 +25,7 @@ export interface GenerateInput {
   history?: Session[] // semanas anteriores do aluno: o choque evita repetir a variável que ele já fez no exercício
   seed?: number // sorteio das variáveis (cada "Gerar" sai diferente; nos testes fica fixo)
   level?: TrainingLevel | null // nível da ficha (adaptação … atleta); sem ele, vem da anamnese
+  vary?: boolean // troca exercícios, ordem e foco da semana (padrão: sim)
 }
 
 export interface GeneratedExercise {
@@ -176,7 +178,8 @@ export function generateWeek(inp: GenerateInput): GeneratedTraining[] {
     const emphasisScore = exercises.reduce((a, x, i) => a + x.sets * meta[i].emphShare, 0)
     out.push({ label: s.label, exercises, emphasisScore })
   }
-  return orderByEmphasis(out, inp.enfases)
+  const varied = inp.vary === false ? out : varyWeek(out, { phase: inp.phase, triage: inp.triage, lookup: inp.lookup, history: inp.history, minReps: lv.minReps, intensity: inp.intensity, seed: inp.seed })
+  return orderByEmphasis(varied, inp.enfases)
 }
 
 /** "4x10", "3x8-12", "15/12/10/8", "3xMáx" — o padrão que o leitor do WhatsApp entende. */
