@@ -223,3 +223,11 @@ export interface NutritionEntry extends SyncMeta {
   raw_text?: string | null
   created_at: string
 }
+
+/** Acompanhamento enviado ao aluno (check-in da semana, aluno sumido): sincroniza entre aparelhos. */
+export interface FollowUp extends SyncMeta {
+  id: string
+  student_id: string
+  key: string // "f:2026-11-23" (check-in completo da semana), "q:…" (rápido), "missing:2026-11-10" (aluno sumido)
+  created_at: string
+}

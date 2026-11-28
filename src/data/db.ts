@@ -4,7 +4,7 @@
  */
 import Dexie, { type Table } from 'dexie'
 import type {
-  Anamnese, CardioEntry, DailyCheckin, NutritionEntry, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
+  Anamnese, CardioEntry, DailyCheckin, FollowUp, NutritionEntry, ExerciseLink, ExerciseProfile, Session, SessionRating, Student, WeekContext,
 } from '../domain/types'
 import { SEED_PROFILES, SEED_VERSION, heuristicProfile } from '../engine/exerciseSeed'
 
@@ -25,6 +25,7 @@ class TreinoDB extends Dexie {
   anamneses!: Table<Anamnese, string>
   cardio!: Table<CardioEntry, string>
   nutrition!: Table<NutritionEntry, string>
+  followups!: Table<FollowUp, string>
   files!: Table<{ id: string; blob: Blob; name: string; mime: string; uploaded?: 0 | 1 }, string>
 
   constructor() {
@@ -45,6 +46,8 @@ class TreinoDB extends Dexie {
     this.version(3).stores({ cardio: 'id, student_id, date, [student_id+date], _dirty' })
     // v4 (acréscimo): avaliação do nutricionista + arquivos guardados no aparelho até subir para a nuvem
     this.version(4).stores({ nutrition: 'id, student_id, date, _dirty', files: 'id, uploaded' })
+    // v5 (acréscimo): check-ins / acompanhamentos enviados (sincronizam entre tablet, celular e PC)
+    this.version(5).stores({ followups: 'id, student_id, key, [student_id+key], _dirty' })
     this.on('populate', (tx) => {
       tx.table('exerciseCache').bulkAdd(SEED_PROFILES)
     })

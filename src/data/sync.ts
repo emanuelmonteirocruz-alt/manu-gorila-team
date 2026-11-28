@@ -95,13 +95,13 @@ const fromRemote = <T extends object>(row: T) => {
   return { ...rest, _dirty: 0 as const }
 }
 
-type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins' | 'anamneses' | 'cardio' | 'nutrition'
+type Simple = 'students' | 'weekContexts' | 'ratings' | 'checkins' | 'anamneses' | 'cardio' | 'nutrition' | 'followups'
 /** Chaves naturais únicas: evita conflito quando duas telas criam o mesmo registro offline. */
-const CONFLICT: Partial<Record<Simple, string>> = { weekContexts: 'student_id,week_start', checkins: 'student_id,date,reported_by', anamneses: 'student_id' }
+const CONFLICT: Partial<Record<Simple, string>> = { weekContexts: 'student_id,week_start', checkins: 'student_id,date,reported_by', anamneses: 'student_id', followups: 'student_id,key' }
 
 const REMOTE: Record<Simple, string> = {
   students: 'students', weekContexts: 'week_context', ratings: 'session_ratings', checkins: 'daily_checkins',
-  anamneses: 'anamneses', cardio: 'cardio', nutrition: 'nutrition',
+  anamneses: 'anamneses', cardio: 'cardio', nutrition: 'nutrition', followups: 'followups',
 }
 
 export interface SyncResult {
@@ -111,6 +111,12 @@ export interface SyncResult {
   /** 'local' = sem nuvem configurada · 'login' = falta entrar neste aparelho · 'offline' · 'error' · 'ok' */
   state: 'local' | 'login' | 'offline' | 'error' | 'ok'
   at?: string
+}
+
+/** Tabela ainda não criada no Supabase (migração não rodada). */
+function missingTable(e: unknown): boolean {
+  const m = (e as { message?: string; code?: string })?.message ?? String(e)
+  return /relation .* does not exist|Could not find the table|schema cache|PGRST205|42P01/i.test(m + ((e as { code?: string })?.code ?? ''))
 }
 
 /** Mensagens do Supabase/RLS traduzidas para o que o treinador precisa fazer. */
@@ -177,6 +183,8 @@ async function doSync(): Promise<SyncResult> {
     // students antes de sessions (FK)
     pushed += await uploadFiles(sb)
     for (const t of ['students', 'weekContexts', 'anamneses', 'cardio', 'nutrition'] as Simple[]) pushed += await pushSimple(sb, t)
+    // check-ins enviados: se a tabela ainda não existe no Supabase (SQL 0014 não rodado), fica só no aparelho, sem travar o resto
+    try { pushed += await pushSimple(sb, 'followups') } catch (e) { if (!missingTable(e)) throw e }
     pushed += await pushSessions(sb)
     for (const t of ['ratings', 'checkins'] as Simple[]) pushed += await pushSimple(sb, t)
     const dirtyLinks = await db.links.where('_dirty').equals(1).toArray()
@@ -280,8 +288,10 @@ async function pullAll(sb: SupabaseClient): Promise<number> {
     if (rows.length) marks[table] = rows[rows.length - 1].synced_at
   }
 
-  for (const t of ['students', 'weekContexts', 'anamneses', 'cardio', 'nutrition'] as Simple[]) {
-    const rows = await fetchChanged<{ id: string; synced_at: string; deleted?: boolean }>(sb, REMOTE[t], marks[REMOTE[t]] ?? '')
+  for (const t of ['students', 'weekContexts', 'anamneses', 'cardio', 'nutrition', 'followups'] as Simple[]) {
+    let rows: { id: string; synced_at: string; deleted?: boolean }[]
+    try { rows = await fetchChanged<{ id: string; synced_at: string; deleted?: boolean }>(sb, REMOTE[t], marks[REMOTE[t]] ?? '') }
+    catch (e) { if (t === 'followups' && missingTable(e)) continue; throw e }
     for (const r of rows) {
       const local = (await db[t].get(r.id)) as { _dirty?: number } | undefined
       if (local?._dirty) continue // alteração local pendente vence até ser enviada

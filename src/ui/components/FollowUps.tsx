@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { waLink, waProblem } from '../../domain/whatsapp'
 import { Check, MessageCircle, UserX } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { db } from '../../data/db'
+import { db, nowISO, save } from '../../data/db'
 import { PERIOD_WEEKS } from '../../domain/plan'
 import type { Student } from '../../domain/types'
 import { addDays, fmtBR, toISODate, weekStart } from '../../engine/metrics'
@@ -12,7 +12,6 @@ import { titleCase } from '../format'
 const first = (s: Student) => titleCase(s.full_name).split(' ')[0]
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000)
 
-/** "Feito" guardado no aparelho (por chave): some da lista até a situação mudar. */
 /**
  * Marcações de check-in feitas antes do formato atual ("aluno:data da troca" ou "aluno:semana", todas da
  * semana de 23/11/2026) viram "enviado na semana de 23/11" — assim ninguém que já recebeu volta para a lista.
@@ -28,18 +27,44 @@ export function migrateFeedbackKeys(list: string[]): string[] {
   return [...out]
 }
 
-function useDone(prefix: string) {
-  const read = () => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(prefix) ?? '[]') as string[]
-      if (prefix !== 'mgt_followup_feedback') return raw
-      const m = migrateFeedbackKeys(raw)
-      if (m.length !== raw.length || m.some((k, i) => k !== raw[i])) localStorage.setItem(prefix, JSON.stringify(m))
-      return m
-    } catch { return [] }
-  }
-  const [done, setDone] = useState<string[]>(read)
-  const mark = (k: string) => { const n = [...new Set([...done, k])]; setDone(n); try { localStorage.setItem(prefix, JSON.stringify(n.slice(-300))) } catch { /* sem armazenamento */ } }
+/** Marcações antigas guardadas só no aparelho (localStorage) → registros na nuvem (uma vez por aparelho). */
+let importing: Promise<void> | null = null
+function importLocalMarks() { return (importing ??= doImport()) }
+async function doImport() {
+  try {
+    if (localStorage.getItem('mgt_followups_imported') === '1') return
+    const fb = migrateFeedbackKeys(JSON.parse(localStorage.getItem('mgt_followup_feedback') ?? '[]') as string[])
+    const ms = (JSON.parse(localStorage.getItem('mgt_followup_missing') ?? '[]') as string[]).map((k) => { const [id, ...r] = k.split(':'); return `${id}:missing:${r.join(':')}` })
+    for (const k of [...fb, ...ms]) await markDone(k)
+    localStorage.setItem('mgt_followups_imported', '1')
+  } catch { /* sem armazenamento: segue só com a nuvem */ }
+}
+
+/** UUID determinístico (SHA-1 do texto, formato de uuid v5). */
+async function stableId(text: string): Promise<string> {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode('manu-followup:' + text))).slice(0, 16)
+  h[6] = (h[6] & 0x0f) | 0x50; h[8] = (h[8] & 0x3f) | 0x80
+  const x = [...h].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`
+}
+
+/** Grava "feito" (chave "aluno:tipo:data") como registro que sincroniza entre aparelhos. */
+async function markDone(k: string) {
+  const i = k.indexOf(':')
+  const student_id = k.slice(0, i), key = k.slice(i + 1)
+  if (!student_id || !key) return
+  // id fixo por aluno + chave: dois aparelhos (ou dois cliques) gravam o MESMO registro, sem duplicar
+  const id = await stableId(`${student_id}:${key}`)
+  const has = await db.followups.get(id)
+  if (has && !has._deleted) return
+  await save(db.followups, { id, student_id, key, created_at: has?.created_at ?? nowISO(), updated_at: nowISO(), _deleted: 0 })
+}
+
+/** "Feito" de check-ins e alunos sumidos: vem da nuvem (mesmo controle no tablet, celular e PC). */
+function useDone(_prefix?: string) {
+  useEffect(() => { void importLocalMarks() }, [])
+  const done = useLiveQuery(async () => (await db.followups.toArray()).filter((f) => !f._deleted).map((f) => `${f.student_id}:${f.key}`), []) ?? []
+  const mark = (k: string) => { void markDone(k) }
   return { done, mark }
 }
 
@@ -60,7 +85,7 @@ export function MissingStudents({ students }: { students: Student[] }) {
     if (!l) return []
     const days = daysBetween(l, today)
     const limit = s.modality === 'presencial' ? 7 : (PERIOD_WEEKS[s.plan_period ?? 'semanal'] ?? 1) * 7 + 7
-    const key = `${s.id}:${l}` // novo treino → volta a valer
+    const key = `${s.id}:missing:${l}` // novo treino → volta a valer
     return days >= limit && !done.includes(key) ? [{ s, l, days, key }] : []
   }).sort((a, b) => b.days - a.days)
   if (!list.length) return null
