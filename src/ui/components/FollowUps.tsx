@@ -104,7 +104,7 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
 function feedbackWeek(now = new Date()) {
   return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
 }
-const feedbackMsg = (s: Student) => `Oi, ${first(s)}! Retorno da semana:\n1) Quantos treinos você fez?\n2) Esforço da semana de 0 a 10?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Peso de hoje (se tiver)?`
+const feedbackMsg = (s: Student) => `Oi, ${first(s)}! Tudo certo? Hora do check-in da semana:\n1) Quantos treinos você conseguiu fazer?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Tem algo que você quer que eu ajuste na próxima semana?`
 
 /** RETORNO DA SEMANA no perfil do aluno (consultoria): mandar a pergunta a qualquer dia; marca como enviado na semana (o Painel também vê). */
 export function StudentFeedback({ student }: { student: Student }) {
@@ -117,7 +117,7 @@ export function StudentFeedback({ student }: { student: Student }) {
         <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>Retorno da semana</b> {sent ? <span className="tag ok">enviado nesta semana</span> : <span className="muted">ainda não enviado</span>}</span>
         <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, feedbackMsg(student))} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar retorno'}</a>
       </div>
-      <div className="muted">Pergunta: treinos feitos, esforço de 0 a 10, dor ou dificuldade e peso.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
+      <div className="muted">Check-in: treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
     </div>
   )
 }
