@@ -100,7 +100,9 @@ export function parseWhatsAppTrainings(raw: string, opts: ParseOptions = {}): Pa
 }
 
 // títulos de treino, inclusive em negrito do WhatsApp: *Treino A*, _Treino B_, TREINO C - Pernas
-const TITLE = /^\s*[*_~]*\s*(treino\s+[a-z0-9]+|dia\s+\d+|[a-f]\s*[).:-])[*_~]*\s*[:\-–]?\s*/i
+// também aceita: emoji/símbolo antes (🔥 TREINO A, ➡️, •, 1️⃣), caractere invisível do WhatsApp no começo,
+// "TREINO - A", "Treino: A", "Treino 01" e dia da semana sozinho como título ("Segunda-feira")
+const TITLE = /^[\s\u200b-\u200f\u2060\ufeff]*(?:[^\p{L}\p{N}\s]+\s*)*(?:\p{N}\ufe0f?\u20e3\s*)?[*_~]*\s*(treino(?:\s*[:\-–—]\s*|\s+)[a-z0-9]+|dia\s+\d+|(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:-feira)?(?=\s*[*_~]*\s*[:\-–—]?\s*$)|(?:s[áa]bado|domingo)(?=\s*[*_~]*\s*[:\-–—]?\s*$)|[a-f]\s*[).:-])(?![\p{L}\p{N}])[*_~]*\s*[:\-–—]?\s*/iu
 
 /** Separa um texto em treinos: por títulos; sem títulos, por 2 linhas em branco (só no texto livre). */
 export function splitTrainingBlocks(raw: string, blankLineSplits: boolean): string[] {
