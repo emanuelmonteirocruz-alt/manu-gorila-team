@@ -21,3 +21,12 @@ test('check-in muda com o plano', () => {
   expect(feedbackMsg(st('mensal'))).toContain('check-in do mês')
   expect(feedbackMsg(st('mensal'))).toContain('Oi, Rafa!')
 })
+
+import { checkinOf } from '../ui/components/FollowUps'
+test('rápido no meio do ciclo, completo antes da troca', () => {
+  const st = (p: Student['plan_period'], ch: string) => ({ id: 'x', full_name: 'Lia', plan_period: p, next_change_date: ch }) as Student
+  expect(checkinOf(st('mensal', '2026-12-20'), '2026-11-23').full).toBe(false)
+  expect(checkinOf(st('mensal', '2026-12-06'), '2026-11-23').full).toBe(true)
+  expect(checkinOf(st('semanal', '2026-12-20'), '2026-11-23').full).toBe(true)
+  expect(checkinOf(st('quinzenal', '2026-12-13'), '2026-11-23').text).toContain('Passando para saber')
+})

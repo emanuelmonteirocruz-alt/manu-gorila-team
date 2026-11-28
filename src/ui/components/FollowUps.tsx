@@ -80,6 +80,11 @@ export function feedbackMsg(s: Student): string {
   return `Oi, ${first(s)}! Tudo certo? Hora do check-in ${w.title}:\n1) Quantos treinos você conseguiu fazer ${w.when}?\n2) De 0 a 10, quão puxados foram?\n3) Sentiu alguma dor ou dificuldade em algum exercício?\n4) Tem algo que você quer que eu ajuste ${w.next}?`
 }
 
+/** Check-in rápido (meio do ciclo de quinzenais e mensais): só acompanhar a semana. */
+export function quickMsg(s: Student): string {
+  return `Oi, ${first(s)}! Tudo certo? Passando para saber da sua semana:\n1) Quantos treinos você conseguiu fazer?\n2) Algum exercício incomodou ou ficou difícil?`
+}
+
 /** Semana do retorno (domingo ainda conta como a semana que terminou). */
 function feedbackWeek(now = new Date()) {
   return weekStart(addDays(toISODate(now), now.getDay() === 0 ? -1 : 0))
@@ -88,6 +93,13 @@ function feedbackWeek(now = new Date()) {
 const cycleKey = (s: Student, wk: string) => `${s.id}:${s.next_change_date ?? wk}`
 /** Está no fim do ciclo? Troca de treino até o domingo da semana seguinte (semanal: toda semana). */
 const dueNow = (s: Student, wk: string) => !s.next_change_date || s.next_change_date <= addDays(wk, 13)
+/** Qual check-in vale nesta semana: completo no fim do ciclo (semanal sempre), rápido no meio do ciclo. */
+export function checkinOf(s: Student, wk: string): { full: boolean; key: string; text: string; label: string } {
+  const full = (s.plan_period ?? 'semanal') === 'semanal' || dueNow(s, wk)
+  return full
+    ? { full, key: cycleKey(s, wk), text: feedbackMsg(s), label: `check-in completo ${wordsOf(s).title}` }
+    : { full, key: `${s.id}:q:${wk}`, text: quickMsg(s), label: 'check-in rápido' }
+}
 
 /**
  * RETORNO (consultoria): de sexta a domingo, lista quem está no fim do ciclo
@@ -99,8 +111,8 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const { done, mark } = useDone('mgt_followup_feedback')
   if (![5, 6, 0].includes(dow)) return null
   const wk = feedbackWeek(now)
-  const due = students.filter((s) => s.modality === 'online' && dueNow(s, wk))
-  const list = due.filter((s) => !done.includes(cycleKey(s, wk)))
+  const due = students.filter((s) => s.modality === 'online')
+  const list = due.filter((s) => !done.includes(checkinOf(s, wk).key))
   const sent = due.length - list.length
   if (!due.length) return null
   return (
@@ -110,9 +122,9 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
         <div className="list-compact">
           {list.map((s) => (
             <div key={s.id} className="li">
-              <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b><div className="muted">check-in {wordsOf(s).title}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}{!s.phone ? ' · sem telefone na ficha' : ''}</div></Link>
+              <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b><div className="muted">{checkinOf(s, wk).label}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}{!s.phone ? ' · sem telefone na ficha' : ''}</div></Link>
               <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
-                <a className="btn sm primary" href={waLink(s.phone, feedbackMsg(s))} target="_blank" rel="noreferrer" onClick={() => mark(cycleKey(s, wk))}><MessageCircle size={15} strokeWidth={1.8} /> Enviar</a>
+                <a className="btn sm primary" href={waLink(s.phone, checkinOf(s, wk).text)} target="_blank" rel="noreferrer" onClick={() => mark(checkinOf(s, wk).key)}><MessageCircle size={15} strokeWidth={1.8} /> Enviar</a>
               </span>
             </div>
           ))}
@@ -125,16 +137,17 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
 /** CHECK-IN no perfil do aluno (consultoria): mandar a qualquer dia; marca como enviado no ciclo (o Painel também vê). */
 export function StudentFeedback({ student }: { student: Student }) {
   const { done, mark } = useDone('mgt_followup_feedback')
-  const key = cycleKey(student, feedbackWeek())
+  const c = checkinOf(student, feedbackWeek())
+  const key = c.key
   const sent = done.includes(key)
   const w = wordsOf(student)
   return (
     <div className="card grid">
       <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>Check-in {w.title}</b> {sent ? <span className="tag ok">enviado neste ciclo</span> : <span className="muted">ainda não enviado{student.next_change_date ? ` · troca ${fmtBR(student.next_change_date).slice(0, 5)}` : ''}</span>}</span>
-        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, feedbackMsg(student))} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
+        <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>{c.full ? `Check-in completo ${w.title}` : 'Check-in rápido da semana'}</b> {sent ? <span className="tag ok">{c.full ? 'enviado neste ciclo' : 'enviado nesta semana'}</span> : <span className="muted">ainda não enviado{student.next_change_date ? ` · troca ${fmtBR(student.next_change_date).slice(0, 5)}` : ''}</span>}</span>
+        <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
       </div>
-      <div className="muted">Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar {w.next}.{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
+      <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos e se algo incomodou. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
     </div>
   )
 }
