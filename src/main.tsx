@@ -31,9 +31,12 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// tira a tela de abertura assim que o app desenhou a primeira tela
-requestAnimationFrame(() => {
+// tira a tela de abertura: fica pelo menos 1,4 s para a cena aparecer (toque para pular)
+{
   const sp = document.getElementById('splash')
-  if (!sp) return
-  setTimeout(() => { sp.style.opacity = '0'; setTimeout(() => sp.remove(), 400) }, 250)
-})
+  if (sp) {
+    const hide = () => { sp.style.opacity = '0'; setTimeout(() => sp.remove(), 500) }
+    sp.addEventListener('click', hide, { once: true })
+    setTimeout(hide, Math.max(0, 1400 - performance.now()))
+  }
+}
