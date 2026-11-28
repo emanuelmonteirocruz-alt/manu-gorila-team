@@ -64,25 +64,24 @@ export default function Students() {
       </div>
       <div className="card scroll-x only-desktop">
         <table className="t">
-          <thead><tr><th>Nome</th><th>Modalidade</th><th>Plano</th><th>Freq.</th><th>Venc.</th><th>Troca de treino</th><th>Valor</th><th>Hora/aula</th><th>Pagamento</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Modalidade</th><th>Plano</th><th>Venc.</th><th>Troca de treino</th><th>Valor</th><th>Hora/aula</th><th>Pagamento</th><th></th></tr></thead>
           <tbody>
             {shown.map((s) => (
               <tr key={s.id} className="click" onClick={() => nav(`/alunos/${s.id}`)}>
                 <td><b>{s.full_name}</b> <ChangeBadge student={s} /></td>
                 <td>{s.modality === 'online' ? 'Consultoria' : 'Presencial'}</td>
-                <td>{s.plan_name || '—'}</td>
-                <td>{s.modality === 'online' ? (s.plan_period ? PERIOD_LABEL[s.plan_period] : '—') : `${s.weekly_frequency ?? '—'}x/sem`}</td>
+                <td>{s.modality === 'online' ? (s.plan_period ? PERIOD_LABEL[s.plan_period] : '—') : s.weekly_frequency ? `${s.weekly_frequency}x/semana` : '—'}</td>
                 <td>{s.due_date ? fmtBR(s.due_date) : s.due_day ? `dia ${s.due_day}` : '—'}</td>
-                <td>{s.modality === 'online' && s.next_change_date ? fmtBR(s.next_change_date) : '—'}</td>
+                <td>{s.modality === 'online' ? (s.next_change_date ? fmtBR(s.next_change_date) : '—') : ''}</td>
                 <td>{s.plan_value ? `R$ ${s.plan_value.toFixed(2).replace(".", ",")}` : '—'}</td>
-                <td>{s.hourly_rate ? `R$ ${s.hourly_rate.toFixed(2).replace(".", ",")}` : '—'}</td>
+                <td>{s.modality === 'presencial' ? (s.hourly_rate ? `R$ ${s.hourly_rate.toFixed(2).replace(".", ",")}` : '—') : ''}</td>
                 <td><span className={`tag ${s.payment_status === 'em_dia' ? 'regenerativa' : s.payment_status === 'atrasado' ? 'pay-late' : 'warn'}`}>{s.payment_status === 'atrasado' ? 'Atrasado' : s.payment_status.replace('_', ' ')}</span></td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <ConfirmButton label={<Trash2 size={16} strokeWidth={1.8} />} confirmLabel="Deseja realmente excluir este aluno?" className="btn danger trash-btn" onConfirm={() => deleteStudent(s.id)} />
                 </td>
               </tr>
             ))}
-            {!shown.length && <tr><td colSpan={10} className="muted">Nenhum aluno neste filtro.</td></tr>}
+            {!shown.length && <tr><td colSpan={9} className="muted">Nenhum aluno neste filtro.</td></tr>}
           </tbody>
         </table>
       </div>

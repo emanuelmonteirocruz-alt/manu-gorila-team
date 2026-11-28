@@ -130,7 +130,7 @@ export default function InPerson() {
       {step === 1 && (
         <div className="big-tiles">
           {students.map((s) => (
-            <button key={s.id} className="tile" onClick={() => setStudent(s)}>{s.full_name}{s.payment_status === 'atrasado' && <small className="pay-late-text">Mensalidade atrasada</small>}<small>{[s.plan_name, s.weekly_frequency ? `${s.weekly_frequency}x/sem` : ''].filter(Boolean).join(' · ') || 'Presencial'}</small></button>
+            <button key={s.id} className="tile" onClick={() => setStudent(s)}>{s.full_name}{s.payment_status === 'atrasado' && <small className="pay-late-text">Mensalidade atrasada</small>}<small>{[s.weekly_frequency ? `${s.weekly_frequency}x/sem` : ''].filter(Boolean).join(' · ') || 'Presencial'}</small></button>
           ))}
           {!students.length && <div className="muted">Cadastre alunos com modalidade Presencial.</div>}
         </div>

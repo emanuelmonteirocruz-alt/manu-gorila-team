@@ -73,7 +73,7 @@ export function ConsultancyBar({ student, showPaste = true, hideName = false }: 
         {!hideName && <div className="row" style={{ justifyContent: 'space-between' }}>
           <div style={{ minWidth: 0 }}>
             <b style={{ fontSize: 17 }}>{student.full_name}</b>
-            <div className="muted">{student.plan_name || 'Consultoria Online'}{student.phone ? ` · ${student.phone}` : ''}</div>
+            <div className="muted">Consultoria Online{student.phone ? ` · ${student.phone}` : ''}</div>
           </div>
           {st && <span className={`tag ${st.level === 'proximo' ? 'warn' : 'danger'}`}><Bell size={12} /> {st.label}</span>}
         </div>}
