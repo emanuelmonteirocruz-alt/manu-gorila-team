@@ -37,7 +37,7 @@ export default function Settings() {
     try { sb = await getSupabase() } catch (e) { return setMsg((e as Error).message) }
     if (!sb) return setMsg('Informe a URL e a chave do Supabase.')
     let error: { message: string } | null
-    try { ({ error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd })) }
+    try { ({ error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pwd.trim() })) }
     catch (e) { return setMsg(`Não consegui falar com o Supabase (${(e as Error).message}). Confira a URL na Vercel e se o projeto não está pausado.`) }
     if (error) {
       const m = error.message
@@ -95,8 +95,8 @@ export default function Settings() {
           )}
           {!who && (
             <div className="grid cols-2">
-              <label className="f">E-mail do treinador<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-              <label className="f">Senha<input type="password" autoComplete="current-password" value={pwd} onChange={(e) => setPwd(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()} /></label>
+              <label className="f">E-mail do treinador<input type="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label className="f">Senha<input type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={pwd} onChange={(e) => setPwd(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()} /></label>
             </div>
           )}
           <div className="row">
