@@ -14,6 +14,7 @@ import {
   DIET_LABEL, MICRO_LABEL, MUSCLE_GROUPS, SLEEP_LABEL, type SleepQuality, type DietPhase, type Microcycle, type Modality, type Student, type WeekContext,
 } from '../../domain/types'
 import { addDays, computeHourlyRate, fmtBR, toISODate } from '../../engine/metrics'
+import { waProblem } from '../../domain/whatsapp'
 import { PERIOD_LABEL, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
 
 export function MicroTag({ m, blocked }: { m?: Microcycle | null; blocked?: boolean }) {
@@ -104,7 +105,7 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
       </label>
       <div className="grid cols-3">
         <label className="f">Nome completo<input id="st-name" required value={s.full_name} onChange={(e) => set('full_name', e.target.value)} /></label>
-        <label className="f">WhatsApp<input id="st-phone" inputMode="tel" value={s.phone ?? ''} onChange={(e) => set('phone', e.target.value)} /></label>
+        <label className="f">WhatsApp<input id="st-phone" inputMode="tel" placeholder="(11) 98765-4321" value={s.phone ?? ''} onChange={(e) => set('phone', e.target.value)} />{waProblem(s.phone) && <span style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)" }}>{waProblem(s.phone)}</span>}</label>
         {s.modality === 'presencial' && (
           <label className="f">Sexo biológico
             <select id="st-sex" value={s.sex} onChange={(e) => set('sex', e.target.value as Student['sex'])}>

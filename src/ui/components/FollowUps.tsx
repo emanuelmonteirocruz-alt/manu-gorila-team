@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { waLink } from '../../domain/whatsapp'
+import { waLink, waProblem } from '../../domain/whatsapp'
 import { Check, MessageCircle, UserX } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -113,25 +113,42 @@ export function WeeklyFeedback({ students }: { students: Student[] }) {
   const wk = feedbackWeek(now)
   const due = students.filter((s) => s.modality === 'online')
   const list = due.filter((s) => !done.includes(checkinOf(s, wk).key))
-  const sent = due.length - list.length
+  const sentList = due.filter((s) => done.includes(checkinOf(s, wk).key))
   if (!due.length) return null
+  const row = (s: Student, sent: boolean) => {
+    const c = checkinOf(s, wk)
+    return (
+      <div key={s.id} className="li" style={sent ? { opacity: 0.6 } : undefined}>
+        <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b>
+          <div className="muted">{c.label}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}</div>
+          <PhoneWarn phone={s.phone} />
+        </Link>
+        <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
+          <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(s.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(c.key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Reenviar' : 'Enviar'}</a>
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Check-in dos alunos</h2><span className="muted">{sent} de {due.length} enviados</span></div>
-      {!list.length ? <div className="empty"><Check size={15} /> Todos os check-ins desta semana foram enviados.</div> : (
-        <div className="list-compact">
-          {list.map((s) => (
-            <div key={s.id} className="li">
-              <Link to={`/alunos/${s.id}`} style={{ minWidth: 0 }}><b>{titleCase(s.full_name)}</b><div className="muted">{checkinOf(s, wk).label}{s.next_change_date ? ` · troca ${fmtBR(s.next_change_date).slice(0, 5)}` : ''}{!s.phone ? ' · sem telefone na ficha' : ''}</div></Link>
-              <span className="row" style={{ gap: 6, flexWrap: 'nowrap', flexShrink: 0 }}>
-                <a className="btn sm primary" href={waLink(s.phone, checkinOf(s, wk).text)} target="_blank" rel="noreferrer" onClick={() => mark(checkinOf(s, wk).key)}><MessageCircle size={15} strokeWidth={1.8} /> Enviar</a>
-              </span>
-            </div>
-          ))}
-        </div>
+      <div className="card-head"><h2><MessageCircle size={16} strokeWidth={1.8} /> Check-in dos alunos</h2><span className="muted">{sentList.length} de {due.length} enviados</span></div>
+      {!list.length && <div className="empty"><Check size={15} /> Todos os check-ins desta semana foram enviados.</div>}
+      <div className="list-compact">{list.map((s) => row(s, false))}</div>
+      {sentList.length > 0 && (
+        <details style={{ marginTop: 6 }}>
+          <summary className="muted" style={{ cursor: 'pointer', fontWeight: 600 }}>Já enviados ({sentList.length}): reenviar se não abriu a conversa</summary>
+          <div className="list-compact">{sentList.map((s) => row(s, true))}</div>
+        </details>
       )}
     </div>
   )
+}
+
+/** Aviso quando o telefone da ficha não forma um número de WhatsApp (o WhatsApp abriria "Enviar para…"). */
+export function PhoneWarn({ phone }: { phone?: string | null }) {
+  if (!phone?.trim()) return <div style={{ fontSize: 12, color: "var(--danger)", fontWeight: 600 }}>sem telefone na ficha: o WhatsApp vai pedir a conversa</div>
+  const p = waProblem(phone)
+  return p ? <div style={{ fontSize: 12, color: "var(--danger)", fontWeight: 600 }}>número "{phone}" incompleto: coloque o DDD na ficha</div> : null
 }
 
 /** CHECK-IN no perfil do aluno (consultoria): mandar a qualquer dia; marca como enviado no ciclo (o Painel também vê). */
@@ -147,7 +164,8 @@ export function StudentFeedback({ student }: { student: Student }) {
         <span><MessageCircle size={16} strokeWidth={1.8} style={{ verticalAlign: -3 }} /> <b>{c.full ? `Check-in completo ${w.title}` : 'Check-in rápido da semana'}</b> {sent ? <span className="tag ok">{c.full ? 'enviado neste ciclo' : 'enviado nesta semana'}</span> : <span className="muted">ainda não enviado{student.next_change_date ? ` · troca ${fmtBR(student.next_change_date).slice(0, 5)}` : ''}</span>}</span>
         <a className={`btn sm ${sent ? '' : 'primary'}`} href={waLink(student.phone, c.text)} target="_blank" rel="noreferrer" onClick={() => mark(key)}><MessageCircle size={15} strokeWidth={1.8} /> {sent ? 'Enviar de novo' : 'Enviar check-in'}</a>
       </div>
-      <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos e se algo incomodou. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}{!student.phone && ' Sem telefone na ficha: o WhatsApp pede para escolher a conversa.'}</div>
+      <PhoneWarn phone={student.phone} />
+      <div className="muted">{c.full ? `Treinos feitos, esforço de 0 a 10, dor ou dificuldade e o que ajustar ${w.next}.` : `Meio do ciclo: treinos feitos e se algo incomodou. O completo vai na semana antes da troca${student.next_change_date ? ` (${fmtBR(student.next_change_date).slice(0, 5)})` : ''}.`}</div>
     </div>
   )
 }
