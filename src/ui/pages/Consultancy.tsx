@@ -5,7 +5,7 @@ import { changeStatus, PERIOD_LABEL } from '../../domain/plan'
 import { fmtBR } from '../../engine/metrics'
 import { deleteStudent } from '../../data/repo'
 import { ChangeBadge, ConfirmButton, PayBadge, useStudents } from '../components/common'
-import { consultState, usePastedWeeks } from '../components/ConsultancyBar'
+import { consultState, usePastedWeeks, WeekStrip } from '../components/ConsultancyBar'
 
 /** Aba Consultoria: todos os alunos online, com as semanas enviadas, a próxima a colar e atalhos. */
 const PAY: Record<string, string> = { em_dia: 'Em dia', pendente: 'Pendente', atrasado: 'Atrasado' }
@@ -49,6 +49,7 @@ export default function Consultancy() {
                 <div className={s.payment_status === 'atrasado' ? 'late-txt' : s.payment_status === 'pendente' ? 'warn-txt' : 'ok-txt'}><b>{PAY[s.payment_status]}</b></div>
               </div>
             </div>
+            <WeekStrip pasted={pasted[s.id]} next={c.next} span={c.span} />
             <Link className="btn primary big wide" to={`/consultoria?aluno=${s.id}&semana=${c.next}`}>
               <MessageSquare size={18} strokeWidth={1.8} /> Colar semana de {fmtBR(c.next).slice(0, 5)}
             </Link>
