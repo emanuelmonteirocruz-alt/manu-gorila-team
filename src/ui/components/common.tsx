@@ -15,7 +15,7 @@ import {
 } from '../../domain/types'
 import { addDays, computeHourlyRate, fmtBR, toISODate } from '../../engine/metrics'
 import { waProblem } from '../../domain/whatsapp'
-import { PERIOD_LABEL, dueOverdue, paidUpdate, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
+import { PERIOD_LABEL, dueOverdue, nextMonthSameDay, paidUpdate, prevMonthSameDay, nextWeekToPaste, suggestNextChange, type PlanPeriod } from '../../domain/plan'
 
 export function MicroTag({ m, blocked }: { m?: Microcycle | null; blocked?: boolean }) {
   if (!m) return <span className="tag">—</span>
@@ -146,9 +146,20 @@ export function StudentForm({ initial, onSaved, onDeleted, withAnamnese }: { ini
             <span className="muted">{s.hourly_rate_manual ? 'Editado manualmente' : 'Calculado: plano ÷ sessões no mês'}</span>
           </label>
         )}
-        <label className="f">Data de vencimento<input id="st-due" type="date" value={s.due_date ?? ''} onChange={(e) => set('due_date', e.target.value || null)} />
-          {dueOverdue(s) && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--danger)' }}>O vencimento passou e o status está "Em dia": confira se ele pagou.</span>}
-          {onDeleted && (s.due_date || s.due_day) && (
+        <label className="f">Último pagamento (dia em que pagou)
+          <input id="st-paid" type="date" value={s.due_date ? prevMonthSameDay(s.due_date) : ''} onChange={(e) => {
+            const v = e.target.value
+            if (!v) { set('due_date', null); return }
+            const due = nextMonthSameDay(v)
+            setStatus(null)
+            setS((x) => ({ ...x, due_date: due, payment_status: due >= toISODate(new Date()) ? 'em_dia' : x.payment_status }))
+          }} />
+          {s.due_date
+            ? <span style={{ fontSize: 13, fontWeight: 600, color: dueOverdue(s) || s.due_date < toISODate(new Date()) ? 'var(--danger)' : 'var(--ink)' }}>
+                {s.due_date < toISODate(new Date()) ? `Venceu em ${fmtBR(s.due_date)}` : `Próximo vencimento: ${fmtBR(s.due_date)}`}
+              </span>
+            : <span className="muted" style={{ fontWeight: 400 }}>O próximo vencimento é calculado: mesmo dia, no mês seguinte.</span>}
+          {onDeleted && s.due_date && s.due_date <= toISODate(new Date()) && (
             <button type="button" className="btn sm" style={{ justifySelf: 'start' }} onClick={async () => {
               const upd = { ...latest.current, ...paidUpdate(latest.current) }
               setS(upd); await saveStudent(upd)

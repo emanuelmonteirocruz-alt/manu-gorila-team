@@ -15,3 +15,8 @@ test('vencido com status em dia', () => {
   expect(dueOverdue({ due_date: '2026-12-16', payment_status: 'em_dia' }, '2026-11-28')).toBe(false)
   expect(dueOverdue({ due_date: '2026-11-16', payment_status: 'atrasado' }, '2026-11-28')).toBe(false)
 })
+import { prevMonthSameDay } from '../domain/plan'
+test('último pagamento ↔ vencimento', () => {
+  expect(prevMonthSameDay('2026-12-04')).toBe('2026-11-04')
+  expect(prevMonthSameDay('2027-01-10')).toBe('2026-12-10')
+})

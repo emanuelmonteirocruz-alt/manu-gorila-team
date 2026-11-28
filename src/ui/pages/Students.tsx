@@ -3,15 +3,15 @@ import { Bell, Check, Search, Trash2, X } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { changeStatus, dueOverdue, paidUpdate, PERIOD_LABEL } from '../../domain/plan'
 import type { Student } from '../../domain/types'
-import { addDays, fmtBR, toISODate } from '../../engine/metrics'
+import { fmtBR, toISODate } from '../../engine/metrics'
 import { deleteStudent, newStudent } from '../../data/repo'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, save } from '../../data/db'
 import { titleCase } from '../format'
 import { ChangeBadge, ConfirmButton, StudentForm, useStudents } from '../components/common'
 
-/** "Pagou" aparece para quem tem pagamento pendente, atrasado, vencido ou vencendo em até 7 dias. */
-const showPaid = (s: Student) => s.payment_status !== 'em_dia' || dueOverdue(s) || (!!s.due_date && s.due_date <= addDays(toISODate(new Date()), 7))
+/** "Pagou" só aparece quando o pagamento já venceu (hoje ou antes) ou o status é pendente/atrasado — quem já pagou o mês não tem o botão. */
+const showPaid = (s: Student) => s.payment_status !== 'em_dia' || (!!s.due_date && s.due_date <= toISODate(new Date()))
 
 export default function Students() {
   const students = useStudents()

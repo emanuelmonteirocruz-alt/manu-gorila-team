@@ -76,3 +76,11 @@ export function paidUpdate(s: Pick<Student, 'due_date' | 'due_day'>, today = toI
 export function dueOverdue(s: Pick<Student, 'due_date' | 'payment_status'>, today = toISODate(new Date())): boolean {
   return !!s.due_date && s.due_date < today && s.payment_status === 'em_dia'
 }
+
+/** Mesmo dia no mês anterior (o "último pagamento" a partir do próximo vencimento). */
+export function prevMonthSameDay(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1
+  const last = new Date(py, pm, 0).getDate()
+  return `${py}-${String(pm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`
+}
